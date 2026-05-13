@@ -1,0 +1,53 @@
+---
+title: "Concrete's Multi-Layer Vault Security Architecture"
+sidebarTitle: "Overview"
+description: "How Concrete separates vault custody, strategy execution, and independent oversight into three enforced layers so no single point can compromise user funds."
+---
+
+Concrete's security architecture is built around a single principle: risk management must be encoded into how capital moves, not delegated to the people who move it. Rather than relying on a one-time audit or trusted operators, Concrete separates vault infrastructure into three distinct layers — each with its own controls, audit coverage, and oversight mandate.
+
+<Note>
+  Vault security is not a single audit. It is a continuous system. Concrete combines smart contract audits, an ongoing bug bounty program, independent accounting reconciliation, and real-time threat prevention to maintain security across the full lifecycle of every vault.
+</Note>
+
+## Three-layer security architecture
+
+<Steps>
+  <Step title="Vault Infrastructure Layer">
+    This layer manages all deposits, withdrawals, and on-chain accounting. It is the custody foundation that every vault operation runs on.
+
+    Concrete's vault infrastructure contracts have been independently audited by **Halborn** and **Zellic**, with a focus on uniform custody controls and access controls across all vaults. The audit scope covers the core contract logic that governs how assets enter and exit the system — ensuring that the rules enforced on-chain match the architecture's intent.
+  </Step>
+
+  <Step title="Curator Strategy Layer">
+    This layer executes yield strategies within strict, programmable limits set at the protocol level. Curators can direct capital to approved protocols, but they cannot move funds off-chain without explicit depositor consent, cannot interact with non-whitelisted contracts, and cannot exceed predefined allocation caps.
+
+    Any off-chain components require explicit depositor consent, with all associated risks transparently recorded on-chain. The result is a strategy layer where curator discretion operates only within the bounds the contract allows — not within the bounds the curator chooses.
+  </Step>
+
+  <Step title="Oversight & Verification Layer">
+    This layer provides continuous, independent verification that the layers below are operating as designed.
+
+    - **TRES** delivers daily independent accounting reconciliation, providing proof-of-balance without relying on internal systems.
+    - **Hypernative** monitors vault activity in real time, flagging anomalous behavior, unexpected transactions, and threshold changes — and stops threats before they execute.
+
+    This separation ensures that vault safety does not rely on curator behavior. It is enforced by contract logic and verified by independent partners operating outside the vault system itself.
+  </Step>
+</Steps>
+
+## Why separation of layers matters
+
+Most vault failures in DeFi happen when custody, execution, and accounting are fused together. When these responsibilities are co-located, a single compromised component — or a single bad decision — can affect everything downstream.
+
+Concrete's three-layer model prevents this by making each layer independently accountable. Curators manage strategy, not custody. Withdrawals remain under protocol control, not human discretion. Independent partners verify every balance and transaction. No single actor can compromise the full system.
+
+## Explore security in depth
+
+<CardGroup cols={2}>
+  <Card title="Audits" icon="file-check" href="/security/audits">
+    See which firms have audited Concrete's contracts, what the audit scope covers, and how the bug bounty program works.
+  </Card>
+  <Card title="Monitoring" icon="activity" href="/security/monitoring">
+    Learn how Hypernative and ZeroShadow enforce real-time, pre-execution security across vault operations and cross-chain workflows.
+  </Card>
+</CardGroup>

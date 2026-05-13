@@ -1,0 +1,70 @@
+---
+title: "Concrete Smart Contract Audits and Bug Bounty Program"
+sidebarTitle: "Audits"
+description: "Independent audits from Cantina, Code4rena, Halborn, and Zellic cover Concrete's vault infrastructure, custody controls, and access control logic."
+---
+
+Concrete's smart contracts are audited by leading independent security firms before deployment. These audits are not a formality — they are the mechanism by which public audit reports replace marketing claims with verifiable evidence. Every audit targets the contract logic that governs how capital enters, moves through, and exits Concrete vaults.
+
+<Note>
+  Public audit reports are available from Concrete's security partners. Reviewing these reports gives you direct, independent verification of the contract behavior rather than relying on Concrete's own representations.
+</Note>
+
+## Audit coverage
+
+Concrete's contracts have been reviewed by four independent firms, each bringing a distinct methodology:
+
+<AccordionGroup>
+  <Accordion title="Halborn">
+    Halborn conducted an audit of Concrete's vault infrastructure layer, covering the core deposit, withdrawal, and accounting contracts. The audit scope includes uniform custody controls and access controls that govern how assets are held and moved across all vaults.
+  </Accordion>
+
+  <Accordion title="Zellic">
+    Zellic audited Concrete's vault infrastructure layer alongside Halborn, providing independent coverage of the same custody and access control scope. Having two firms review the same layer provides cross-verification that neither audit alone can supply.
+  </Accordion>
+
+  <Accordion title="Cantina">
+    Cantina reviewed Concrete's contracts as part of the security program covering the broader vault and strategy architecture. Concrete works with Cantina on an ongoing basis as part of its continuous security process.
+  </Accordion>
+
+  <Accordion title="Code4rena">
+    Code4rena's competitive audit model engages a wide pool of independent security researchers to surface issues across the codebase. This complements firm-led audits by bringing a broader range of perspectives to the review.
+  </Accordion>
+</AccordionGroup>
+
+## What audits cover
+
+Each audit targets the contract logic that institutional allocators and depositors depend on:
+
+- **Uniform custody controls** — ensuring assets are held and released only according to contract-enforced rules, not operator discretion
+- **Access controls** — verifying that only authorized roles can trigger sensitive operations
+- **Vault infrastructure integrity** — confirming that deposit accounting, withdrawal processing, and share pricing behave as specified
+
+## Role-based automation security
+
+Concrete's Earn V2 architecture introduces a clear separation of responsibilities at the automation level. Rather than giving a single role broad vault control, Earn V2 assigns specific, bounded permissions to four distinct roles:
+
+<CardGroup cols={2}>
+  <Card title="Vault Manager" icon="settings">
+    Controls fees, limits, the withdrawal queue, and general vault parameters. High-impact configuration changes require this role.
+  </Card>
+  <Card title="Allocator" icon="sliders">
+    Controls strategy allocations, withdrawal processing, and the unwinding of funds for users. Operational capital flows run through this role.
+  </Card>
+  <Card title="Strategy Manager" icon="layers">
+    Approves or removes strategies from the vault. Adding a new yield source requires this role.
+  </Card>
+  <Card title="Hook Manager" icon="zap">
+    Controls the configuration of hooks for pre- and post-deposit logic, and manages withdrawal hooks. Behavioral customization is scoped to this role.
+  </Card>
+</CardGroup>
+
+This role separation keeps high-impact governance changes under tight controls while allowing routine operations — such as daily rebalancing and withdrawal processing — to run without delay. Each role can only act within its defined scope; no single role can override another.
+
+## Bug bounty program
+
+Concrete maintains an ongoing bug bounty program as part of its security process. The program runs continuously alongside formal audits, providing an additional channel for independent researchers to identify and responsibly disclose issues. This means security coverage does not end when an audit cycle closes.
+
+<Tip>
+  If you identify a potential vulnerability in Concrete's smart contracts, contact the security team through the responsible disclosure channel before making any information public.
+</Tip>

@@ -1,0 +1,80 @@
+---
+title: "Concrete Docs: Automated DeFi Vault Yield Infrastructure"
+description: "Earn institutional-grade yield on your crypto assets with one deposit. Concrete automates strategy allocation, rebalancing, and compounding across DeFi."
+mode: custom
+---
+
+<div className="mx-auto flex w-full max-w-[720px] flex-col gap-12 px-4 py-10 lg:gap-14 lg:py-16">
+  <div className="flex flex-col items-center gap-6">
+    <div className="flex max-w-[480px] flex-col gap-2 text-center">
+      <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+        Earn yield without the complexity
+      </h1>
+      <p className="text-balance text-base text-gray-600 dark:text-gray-400">
+        Concrete is institutional-grade DeFi infrastructure. Deposit once and let automated vault strategies allocate, rebalance, and compound your yield across the best on-chain opportunities. Use the tabs above to explore the docs or search with <kbd>⌘</kbd> <kbd>K</kbd>.
+      </p>
+    </div>
+  </div>
+
+  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+    <a
+      href="/introduction"
+      className="group flex flex-col outline-none"
+    >
+      <div
+        className="kb-feature-card relative flex h-[170px] items-center justify-center overflow-hidden rounded-2xl ring-1 ring-gray-100 transition group-hover:ring-gray-200 dark:ring-white/[0.08] dark:group-hover:ring-white/15 saturate-50 group-hover:saturate-100"
+      >
+        <div className="relative flex items-center justify-center">
+          <Icon icon="vault" size={36} className="!bg-white" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1 pt-4">
+        <span className="text-base font-medium text-gray-900 dark:text-gray-50">What is Concrete?</span>
+        <span className="text-sm leading-5 text-gray-600 dark:text-gray-400">
+          Learn how Concrete's automated vault infrastructure generates yield on your assets without manual effort.
+        </span>
+      </div>
+    </a>
+
+    <a
+      href="/vaults/depositing"
+      className="group flex flex-col outline-none"
+    >
+      <div
+        className="kb-feature-card relative flex h-[170px] items-center justify-center overflow-hidden rounded-2xl ring-1 ring-gray-100 transition group-hover:ring-gray-200 dark:ring-white/[0.08] dark:group-hover:ring-white/15 saturate-50 group-hover:saturate-100"
+      >
+        <div className="relative flex items-center justify-center">
+          <Icon icon="arrow-down-to-line" size={36} className="!bg-white" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1 pt-4">
+        <span className="text-base font-medium text-gray-900 dark:text-gray-50">Deposit to a vault</span>
+        <span className="text-sm leading-5 text-gray-600 dark:text-gray-400">
+          Choose a vault, connect your wallet, and start earning risk-adjusted yield with a single deposit.
+        </span>
+      </div>
+    </a>
+  </div>
+
+  <div className="flex flex-col gap-4">
+    <h2 className="text-lg font-medium tracking-tight text-gray-900 dark:text-gray-50">Explore the docs</h2>
+
+    <Columns cols={2}>
+      <Card title="Earn Vaults" icon="trending-up" iconType="light" href="/vaults/overview">
+        How vaults work, vault shares, NAV, eRate, and withdrawals.
+      </Card>
+      <Card title="Security" icon="shield-check" iconType="light" href="/security/overview">
+        Audits, real-time monitoring, and Concrete's multi-layer security model.
+      </Card>
+    </Columns>
+
+    <Columns cols={2}>
+      <Card title="Enterprise" icon="building-2" iconType="light" href="/enterprise/overview">
+        Custom vault deployment, AssetCX, and institutional solutions.
+      </Card>
+      <Card title="Ecosystem" icon="network" iconType="light" href="/ecosystem/overview">
+        Supported chains, DeFi protocol integrations, and partners.
+      </Card>
+    </Columns>
+  </div>
+</div>

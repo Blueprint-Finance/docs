@@ -1,0 +1,68 @@
+---
+title: "Real-Time Vault Monitoring with Hypernative and ZeroShadow"
+sidebarTitle: "Monitoring"
+description: "Hypernative Guardian and ZeroShadow stop threats before execution by validating transaction destinations and monitoring vault activity in real time."
+---
+
+Concrete's monitoring model is built around a single insight: traditional security systems monitor and react, but institutional-grade infrastructure must prevent. Rather than alerting after a problem occurs, Concrete integrates Hypernative Guardian and ZeroShadow directly into the transaction approval flow — so threats are stopped before they ever reach the signing threshold.
+
+<Note>
+  The controls described on this page apply to specific configured workflows. They may not apply to all transactions, chains, assets, or operational scenarios.
+</Note>
+
+## Hypernative Guardian
+
+Hypernative Guardian is integrated directly into Concrete's transaction approval flow. Before any vault transaction can be signed, Hypernative evaluates it in real time.
+
+Hypernative monitors vault activity across three dimensions:
+
+- **Anomalous behavior** — transaction patterns that deviate from established baseline activity
+- **Threshold changes** — vault parameters or balances moving outside expected ranges
+- **Unexpected transactions** — interactions with contracts or destinations not aligned with approved operations
+
+When Hypernative flags a transaction, it does not simply generate an alert. The transaction is blocked before it reaches the signing threshold. Security becomes a prerequisite for execution, not a notification that follows it.
+
+All vaults built on Earn V2 infrastructure include Hypernative monitoring on Fireblocks trading wallets and multisig wallets by default.
+
+## ZeroShadow
+
+ZeroShadow architected the real-time pre-execution enforcement layer that Hypernative operates within for Concrete's cross-chain workflows. ZeroShadow's predefined emergency controls can pause vault activity when specified risk conditions are met, providing a circuit-breaker capability that does not depend on manual intervention.
+
+Together, Hypernative and ZeroShadow implement a security posture where the system defines what results are permissible — and rejects everything else by default.
+
+## Destination Gap prevention
+
+MPC wallets like Fireblocks and Fordefi solve key management and transaction authorization. But they have a structural limitation in cross-chain workflows.
+
+**The Destination Gap** is the gap between what an MPC policy approves and where funds ultimately land. In many bridge transactions, the final destination address is embedded inside contract calldata. From the MPC policy's perspective, the transaction is simply calling an approved bridge contract. The actual recipient address on the destination chain is not separately enforced.
+
+A transaction can pass every policy check and still send funds to the wrong place.
+
+Concrete addresses this by integrating Hypernative Guardian — architected by ZeroShadow — directly into the bridge transaction approval flow:
+
+<Steps>
+  <Step title="Transaction is initiated">
+    A bridge transaction is submitted to move capital from one chain to another through an approved bridge contract.
+  </Step>
+  <Step title="Transaction is simulated">
+    Before any signing occurs, the transaction is simulated in real time. Hypernative decodes the bridge call to extract the actual destination address on the target chain.
+  </Step>
+  <Step title="Destination is validated">
+    The decoded destination address is checked against a dynamic whitelist managed at the infrastructure level. The whitelist can be updated as new chains and strategies are added.
+  </Step>
+  <Step title="Transaction is approved or rejected">
+    If the destination is on the approved whitelist, the transaction proceeds to signing. If the destination is not approved, the transaction is rejected before signature completion — it never reaches the signing threshold.
+  </Step>
+</Steps>
+
+This shifts security from outcome-based trust to outcome-based enforcement. No individual user in the covered workflow can unilaterally route funds to a non-approved destination through that workflow, regardless of their authorization level.
+
+## TRES accounting reconciliation
+
+Concrete partners with TRES to provide independent daily accounting reconciliation for all vaults built on Earn V2 infrastructure. TRES operates as a third party outside the vault system, confirming that on-chain balances match reported positions and that accounting is accurate without relying on Concrete's internal data.
+
+This provides depositors and institutional counterparties with independent proof-of-balance on a daily basis — the same standard that institutional fund administration requires.
+
+<Info>
+  The three-party accounting system in Earn V2 — Transaction Proposer, Independent Signer, and Smart Contract Safeguards — runs on a daily automated cycle. Updates that fall outside realistic bounds based on target APY require owner intervention before the vault accepts them.
+</Info>

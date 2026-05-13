@@ -1,0 +1,77 @@
+---
+title: "Key Concepts: Vaults, eRate, NAV, and ct[Asset] Tokens"
+description: "Understand the core terminology behind Concrete vaults — from how shares are priced to how curators operate within strict encoded limits."
+---
+
+Before you deposit, it helps to understand the handful of concepts that govern how Concrete vaults work, how your yield is tracked, and how the system protects depositors. Each term below maps directly to something you will see on the Concrete dashboard or encounter in the documentation.
+
+<AccordionGroup>
+  <Accordion title="Vault">
+    A Concrete vault is an automated yield strategy container. You deposit a supported asset (such as WBTC, USDT, or USDE), and the vault deploys that capital across a bundle of yield-generating strategies — lending markets, liquidity pools, restaking layers, and more.
+
+    Each vault is dedicated to a single underlying asset and has its own set of strategies, risk parameters, and allocation caps. The vault contract enforces these parameters on-chain, meaning no party — including the vault's curator — can move capital outside the defined boundaries.
+
+    From your perspective, a vault behaves like a single product: deposit once, earn automatically, withdraw when you need to.
+  </Accordion>
+
+  <Accordion title="eRate (Exchange Rate)">
+    The **exchange rate (eRate)** tells you how much one vault share is worth in the vault's underlying asset.
+
+    When you deposit, your assets are converted into vault shares at the current eRate. As the vault earns yield, the eRate rises — meaning each share is worth more of the underlying asset than when you deposited. You do not receive separate yield payments; the yield accrues directly into the eRate.
+
+    **Example:** If you deposit 100 USDT when the eRate is 1.00, you receive 100 vault shares. If the eRate later rises to 1.05, those same 100 shares are worth 105 USDT — a 5% gain with no additional action on your part.
+
+    The eRate never decreases due to yield accrual. It reflects the vault's cumulative performance since inception.
+  </Accordion>
+
+  <Accordion title="NAV (Net Asset Value)">
+    **NAV** is the total dollar value of everything the vault holds across all of its positions and strategies at a given point in time.
+
+    Concrete's systems calculate NAV daily by summing the value of every position the vault holds and recording the total on-chain. The eRate (share price) is derived from this figure: **NAV ÷ total shares outstanding = price per share**.
+
+    When the vault earns yield, the NAV increases. Because the number of shares outstanding does not change (unless new deposits or withdrawals occur), each share becomes worth more. NAV is the vault's scoreboard — it tells you how much the entire pool is worth, and your shares represent your proportional piece of it.
+  </Accordion>
+
+  <Accordion title="ct[Asset] tokens">
+    When you deposit into a Concrete vault, you receive **ct[Asset]** tokens in return. These are your vault shares — yield-bearing tokens that represent your proportional claim on the vault's total holdings.
+
+    The token name reflects the underlying asset. For example:
+    - Depositing USDT into the DeFi USDT vault gives you **ctDefiUSDT**
+    - Depositing WBTC gives you **ctWBTC**
+
+    ct[Asset] tokens appreciate in value as the vault earns yield (tracked by the eRate). They are also composable across DeFi — they can be used for liquidity, trading, and leverage, and they form the base layer for structured products built on Concrete infrastructure.
+
+    To exit your position, you return ct[Asset] tokens to the vault and receive the underlying asset at the current eRate.
+  </Accordion>
+
+  <Accordion title="Active management">
+    Concrete vaults do not passively hold assets in a single protocol. The vault continuously deploys capital between different yield-generating strategies — shifting toward better opportunities and pulling back from underperforming ones as market conditions change.
+
+    This process includes:
+    - Rebalancing across lending markets, liquidity pools, and restaking layers
+    - Compounding rewards back into strategies
+    - Rotating toward better risk-adjusted opportunities when markets shift
+
+    Active management is what separates Concrete vaults from simpler, static yield products. Depositors who remain in the vault longer capture more rebalancing cycles and benefit from compounding that builds on itself over time.
+  </Accordion>
+
+  <Accordion title="Withdrawal queue">
+    When you request a withdrawal from a Concrete vault, your request enters a **daily processing cycle** rather than executing instantly.
+
+    This is a deliberate design choice that protects all depositors. An instant withdrawal mechanism would force the vault to unwind positions quickly, potentially selling at unfavorable prices and reducing the NAV for everyone remaining in the vault. The orderly queue allows the vault to exit positions carefully, preserving value for the whole pool.
+
+    Typical processing completes within 7 days. Timing may vary based on vault utilization, market conditions, and the complexity of unwinding active strategy positions.
+  </Accordion>
+
+  <Accordion title="Curator">
+    A **curator** is the entity responsible for managing strategy within a Concrete vault. Curators decide which protocols to allocate to, how to rebalance, and how to respond to market conditions — but they operate strictly within limits encoded in the vault contract.
+
+    Key constraints on curators:
+    - Curators can only interact with **whitelisted protocols** approved by the vault's configuration.
+    - **Allocation caps** prevent over-concentration in any single strategy.
+    - Curators manage strategy but not custody — withdrawals remain under protocol control, not curator discretion.
+    - All curator addresses, fees, and performance are visible on-chain.
+
+    This separation of duties is central to Concrete's security model. The vault contract enforces the rules; the curator operates within them. Trust is placed in the architecture, not in individual actors.
+  </Accordion>
+</AccordionGroup>

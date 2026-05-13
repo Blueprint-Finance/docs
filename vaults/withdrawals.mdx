@@ -1,0 +1,76 @@
+---
+title: "How the Withdrawal Queue Works in Concrete Earn Vaults"
+sidebarTitle: "Withdrawals"
+description: "Request a withdrawal, enter the daily processing queue, and receive your assets within a typical 7-day cycle as the vault unwinds positions in an orderly way."
+---
+
+Concrete vaults use a queued withdrawal model. Rather than executing instantly, withdrawal requests enter a daily processing cycle that allows the vault to unwind positions in an orderly way. This design protects every depositor — including you — by preventing rushed position exits at unfavorable prices that would reduce the value of the entire pool.
+
+## How the withdrawal queue works
+
+When you request a withdrawal, the vault records your request and queues it for the next processing cycle. The Allocator role — part of Concrete's role-based automation system — processes queued withdrawals daily, unwinding the necessary positions and returning funds to depositors in order. This automated cycle runs without manual intervention while maintaining institutional-grade controls.
+
+Typical processing is within 7 days. The exact timing depends on market conditions and the complexity of unwinding the vault's current positions.
+
+## Withdrawal steps
+
+<Steps>
+  <Step title="Go to your vault position">
+    Open [app.concrete.xyz/earn](https://app.concrete.xyz/earn) and connect your wallet. Navigate to the vault you want to withdraw from.
+  </Step>
+  <Step title="Enter the withdrawal amount">
+    Enter the amount you want to withdraw, or click **Max** to request a full withdrawal. The amount is denominated in the underlying asset (for example, USDT or WBTC).
+  </Step>
+  <Step title="Submit the withdrawal request">
+    Click **Withdraw** and confirm the transaction in your wallet. Your `ct[Asset]` tokens are queued for redemption.
+  </Step>
+  <Step title="Wait for processing">
+    Your request enters the daily processing cycle. You do not need to take any further action. The vault unwinds the relevant positions and prepares your funds.
+  </Step>
+  <Step title="Receive your assets">
+    Once your withdrawal is processed, the underlying assets are returned to your wallet. You will no longer hold the corresponding `ct[Asset]` tokens.
+  </Step>
+</Steps>
+
+## Per-cycle withdrawal caps
+
+Some vaults apply a withdrawal cap that limits the total volume of redemptions processed in a single cycle, expressed as a percentage of vault TVL. Caps work alongside the processing schedule to keep batch sizes predictable and aligned with each strategy's unwind capacity.
+
+When requests in a cycle stay under the cap, the batch processes normally at the scheduled time. When requests exceed the cap, only requests up to the cap threshold are processed in that cycle. The remainder roll forward to subsequent cycles in the order they were originally submitted (first in, first out). Your position continues to earn yield until your portion is processed.
+
+<Info>
+  **Example — weekly vault with a 20% cap**
+
+  A vault processes withdrawals every Tuesday with a cap of 20% of TVL per cycle.
+
+  If Alice submits a request on Friday, May 29, it joins the queue for the next batch on Tuesday, June 3. If total requests that week stay under the 20% cap, Alice receives her funds by Friday, June 6.
+
+  If the vault has $10M in TVL and $3M in total requests that week (30% of TVL), only the first $2M is processed on June 3 in FIFO order. If Alice's request falls beyond the $2M threshold, her portion rolls forward to the next cycle on Tuesday, June 10. She continues earning yield while she waits, and her funds arrive by Friday, June 13.
+</Info>
+
+<Tip>
+  The withdrawal countdown shown in the app reflects rollover-adjusted dates, so you always see the cycle your request is expected to clear in.
+</Tip>
+
+## Frequently asked questions
+
+<AccordionGroup>
+  <Accordion title="Do my deposits continue earning yield while in the queue?">
+    Yes. Your position continues to earn yield until your withdrawal is processed, including across cycles if your request rolls forward due to a withdrawal cap.
+  </Accordion>
+  <Accordion title="Can I cancel a withdrawal request?">
+    Yes, but only before processing has begun. Once your request enters processing at the scheduled cutoff, it can no longer be cancelled.
+  </Accordion>
+</AccordionGroup>
+
+## Why queued withdrawals protect all depositors
+
+Instant withdrawals would force the vault to liquidate positions at whatever price is available at that moment — potentially at a significant discount during volatile markets. A queued model gives the vault time to exit positions carefully, at favorable prices, preserving the value of the entire pool for all remaining depositors. This is the same principle that institutional funds and managed vehicles use to protect capital during redemption periods.
+
+<Note>
+  Processing times may vary based on market conditions and the complexity of unwinding active strategy positions. While typical processing is within 7 days, timing is not guaranteed. Concrete's automated three-party accounting system updates the vault's NAV daily and processes queued withdrawals without manual oversight.
+</Note>
+
+<Warning>
+  Concrete vaults are designed for longer time horizons. If you withdraw shortly after depositing, execution costs — which are absorbed by the vault when entering positions — may not yet have been offset by yield earned. Short holding periods may result in receiving less than your initial deposit amount.
+</Warning>

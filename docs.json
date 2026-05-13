@@ -1,0 +1,121 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "luma",
+  "name": "Concrete",
+  "description": "Institutional-grade DeFi vault infrastructure. Deposit once, earn automated risk-adjusted yield across multiple chains.",
+  "colors": {
+    "primary": "#f2e28a",
+    "light": "#7c6c44",
+    "dark": "#0c0c08"
+  },
+  "favicon": "https://media.brand.dev/48744ac6-4d04-4ac2-9417-9d19605ea71e.png",
+  "icons": {
+    "library": "lucide"
+  },
+  "metadata": {
+    "timestamp": true
+  },
+  "contextual": {
+    "options": ["copy", "view", "assistant", "mcp", "add-mcp"]
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "how-it-works",
+              "key-concepts"
+            ]
+          },
+          {
+            "group": "Earn Vaults",
+            "pages": [
+              "vaults/overview",
+              "vaults/depositing",
+              "vaults/withdrawals",
+              "vaults/vault-shares",
+              "vaults/nav-and-erate"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/overview",
+              "security/audits",
+              "security/monitoring"
+            ]
+          },
+          {
+            "group": "Enterprise",
+            "pages": [
+              "enterprise/overview",
+              "enterprise/assetcx",
+              "enterprise/vault-setup"
+            ]
+          },
+          {
+            "group": "Ecosystem",
+            "pages": [
+              "ecosystem/overview",
+              "ecosystem/supported-chains",
+              "ecosystem/integrations"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": [
+              "api-reference/introduction"
+            ]
+          },
+          {
+            "group": "Metrics",
+            "pages": [
+              "api-reference/metrics/get-metrics"
+            ]
+          },
+          {
+            "group": "Strategy",
+            "pages": [
+              "api-reference/strategy/get-strategy"
+            ]
+          },
+          {
+            "group": "Vault",
+            "pages": [
+              "api-reference/vault/get-vault-performance",
+              "api-reference/vault/get-all-vault-performance",
+              "api-reference/vault/get-all-vaults-tvl"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Launch App",
+        "href": "https://app.concrete.xyz/earn"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Start Earning",
+      "href": "https://app.concrete.xyz/earn"
+    }
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/ConcreteXYZ"
+    }
+  }
+}

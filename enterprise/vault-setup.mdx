@@ -1,0 +1,100 @@
+---
+title: "Launch and Configure a Vault with Concrete Enterprise"
+sidebarTitle: "Vault Setup"
+description: "Configure roles, connect your wallets and data sources, and go live with a Concrete Enterprise vault — backed by automated daily NAV and real-time monitoring."
+---
+
+Concrete Enterprise deploys vaults in two phases: an initial setup phase where you configure your team's roles, integrations, and strategy, and an ongoing operations phase where automation handles the day-to-day execution. Both phases are designed to give your team full control over governance while keeping routine operations free from manual overhead.
+
+## Phase 1 — Vault setup
+
+Before your vault goes live, you define the structure that governs how it operates.
+
+<Steps>
+  <Step title="Configure roles and permissions">
+    Assign the four Earn V2 roles to members of your team. Each role carries a specific scope of authority, keeping high-impact changes under tight governance while allowing routine operations to run without delay.
+  </Step>
+  <Step title="Choose your UI integration">
+    Select a hosted UI for a ready-to-use front end, or integrate via the SDK to embed the vault experience directly into your own product.
+  </Step>
+  <Step title="Connect your strategy, wallets, and data sources">
+    Bring your own strategy logic, signing infrastructure, and external data feeds. Concrete Enterprise integrates with your existing setup rather than replacing it.
+  </Step>
+</Steps>
+
+## Earn V2 role structure
+
+Earn V2 introduces a clear separation of responsibilities across four roles. This keeps structural decisions under appropriate governance while letting daily operations flow without bottlenecks.
+
+<AccordionGroup>
+  <Accordion title="Vault Manager">
+    Controls the vault's fees, deposit and withdrawal limits, withdrawal queue configuration, and general vault parameters. This is the highest-level operational role and governs the overall structure of the vault.
+  </Accordion>
+  <Accordion title="Allocator">
+    Controls strategy allocations, withdrawal processing, and the unwinding of funds for users. The Allocator handles the capital flow side of vault operations — moving assets between strategies and ensuring withdrawals are processed correctly.
+  </Accordion>
+  <Accordion title="Strategy Manager">
+    Approves or removes strategies from the vault's whitelist. Adding a new yield source or removing an underperforming one requires action from the Strategy Manager, ensuring that no unauthorized strategies can receive allocations.
+  </Accordion>
+  <Accordion title="Hook Manager">
+    Controls the configuration of hooks for pre- and post-deposit logic, as well as withdrawal hook behavior. Hooks allow you to enforce custom conditions at deposit and withdrawal boundaries without modifying the core vault contract.
+  </Accordion>
+</AccordionGroup>
+
+## Phase 2 — Running the vault
+
+Once your vault is live, Concrete's automation layer takes over the routine operational work.
+
+<CardGroup cols={2}>
+  <Card title="Automated operations" icon="rotate-cw">
+    Deposits, withdrawals, and rebalancing run on autopilot. Your team does not need to manually trigger routine vault actions.
+  </Card>
+  <Card title="Daily accounting" icon="calendar">
+    Exchange rates and yield accounting update every day. Share prices stay accurate and composable without manual intervention.
+  </Card>
+  <Card title="Real-time monitoring" icon="activity">
+    Monitor positions and performance through a live operations portal. Configurable alerts notify you of accounting threshold breaches, LTV changes, and liquidity events.
+  </Card>
+  <Card title="Strategy flexibility" icon="plus-circle">
+    Add new strategies instantly after the vault is live. The Strategy Manager role allows new yield sources to be approved and activated without downtime.
+  </Card>
+</CardGroup>
+
+## Automated daily NAV
+
+Concrete runs a three-party automation cycle every day to update exchange rates, close epochs, and process withdrawals — all without manual steps.
+
+<Note>
+  The three-party NAV system operates as follows:
+
+  - **Transaction Proposer** — tracks the real-time value of strategist wallets and proposes asset updates based on current data.
+  - **Independent Signer** — operates on a separate system and confirms alignment before countersigning the proposed update.
+  - **Smart Contract Safeguards** — the vault accepts automation updates only within realistic ranges based on the target APY. Any update that exceeds those bounds requires owner intervention before it can be applied.
+
+  This system transforms vault operations from bi-weekly or weekly manual processes into daily automated updates that run without oversight while maintaining institutional-grade accuracy and security.
+</Note>
+
+## Data source integrations
+
+Concrete Enterprise integrates with the following external data sources to support position tracking and strategy execution:
+
+<CardGroup cols={3}>
+  <Card title="Hyperliquid" icon="bar-chart-2" />
+  <Card title="Debank" icon="bar-chart-2" />
+  <Card title="Binance" icon="bar-chart-2" />
+  <Card title="Lighter" icon="bar-chart-2" />
+  <Card title="Paradex" icon="bar-chart-2" />
+  <Card title="Tres" icon="bar-chart-2" />
+</CardGroup>
+
+TRES provides continuous, independent accounting reconciliation for every vault created on Earn V2 infrastructure, ensuring correct and verifiable reporting that meets institutional standards.
+
+## Security in production
+
+Concrete's security model does not stop at deployment. Hypernative monitors vault activity for anomalous behavior, threshold changes, and unexpected transactions in real time. ZeroShadow's predefined emergency controls can pause vault activity when specified risk conditions are met. All transactions are subject to automated checks and simulation before execution.
+
+Concrete works with external security firms including Halborn and Cantina, and maintains an ongoing bug bounty program as part of its continuous security process.
+
+## Get started
+
+To discuss a vault deployment, email **Vaults@Concrete.xyz** or submit an enterprise enquiry at [concrete.xyz/enterprise](https://concrete.xyz/enterprise). The Concrete Enterprise team will walk you through fit, configuration, and timeline.

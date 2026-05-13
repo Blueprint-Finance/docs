@@ -1,0 +1,64 @@
+---
+title: "Supported Blockchains for Concrete Vault Strategies"
+sidebarTitle: "Supported Chains"
+description: "The L1 and L2 networks where Concrete vaults operate. Concrete handles cross-chain complexity so you never need to manually bridge or manage gas."
+---
+
+Concrete vault strategies run across multiple Layer 1 and Layer 2 networks. When you deposit into a vault, Concrete's infrastructure handles routing, bridging, and cross-chain execution behind the scenes — you never need to manually bridge assets, swap gas tokens, or track positions on individual chains. The chains below represent the networks where Concrete vault strategies are active or integrated.
+
+<Note>
+  Asset and chain availability depend on current integrations and may change as the ecosystem evolves. Check the [Concrete app](https://app.concrete.xyz/earn) for the latest supported vaults and chains.
+</Note>
+
+## L1 networks
+
+<CardGroup cols={2}>
+  <Card title="Ethereum" icon="layers">
+    Concrete's home chain. The base layer for vault contracts, strategy execution, and cross-chain coordination. All Concrete infrastructure is rooted in Ethereum.
+  </Card>
+  <Card title="BNB Chain" icon="layers">
+    Binance's high-throughput EVM-compatible chain. Integrated to extend Concrete vault strategies to BNB Chain liquidity and yield opportunities.
+  </Card>
+  <Card title="Avalanche" icon="layers">
+    High-speed EVM-compatible L1. Supported for select vault strategies that access Avalanche-native protocols and liquidity.
+  </Card>
+  <Card title="Berachain" icon="layers">
+    An EVM-identical L1 that aligns security and liquidity through Proof of Liquidity. Concrete vaults can access Berachain-native DeFi protocols including Beraborrow.
+  </Card>
+</CardGroup>
+
+## L2 networks
+
+<CardGroup cols={2}>
+  <Card title="Arbitrum" icon="link">
+    Ethereum's leading optimistic rollup. A primary deployment target for Concrete vault strategies due to its deep liquidity and DeFi ecosystem.
+  </Card>
+  <Card title="Base" icon="link">
+    Coinbase's Ethereum L2, built on the OP Stack. Supported for vault strategies targeting Base-native protocols and assets.
+  </Card>
+  <Card title="Optimism" icon="link">
+    The original OP Stack L2. Concrete strategies can access Optimism-native yield and lending markets.
+  </Card>
+  <Card title="Morph" icon="link">
+    A stablecoin-focused L2 reimagining how value flows on-chain. Integrated to support stablecoin-denominated vault strategies.
+  </Card>
+  <Card title="Movement" icon="link">
+    A next-generation blockchain network powered by the Move VM. Supported for vault strategies targeting Movement-native liquidity.
+  </Card>
+  <Card title="Corn" icon="link">
+    Bitcoin's utility layer. Integrated to support vault strategies that use Bitcoin as productive collateral and yield-bearing assets.
+  </Card>
+  <Card title="Conduit" icon="link">
+    Rollup infrastructure used for deploying and operating Concrete-related chains and settlement layers.
+  </Card>
+</CardGroup>
+
+## How cross-chain execution works
+
+Concrete abstracts all cross-chain complexity at the vault level. When a vault strategy allocates to a protocol on a different chain, Concrete handles:
+
+- Routing capital across chains without requiring manual bridging
+- Managing gas on destination chains so you don't need native gas tokens
+- Rebalancing and compounding across chains as part of automated strategy execution
+
+You deposit in a single asset on a single chain. Concrete does the rest.
