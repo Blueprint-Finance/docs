@@ -42,6 +42,10 @@
             ]
           },
           {
+            "group": "Vaults",
+            "pages": []
+          },
+          {
             "group": "Security",
             "pages": [
               "security/overview",
@@ -69,6 +73,7 @@
       },
       {
         "tab": "API Reference",
+        "openapi": ["api-reference/openapi.json"],
         "groups": [
           {
             "group": "Get started",
