@@ -1,0 +1,148 @@
+name: Aggregate Concrete Docs
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 */6 * * *'
+  # Source repos (FE/BE/SC) dispatch this event on a docs change. The
+  # client_payload may carry fe_ref / be_ref / sc_ref to pin source branches.
+  repository_dispatch:
+    types: [docs-source-updated]
+  workflow_dispatch:
+    inputs:
+      fe_ref:
+        description: concrete-app ref to aggregate
+        default: CONC-3564-update-knowledgebase
+      be_ref:
+        description: cb_backend ref to aggregate
+        default: CONC-3564-mintlify-setup
+      sc_ref:
+        description: earn-v2-core ref to aggregate
+        default: CONC-3564-mintlify
+
+# TODO: once the source PRs merge, change the three input defaults above and
+# the checkout fallbacks below back to `main`.
+
+concurrency:
+  group: aggregate-docs
+  cancel-in-progress: true
+
+env:
+  STAGING_DIR: ${{ github.workspace }}/.staging
+  OUTPUT_DIR: ${{ github.workspace }}/.output
+  PUBLISH_BRANCH: docs-production
+
+jobs:
+  aggregate:
+    runs-on: ubuntu-latest
+    name: Aggregate, preprocess, publish
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout docs base
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/package-lock.json
+
+      # The mintlify-multirepo-action does not support per-repo subdirectory
+      # extraction, and its bundled merge step would clobber our preprocessor
+      # output. Sparse-checkout each source repo into the staging tree so only
+      # docs/business/ is pulled.
+      - name: Stage frontend docs (concrete-app)
+        uses: actions/checkout@v4
+        with:
+          repository: blueprint-finance/concrete-app
+          ref: ${{ github.event.client_payload.fe_ref || inputs.fe_ref || 'CONC-3564-update-knowledgebase' }}
+          token: ${{ secrets.DOCS_AGGREGATION_PAT }}
+          path: .staging/frontend
+          sparse-checkout: docs/business
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+
+      - name: Stage backend docs (cb_backend)
+        uses: actions/checkout@v4
+        with:
+          repository: blueprint-finance/cb_backend
+          ref: ${{ github.event.client_payload.be_ref || inputs.be_ref || 'CONC-3564-mintlify-setup' }}
+          token: ${{ secrets.DOCS_AGGREGATION_PAT }}
+          path: .staging/backend
+          sparse-checkout: docs/business
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+
+      - name: Stage smart-contracts docs (earn-v2-core)
+        uses: actions/checkout@v4
+        with:
+          repository: Blueprint-Finance/earn-v2-core
+          ref: ${{ github.event.client_payload.sc_ref || inputs.sc_ref || 'CONC-3564-mintlify' }}
+          token: ${{ secrets.DOCS_AGGREGATION_PAT }}
+          path: .staging/smart-contracts
+          sparse-checkout: docs/business
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+
+      - name: Install preprocessor deps
+        working-directory: scripts
+        run: npm ci
+
+      # Seed the output tree with the base repo (everything that isn't tooling
+      # or staging). The preprocessor then overlays generated content on top.
+      - name: Seed output from base
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUTPUT_DIR"
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='scripts/' \
+            --exclude='.staging/' \
+            --exclude='.output/' \
+            --exclude='node_modules/' \
+            ./ "$OUTPUT_DIR"/
+
+      - name: Run Mintlify preprocessor
+        env:
+          STORYBLOK_PUBLIC: ${{ secrets.STORYBLOK_PUBLIC }}
+          STAGING_DIR: ${{ env.STAGING_DIR }}
+          OUTPUT_DIR: ${{ env.OUTPUT_DIR }}
+          BASE_DOCS_JSON: ${{ github.workspace }}/docs.json
+        run: node scripts/preprocess-docs.mjs
+
+      - name: Strip internal content (defense in depth)
+        run: |
+          set -euo pipefail
+          find "$OUTPUT_DIR" -type d -name 'internal' -prune -exec rm -rf {} +
+
+      - name: Publish to ${{ env.PUBLISH_BRANCH }}
+        working-directory: ${{ env.OUTPUT_DIR }}
+        run: |
+          set -euo pipefail
+          git init -q -b "$PUBLISH_BRANCH"
+          git config user.name 'concrete-docs-bot'
+          git config user.email 'docs-bot@concrete.xyz'
+          git remote add origin \
+            "https://x-access-token:${{ secrets.DOCS_AGGREGATION_PAT }}@github.com/${GITHUB_REPOSITORY}.git"
+          # Fetch the prior tip so --force-with-lease has a real ref to compare
+          # against; if the branch does not exist yet, the lease check is skipped.
+          if git fetch --depth=1 origin "$PUBLISH_BRANCH" 2>/dev/null; then
+            LEASE_FLAG="--force-with-lease=$PUBLISH_BRANCH:$(git rev-parse FETCH_HEAD)"
+          else
+            LEASE_FLAG="--force"
+          fi
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No documentation changes to publish."
+            exit 0
+          fi
+          git commit -q -m "docs: aggregate + preprocess @ ${GITHUB_SHA::7}"
+          git push $LEASE_FLAG origin "HEAD:$PUBLISH_BRANCH"
