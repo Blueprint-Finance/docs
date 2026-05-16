@@ -3,9 +3,26 @@ name: Aggregate Concrete Docs
 on:
   push:
     branches: [main]
-  workflow_dispatch:
   schedule:
     - cron: '0 */6 * * *'
+  # Source repos (FE/BE/SC) dispatch this event on a docs change. The
+  # client_payload may carry fe_ref / be_ref / sc_ref to pin source branches.
+  repository_dispatch:
+    types: [docs-source-updated]
+  workflow_dispatch:
+    inputs:
+      fe_ref:
+        description: concrete-app ref to aggregate
+        default: CONC-3564-update-knowledgebase
+      be_ref:
+        description: cb_backend ref to aggregate
+        default: CONC-3564-mintlify-setup
+      sc_ref:
+        description: earn-v2-core ref to aggregate
+        default: CONC-3564-mintlify
+
+# TODO: once the source PRs merge, change the three input defaults above and
+# the checkout fallbacks below back to `main`.
 
 concurrency:
   group: aggregate-docs
@@ -45,7 +62,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: blueprint-finance/concrete-app
-          ref: main
+          ref: ${{ github.event.client_payload.fe_ref || inputs.fe_ref || 'CONC-3564-update-knowledgebase' }}
           token: ${{ secrets.DOCS_AGGREGATION_PAT }}
           path: .staging/frontend
           sparse-checkout: docs/business
@@ -56,7 +73,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: blueprint-finance/cb_backend
-          ref: main
+          ref: ${{ github.event.client_payload.be_ref || inputs.be_ref || 'CONC-3564-mintlify-setup' }}
           token: ${{ secrets.DOCS_AGGREGATION_PAT }}
           path: .staging/backend
           sparse-checkout: docs/business
@@ -67,7 +84,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Blueprint-Finance/earn-v2-core
-          ref: main
+          ref: ${{ github.event.client_payload.sc_ref || inputs.sc_ref || 'CONC-3564-mintlify' }}
           token: ${{ secrets.DOCS_AGGREGATION_PAT }}
           path: .staging/smart-contracts
           sparse-checkout: docs/business

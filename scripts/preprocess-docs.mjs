@@ -1,23 +1,25 @@
 #!/usr/bin/env node
 // Concrete Mintlify preprocessor.
 //
-// Per the 2026-05-14 coordination decision (~/.claude/coordination/mintlify.md):
-// <IfGate>/gates[] are FE-only. BE API docs and SC contract docs are
-// vault-invariant and are copied through verbatim. Only FE earn rules are
-// expanded per Storyblok vault.
+// Aggregates docs/business/ from FE/BE/SC into one Mintlify site:
+//   - FE earn rules are expanded per Storyblok vault via <IfGate>.
+//   - FE sdk / BE / SC content is copied verbatim (no per-vault expansion).
+//   - docs.json navigation is assembled from the base repo + a generated
+//     Earn tab + BE's and SC's own docs.json (paths normalized).
 //
 // Pipeline:
-//   1. Load _meta/gates.yaml (single source of truth for IfGate flags).
-//   2. Fetch the `earn` story from Storyblok, mirroring the FE contract in
-//      Concrete-app/src/core/utils/storyblok.ts:getStory.
-//   3. For each FE earn MDX, expand <IfGate flag="…"> / <IfGate flag="…" inverse>
-//      per vault. Fail on unknown gates; warn on declared-but-unused gates.
-//      Emit to public/<vault-slug>/<rel-from-earn>.
-//   4. Copy FE sdk/, BE public/, SC public/ verbatim (validating that no
-//      <IfGate> sneaks in from those repos).
-//   5. Regenerate docs.json: replace the "Vaults" placeholder with one group
-//      per published vault, listing the MDX files actually rendered for it.
-//   6. Copy across _meta/INDEX.md, _meta/glossary.md, and any OpenAPI specs.
+//   1. Load _meta/gates.yaml → gate name → {storyblok_field, default}.
+//   2. Fetch the `earn` story from Storyblok (mirrors the FE getStory
+//      contract in Concrete-app/src/core/utils/storyblok.ts).
+//   3. For each FE earn MDX, evaluate every gate per vault and expand
+//      <IfGate flag="…"> / <IfGate flag="…" inverse>. Unknown gate ⇒ fail.
+//   4. Copy FE sdk/, BE public/, SC public/ verbatim (all file types).
+//   5. Assemble docs.json; copy _meta/INDEX.md + _meta/glossary.md.
+//
+// Gate model: every gate is vault-level — evaluated as
+//   Boolean(vault.content[storyblok_field] ?? default).
+// Group-level gates (group_hidden, group_deprecated, simple_balance) are dead
+// and unused; they simply resolve to their default.
 
 import fs from 'node:fs/promises';
 import { existsSync as fsExistsSync } from 'node:fs';
@@ -37,6 +39,8 @@ const FE_EARN = path.join(FE_ROOT, 'public', 'earn');
 const FE_SDK = path.join(FE_ROOT, 'public', 'sdk');
 const BE_PUBLIC = path.join(BE_ROOT, 'public');
 const SC_PUBLIC = path.join(SC_ROOT, 'public');
+const BE_DOCS_JSON = path.join(BE_ROOT, 'docs.json');
+const SC_DOCS_JSON = path.join(SC_ROOT, 'docs.json');
 
 const STORYBLOK_API = 'https://api-us.storyblok.com/v2/cdn';
 const RESOLVE_RELATIONS =
@@ -55,37 +59,32 @@ async function main() {
   const referencedGates = new Set();
   const renderedByVault = new Map(vaults.map((v) => [v.slug, []]));
 
-  // FE earn → per-vault expansion.
+  // FE earn → per-vault <IfGate> expansion.
   const earnFiles = (await collectMdx([FE_EARN])).filter(notInternal);
   for (const file of earnFiles) {
     await renderEarnPerVault(file, vaults, gates, referencedGates, renderedByVault);
   }
 
-  // FE sdk → copy once. Validate no <IfGate> sneaks in.
-  const sdkFiles = (await collectMdx([FE_SDK])).filter(notInternal);
-  for (const file of sdkFiles) {
-    await copyOnce(file, FE_SDK, path.join(OUTPUT, 'public', 'sdk'), {
-      forbidIfGate: true,
-    });
+  // FE sdk → copy once verbatim.
+  const sdkPages = [];
+  for (const file of (await collectMdx([FE_SDK])).filter(notInternal)) {
+    await copyMdxOnce(file, FE_SDK, path.join(OUTPUT, 'public', 'sdk'));
+    sdkPages.push(
+      'public/sdk/' + toPageRef(path.relative(FE_SDK, file)),
+    );
   }
 
-  // BE public → copy once verbatim.
-  const beFiles = (await collectMdx([BE_PUBLIC])).filter(notInternal);
-  for (const file of beFiles) {
-    await copyOnce(file, BE_PUBLIC, path.join(OUTPUT, 'public'), {
-      forbidIfGate: true,
-    });
-  }
+  // BE / SC public/ → copy whole tree verbatim (carries OpenAPI *.json).
+  const beCount = await copyTree(BE_PUBLIC, path.join(OUTPUT, 'public'), {
+    skipInternal: true,
+    forbidIfGate: true,
+  });
+  const scCount = await copyTree(SC_PUBLIC, path.join(OUTPUT, 'public'), {
+    skipInternal: true,
+    forbidIfGate: true,
+  });
 
-  // SC public → copy once verbatim.
-  const scFiles = (await collectMdx([SC_PUBLIC])).filter(notInternal);
-  for (const file of scFiles) {
-    await copyOnce(file, SC_PUBLIC, path.join(OUTPUT, 'public'), {
-      forbidIfGate: true,
-    });
-  }
-
-  for (const gate of gates) {
+  for (const gate of gates.keys()) {
     if (!referencedGates.has(gate)) {
       console.warn(
         `⚠ Gate "${gate}" is declared in gates.yaml but not referenced by any MDX.`,
@@ -94,15 +93,21 @@ async function main() {
   }
 
   await copyMetaArtifacts();
-  await copyOpenApiSpecs();
-  await emitDocsJson(vaults, renderedByVault);
+  await emitDocsJson(vaults, renderedByVault, sdkPages.sort());
 
-  const totals = `${earnFiles.length} FE-earn × ${vaults.length} vaults, ${sdkFiles.length} FE-sdk, ${beFiles.length} BE, ${scFiles.length} SC`;
-  console.log(`Preprocessed ${totals} → ${OUTPUT}`);
+  console.log(
+    `Preprocessed ${earnFiles.length} FE-earn × ${vaults.length} vaults, ` +
+      `${sdkPages.length} FE-sdk, ${beCount} BE files, ${scCount} SC files → ${OUTPUT}`,
+  );
 }
 
 function notInternal(p) {
   return !p.split(path.sep).includes('internal');
+}
+
+// A Mintlify page ref drops the .mdx/.md extension and uses POSIX separators.
+function toPageRef(rel) {
+  return rel.replace(/\.mdx?$/, '').split(path.sep).join('/');
 }
 
 async function loadGates() {
@@ -113,19 +118,21 @@ async function loadGates() {
   if (typeof declared !== 'object' || declared === null) {
     throw new Error(`gates.yaml is malformed: ${gatesPath}`);
   }
-  return new Set(Object.keys(declared));
+  const map = new Map();
+  for (const [name, def] of Object.entries(declared)) {
+    map.set(name, {
+      storyblok_field: def?.storyblok_field ?? name,
+      default: def?.default === true,
+    });
+  }
+  return map;
 }
 
 // --- Storyblok ---------------------------------------------------------------
 // Mirrors Concrete-app/src/core/utils/storyblok.ts:getStory for the public,
-// production read path:
-//   - GET /v2/cdn/stories/earn?token=…&resolve_relations=…&cv=…
-//   - cv comes from /v2/cdn/spaces/me
-//   - if resolve_relations under-fetches (>25-50 refs), paginate via by_uuids
-//     with explicit per_page
-//   - drop hidden groups (`group.hidden === true`)
-//   - vault.flags is a comma-separated string on the Storyblok side; we
-//     normalize it to a Set<string> of enabled flag names.
+// production read path: GET /v2/cdn/stories/earn with cv from /spaces/me; if
+// resolve_relations under-fetches (>25-50 refs), paginate via by_uuids with
+// explicit per_page. Hidden Storyblok groups (group.hidden) are excluded.
 async function fetchVaults() {
   if (!STORYBLOK_TOKEN) {
     throw new Error('STORYBLOK_PUBLIC env var is not set.');
@@ -175,8 +182,8 @@ async function fetchVaults() {
       vaults.push({
         slug,
         name: story.content.name ?? story.name ?? slug,
-        flags: parseFlagsCsv(story.content.flags),
         deprecated: Boolean(story.content.deprecated || group.deprecated),
+        content: story.content,
       });
     }
   }
@@ -217,14 +224,14 @@ async function hydrateMissingRelations(missing, relsMap, token, cv) {
   }
 }
 
-function parseFlagsCsv(raw) {
-  if (typeof raw !== 'string' || raw.length === 0) return new Set();
-  return new Set(
-    raw
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean),
-  );
+// Resolve every gate for one vault: Boolean(content[storyblok_field] ?? default).
+function evaluateGates(content, gatesMap) {
+  const result = new Map();
+  for (const [name, { storyblok_field, default: dflt }] of gatesMap) {
+    const raw = content?.[storyblok_field];
+    result.set(name, Boolean(raw ?? dflt));
+  }
+  return result;
 }
 
 // --- MDX walk + render -------------------------------------------------------
@@ -255,11 +262,12 @@ async function renderEarnPerVault(file, vaults, gates, referencedGates, rendered
   const relFromEarn = path.relative(FE_EARN, file);
 
   for (const vault of vaults) {
+    const gateValues = evaluateGates(vault.content, gates);
     const rendered = src.replace(
       IF_GATE_RE,
       (_match, dq, sq, inverse, body) => {
         const flag = dq ?? sq;
-        const enabled = vault.flags.has(flag);
+        const enabled = gateValues.get(flag) === true;
         const show = inverse ? !enabled : enabled;
         return show ? body : '';
       },
@@ -271,21 +279,50 @@ async function renderEarnPerVault(file, vaults, gates, referencedGates, rendered
   }
 }
 
-async function copyOnce(file, srcRoot, dstRoot, { forbidIfGate } = {}) {
+async function copyMdxOnce(file, srcRoot, dstRoot) {
   const src = await fs.readFile(file, 'utf8');
-  if (forbidIfGate && IF_GATE_RE.test(src)) {
-    // IF_GATE_RE has /g — reset lastIndex defensively before throwing.
+  assertNoIfGate(src, file);
+  const dest = path.join(dstRoot, path.relative(srcRoot, file));
+  await fs.mkdir(path.dirname(dest), { recursive: true });
+  await fs.writeFile(dest, src);
+}
+
+function assertNoIfGate(src, file) {
+  IF_GATE_RE.lastIndex = 0;
+  if (IF_GATE_RE.test(src)) {
     IF_GATE_RE.lastIndex = 0;
     throw new Error(
-      `<IfGate> is FE-only but appears in ${path.relative(STAGING, file)}. ` +
+      `<IfGate> is FE-earn-only but appears in ${path.relative(STAGING, file)}. ` +
         `BE and SC content is vault-invariant — remove the gate or move the rule to FE.`,
     );
   }
   IF_GATE_RE.lastIndex = 0;
-  const rel = path.relative(srcRoot, file);
-  const dest = path.join(dstRoot, rel);
-  await fs.mkdir(path.dirname(dest), { recursive: true });
-  await fs.writeFile(dest, src);
+}
+
+// Copy a whole directory tree verbatim (all file types). Skips internal/
+// subtrees; .mdx files are checked to ensure they carry no <IfGate>.
+async function copyTree(src, dst, { skipInternal, forbidIfGate } = {}) {
+  if (!fsExistsSync(src)) return 0;
+  let count = 0;
+  for (const entry of await fs.readdir(src, { withFileTypes: true })) {
+    if (skipInternal && entry.isDirectory() && entry.name === 'internal') continue;
+    const s = path.join(src, entry.name);
+    const d = path.join(dst, entry.name);
+    if (entry.isDirectory()) {
+      count += await copyTree(s, d, { skipInternal, forbidIfGate });
+    } else {
+      await fs.mkdir(path.dirname(d), { recursive: true });
+      if (forbidIfGate && entry.name.endsWith('.mdx')) {
+        const content = await fs.readFile(s, 'utf8');
+        assertNoIfGate(content, s);
+        await fs.writeFile(d, content);
+      } else {
+        await fs.copyFile(s, d);
+      }
+      count += 1;
+    }
+  }
+  return count;
 }
 
 async function copyMetaArtifacts() {
@@ -299,40 +336,47 @@ async function copyMetaArtifacts() {
   }
 }
 
-async function copyOpenApiSpecs() {
-  const dst = path.join(OUTPUT, 'api-reference');
-  await fs.mkdir(dst, { recursive: true });
-  for (const root of [BE_ROOT, SC_ROOT]) {
-    const candidate = path.join(root, 'openapi');
-    if (fsExistsSync(candidate)) await copyDir(candidate, dst);
-  }
-}
+// --- docs.json assembly ------------------------------------------------------
 
-async function emitDocsJson(vaults, renderedByVault) {
+async function emitDocsJson(vaults, renderedByVault, sdkPages) {
   const base = JSON.parse(await fs.readFile(BASE_DOCS_JSON, 'utf8'));
-  const docsTab = base.navigation?.tabs?.find((t) => t.tab === 'Documentation');
-  if (!docsTab) {
-    throw new Error('Base docs.json missing "Documentation" tab.');
+
+  const tabs = [];
+
+  // Documentation tab: base intro pages + shared reference.
+  const docGroups = [
+    {
+      group: 'Overview',
+      pages: ['introduction', 'how-it-works', 'key-concepts'],
+    },
+  ];
+  const refPages = [];
+  if (fsExistsSync(path.join(OUTPUT, '_meta', 'INDEX.md'))) refPages.push('_meta/INDEX');
+  if (fsExistsSync(path.join(OUTPUT, '_meta', 'glossary.md'))) {
+    refPages.push('_meta/glossary');
   }
+  if (refPages.length > 0) docGroups.push({ group: 'Reference', pages: refPages });
+  tabs.push({ tab: 'Documentation', groups: docGroups });
 
-  const placeholderIdx = docsTab.groups.findIndex((g) => g.group === 'Vaults');
+  // Earn tab: one group per vault + SDK.
+  const earnGroups = vaults.map((vault) => {
+    const pages = (renderedByVault.get(vault.slug) ?? [])
+      .map((rel) => `public/${vault.slug}/${toPageRef(rel)}`)
+      .sort();
+    return { group: `Vault: ${vault.name}`, pages };
+  }).filter((g) => g.pages.length > 0);
+  if (sdkPages.length > 0) earnGroups.push({ group: 'SDK', pages: sdkPages });
+  if (earnGroups.length > 0) tabs.push({ tab: 'Earn', groups: earnGroups });
 
-  const generated = vaults
-    .filter((v) => !v.deprecated)
-    .map((vault) => {
-      const rels = renderedByVault.get(vault.slug) ?? [];
-      const pages = rels
-        .map((r) => `public/${vault.slug}/${r.replace(/\.mdx$/, '').split(path.sep).join('/')}`)
-        .sort();
-      return { group: `Vault: ${vault.name}`, pages };
-    })
-    .filter((g) => g.pages.length > 0);
+  // API Reference tab: BE's own docs.json groups (paths already root-relative).
+  const beGroups = await loadSourceGroups(BE_DOCS_JSON);
+  if (beGroups.length > 0) tabs.push({ tab: 'API Reference', groups: beGroups });
 
-  if (placeholderIdx >= 0) {
-    docsTab.groups.splice(placeholderIdx, 1, ...generated);
-  } else {
-    docsTab.groups.push(...generated);
-  }
+  // Smart Contracts tab: SC's own docs.json groups, paths normalized.
+  const scGroups = await loadSourceGroups(SC_DOCS_JSON);
+  if (scGroups.length > 0) tabs.push({ tab: 'Smart Contracts', groups: scGroups });
+
+  base.navigation = { tabs };
 
   await fs.writeFile(
     path.join(OUTPUT, 'docs.json'),
@@ -349,6 +393,42 @@ async function emitDocsJson(vaults, renderedByVault) {
   );
 }
 
+// Read a source repo's docs.json and return its navigation groups, with all
+// page/openapi paths normalized to the aggregated output root (a leading
+// `business/` segment is stripped — SC authors paths relative to docs/).
+async function loadSourceGroups(docsJsonPath) {
+  if (!fsExistsSync(docsJsonPath)) return [];
+  const doc = JSON.parse(await fs.readFile(docsJsonPath, 'utf8'));
+  let groups = [];
+  if (Array.isArray(doc.navigation?.tabs)) {
+    groups = doc.navigation.tabs.flatMap((t) => t.groups ?? []);
+  } else if (Array.isArray(doc.groups)) {
+    groups = doc.groups;
+  }
+  return normalizeNavPaths(groups);
+}
+
+function normalizeNavPaths(node) {
+  if (typeof node === 'string') {
+    return node.replace(/^business\//, '');
+  }
+  if (Array.isArray(node)) {
+    return node.map(normalizeNavPaths);
+  }
+  if (node && typeof node === 'object') {
+    const out = {};
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'source' && typeof value === 'string') {
+        out[key] = value.replace(/^business\//, '');
+      } else {
+        out[key] = normalizeNavPaths(value);
+      }
+    }
+    return out;
+  }
+  return node;
+}
+
 async function walk(dir, filter) {
   const out = [];
   for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
@@ -357,16 +437,6 @@ async function walk(dir, filter) {
     else if (filter(p)) out.push(p);
   }
   return out;
-}
-
-async function copyDir(src, dst) {
-  await fs.mkdir(dst, { recursive: true });
-  for (const entry of await fs.readdir(src, { withFileTypes: true })) {
-    const s = path.join(src, entry.name);
-    const d = path.join(dst, entry.name);
-    if (entry.isDirectory()) await copyDir(s, d);
-    else await fs.copyFile(s, d);
-  }
 }
 
 main().catch((err) => {
