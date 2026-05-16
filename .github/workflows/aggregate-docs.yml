@@ -123,6 +123,13 @@ jobs:
           set -euo pipefail
           find "$OUTPUT_DIR" -type d -name 'internal' -prune -exec rm -rf {} +
 
+      - name: Upload aggregated output artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aggregated-docs
+          path: ${{ env.OUTPUT_DIR }}
+          retention-days: 7
+
       - name: Publish to ${{ env.PUBLISH_BRANCH }}
         working-directory: ${{ env.OUTPUT_DIR }}
         run: |
