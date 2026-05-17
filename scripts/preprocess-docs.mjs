@@ -511,7 +511,10 @@ function expandConditionals(src, vault, gates, referencedGates, file) {
         );
       }
       const enabled = gateValues.get(flag) === true;
-      show = /\binverse\b/.test(attrs) ? !enabled : enabled;
+      // Detect the `inverse` modifier only outside quoted values, so a gate
+      // literally named "inverse" (flag="inverse") is not misread as it.
+      const inverse = /\binverse\b/.test(attrs.replace(/"[^"]*"|'[^']*'/g, ''));
+      show = inverse ? !enabled : enabled;
     } else {
       const notVal = readAttr(attrs, 'not');
       show =
