@@ -232,6 +232,16 @@ async function applyWhitelist(vaults) {
     return vaults;
   }
   const kept = vaults.filter((v) => v.addresses.some((a) => whitelist.has(a)));
+  if (vaults.length > 0 && kept.length === 0) {
+    // Distinguish "whitelist filtered everything out" from the genuine
+    // "Storyblok returned nothing" case main() reports — otherwise an operator
+    // debugs Storyblok when the real fault is the whitelist artifact.
+    throw new Error(
+      `Whitelist filtered out all ${vaults.length} Storyblok vaults — no vault ` +
+        `address matched _meta/earn-whitelist.json. Check the whitelist artifact ` +
+        `(and that the vaults carry addresses).`,
+    );
+  }
   console.log(
     `Whitelist: kept ${kept.length}/${vaults.length} vaults (Storyblok ∩ earnWhitelist).`,
   );
