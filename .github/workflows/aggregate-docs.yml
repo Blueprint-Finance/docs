@@ -113,6 +113,8 @@ jobs:
       - name: Run Mintlify preprocessor
         env:
           STORYBLOK_PUBLIC: ${{ secrets.STORYBLOK_PUBLIC }}
+          # Resolved earn-apy base URL incl. /v1. Unset ⇒ BE enrichment skipped.
+          EARN_APY_API_URL: ${{ secrets.EARN_APY_API_URL }}
           STAGING_DIR: ${{ env.STAGING_DIR }}
           OUTPUT_DIR: ${{ env.OUTPUT_DIR }}
           BASE_DOCS_JSON: ${{ github.workspace }}/docs.json

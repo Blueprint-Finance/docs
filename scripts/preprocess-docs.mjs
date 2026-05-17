@@ -11,10 +11,11 @@
 //   1. Load _meta/gates.yaml → gate name → {storyblok_field, default}.
 //   2. Fetch the `earn` story from Storyblok (mirrors the FE getStory
 //      contract in Concrete-app/src/core/utils/storyblok.ts).
-//   3. For each FE earn MDX, expand <IfGate> (per-vault feature gates) and
-//      <IfVersion> (per-vault version). Unknown gate ⇒ fail.
-//   4. Copy FE sdk/, BE public/, SC public/ verbatim (all file types).
-//   5. Assemble docs.json; copy _meta/INDEX.md + _meta/glossary.md.
+//   3. Fetch per-vault config from BE earn-apy /vault:performance.
+//   4. For each FE earn MDX, expand <IfGate> + <IfVersion> and fill
+//      {{ vault.* }} placeholders. Unknown gate ⇒ fail.
+//   5. Copy FE sdk/, BE public/, SC public/ verbatim (all file types).
+//   6. Assemble docs.json; copy _meta/INDEX.md + _meta/glossary.md.
 //
 // Gate model: every feature gate is vault-level — evaluated as
 //   Boolean(vault.content[storyblok_field] ?? default). Group-level gates
@@ -32,6 +33,9 @@ const STAGING = path.resolve(process.env.STAGING_DIR ?? './.staging');
 const OUTPUT = path.resolve(process.env.OUTPUT_DIR ?? './.output');
 const BASE_DOCS_JSON = path.resolve(process.env.BASE_DOCS_JSON ?? './docs.json');
 const STORYBLOK_TOKEN = process.env.STORYBLOK_PUBLIC;
+// Resolved earn-apy base URL incl. /v1 (e.g. https://apy.api.<host>/v1).
+// Unset ⇒ Phase 2 BE enrichment is skipped (placeholders stay unfilled).
+const EARN_APY_API_URL = process.env.EARN_APY_API_URL?.replace(/\/+$/, '') ?? '';
 
 const FE_ROOT = path.join(STAGING, 'frontend', 'docs', 'business');
 const BE_ROOT = path.join(STAGING, 'backend', 'docs', 'business');
@@ -61,6 +65,9 @@ async function main() {
   if (vaults.length === 0) {
     throw new Error('Storyblok returned zero published vaults.');
   }
+
+  const performance = await fetchVaultPerformance(vaults);
+  for (const v of vaults) v.performance = performance.get(v.slug) ?? null;
 
   const referencedGates = new Set();
   const renderedByVault = new Map(vaults.map((v) => [v.slug, []]));
@@ -103,6 +110,17 @@ async function main() {
   await copyMetaArtifacts();
   await emitDocsJson(vaults, renderedByVault, sdkPages.sort());
 
+  if (unresolvedPlaceholders.length > 0) {
+    const sample = unresolvedPlaceholders
+      .slice(0, 6)
+      .map((u) => `{{ ${u.ref} }} (${u.slug})`)
+      .join(', ');
+    console.warn(
+      `⚠ ${unresolvedPlaceholders.length} unresolved {{ }} placeholders ` +
+        `rendered as "—" — sample: ${sample}`,
+    );
+  }
+
   console.log(
     `Preprocessed ${earnFiles.length} FE-earn × ${vaults.length} vaults, ` +
       `${sdkPages.length} FE-sdk, ${beCount} BE files, ${scCount} SC files → ${OUTPUT}`,
@@ -128,6 +146,9 @@ function claimPath(dest, source) {
   }
   claimedPaths.set(rel, source);
 }
+
+// {{ }} placeholders that had no value — collected, warned once at the end.
+const unresolvedPlaceholders = [];
 
 // A Mintlify page ref drops the .mdx/.md extension and uses POSIX separators.
 function toPageRef(rel) {
@@ -310,6 +331,142 @@ function evaluateGates(content, gatesMap) {
   return result;
 }
 
+// --- BE earn-apy enrichment --------------------------------------------------
+// Per-vault config from the public earn-apy API: version, implementation, and
+// withdrawal config (cron schedule + cap threshold). The bulk
+// /vault:performance/all endpoint is metrics-only, so it is used only to
+// discover (address → chain_id); the detailed config comes from N parallel
+// /vault:performance calls. An unset EARN_APY_API_URL or any failure degrades
+// gracefully — the vault gets no BE data and its {{ }} placeholders show "—".
+
+async function fetchJson(url) {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+// "v2" / "V2" / 2 / "2" → "2" — for comparing Storyblok and BE version values.
+function normalizeVersion(v) {
+  return String(v ?? '').trim().toLowerCase().replace(/^v/, '');
+}
+
+// Run fn over items with at most `limit` concurrent calls.
+async function mapLimit(items, limit, fn) {
+  let cursor = 0;
+  const runner = async () => {
+    while (cursor < items.length) {
+      await fn(items[cursor++]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, runner),
+  );
+}
+
+async function fetchVaultPerformance(vaults) {
+  if (!EARN_APY_API_URL) {
+    console.warn(
+      '⚠ EARN_APY_API_URL not set — skipping BE performance enrichment; ' +
+        '{{ vault.* }} placeholders will render as "—".',
+    );
+    return new Map();
+  }
+
+  // Discover (address → chain_id) from the bulk endpoint.
+  const addressToChain = new Map();
+  try {
+    const all = await fetchJson(`${EARN_APY_API_URL}/vault:performance/all`);
+    for (const [chainId, byAddress] of Object.entries(all ?? {})) {
+      for (const address of Object.keys(byAddress ?? {})) {
+        addressToChain.set(address.toLowerCase(), Number(chainId));
+      }
+    }
+  } catch (err) {
+    console.warn(
+      `⚠ earn-apy /vault:performance/all failed (${err.message}) — ` +
+        'skipping BE enrichment.',
+    );
+    return new Map();
+  }
+
+  const result = new Map();
+  await mapLimit(vaults, 8, async (vault) => {
+    const address = vault.addresses.find((a) => addressToChain.has(a));
+    if (!address) return;
+    const chainId = addressToChain.get(address);
+    try {
+      const perf = await fetchJson(
+        `${EARN_APY_API_URL}/vault:performance` +
+          `?address=${address}&chain_id=${chainId}&limit=1`,
+      );
+      // Storyblok formats version as "v2"; BE returns a bare "2" — normalize
+      // before comparing so the warning fires only on a genuine drift.
+      if (
+        perf?.version != null &&
+        vault.version &&
+        normalizeVersion(perf.version) !== normalizeVersion(vault.version)
+      ) {
+        console.warn(
+          `⚠ Version mismatch for ${vault.slug}: Storyblok "${vault.version}" ` +
+            `vs BE "${perf.version}".`,
+        );
+      }
+      result.set(vault.slug, {
+        version: perf?.version ?? null,
+        implementation: perf?.implementation ?? null,
+        withdrawals_config: perf?.withdrawals_config ?? null,
+        withdrawals_config_rc: perf?.withdrawals_config_rc ?? null,
+      });
+    } catch (err) {
+      console.warn(
+        `⚠ earn-apy /vault:performance failed for ${vault.slug} (${err.message}).`,
+      );
+    }
+  });
+  console.log(
+    `BE enrichment: fetched performance for ${result.size}/${vaults.length} vaults.`,
+  );
+  return result;
+}
+
+// The {{ }} substitution context exposed to FE earn templates.
+function buildVaultContext(vault) {
+  const perf = vault.performance;
+  return {
+    vault: {
+      slug: vault.slug,
+      name: vault.name,
+      version: vault.version,
+      network: vault.network,
+      implementation: perf?.implementation ?? null,
+      withdrawal: perf?.withdrawals_config ?? {},
+      withdrawalRc: perf?.withdrawals_config_rc ?? {},
+    },
+  };
+}
+
+const PLACEHOLDER_RE = /\{\{\s*([\w.]+)\s*\}\}/g;
+
+// Replace {{ vault.* }} placeholders with per-vault values. An unresolved
+// placeholder renders as "—" and is collected for an end-of-run warning —
+// leaving a literal {{ }} would break MDX parsing downstream.
+function substitutePlaceholders(src, context, file, slug) {
+  return src.replace(PLACEHOLDER_RE, (_match, dotted) => {
+    const value = dotted
+      .split('.')
+      .reduce((node, key) => (node == null ? undefined : node[key]), context);
+    if (value == null || value === '') {
+      unresolvedPlaceholders.push({
+        file: path.relative(STAGING, file),
+        slug,
+        ref: dotted,
+      });
+      return '—';
+    }
+    return String(value);
+  });
+}
+
 // --- MDX walk + render -------------------------------------------------------
 
 async function collectMdx(roots) {
@@ -348,7 +505,7 @@ async function renderEarnPerVault(file, vaults, gates, referencedGates, rendered
         return show ? body : '';
       },
     );
-    const rendered = gateExpanded.replace(
+    const versionExpanded = gateExpanded.replace(
       IF_VERSION_RE,
       (_match, attr, dq, sq, body) => {
         const want = dq ?? sq;
@@ -356,6 +513,12 @@ async function renderEarnPerVault(file, vaults, gates, referencedGates, rendered
         const show = attr === 'is' ? matches : !matches;
         return show ? body : '';
       },
+    );
+    const rendered = substitutePlaceholders(
+      versionExpanded,
+      buildVaultContext(vault),
+      file,
+      vault.slug,
     );
     const dest = path.join(OUTPUT, 'public', vault.slug, relFromEarn);
     await fs.mkdir(path.dirname(dest), { recursive: true });
@@ -480,12 +643,13 @@ async function emitDocsJson(vaults, renderedByVault, sdkPages) {
   await fs.writeFile(
     path.join(OUTPUT, '_meta', 'vaults.json'),
     JSON.stringify(
-      vaults.map(({ slug, name, version, network, deprecated }) => ({
-        slug,
-        name,
-        version,
-        network,
-        deprecated,
+      vaults.map((v) => ({
+        slug: v.slug,
+        name: v.name,
+        version: v.version,
+        network: v.network,
+        implementation: v.performance?.implementation ?? null,
+        deprecated: v.deprecated,
       })),
       null,
       2,
