@@ -84,10 +84,12 @@ async function main() {
   const beCount = await copyTree(BE_PUBLIC, path.join(OUTPUT, 'public'), {
     skipInternal: true,
     forbidIfGate: true,
+    source: 'BE',
   });
   const scCount = await copyTree(SC_PUBLIC, path.join(OUTPUT, 'public'), {
     skipInternal: true,
     forbidIfGate: true,
+    source: 'SC',
   });
 
   for (const gate of gates.keys()) {
@@ -109,6 +111,22 @@ async function main() {
 
 function notInternal(p) {
   return !p.split(path.sep).includes('internal');
+}
+
+// Every file written under OUTPUT is claimed by exactly one source. A second
+// writer hitting the same path (e.g. BE and SC both shipping public/overview)
+// would silently overwrite — fail loudly instead.
+const claimedPaths = new Map();
+function claimPath(dest, source) {
+  const rel = path.relative(OUTPUT, dest);
+  const prev = claimedPaths.get(rel);
+  if (prev && prev !== source) {
+    throw new Error(
+      `Output path collision at ${rel}: written by both ${prev} and ${source}. ` +
+        `Two sources produce the same path — namespace one of them.`,
+    );
+  }
+  claimedPaths.set(rel, source);
 }
 
 // A Mintlify page ref drops the .mdx/.md extension and uses POSIX separators.
@@ -341,6 +359,7 @@ async function renderEarnPerVault(file, vaults, gates, referencedGates, rendered
     );
     const dest = path.join(OUTPUT, 'public', vault.slug, relFromEarn);
     await fs.mkdir(path.dirname(dest), { recursive: true });
+    claimPath(dest, 'FE-earn');
     await fs.writeFile(dest, rendered);
     renderedByVault.get(vault.slug).push(relFromEarn);
   }
@@ -351,6 +370,7 @@ async function copyMdxOnce(file, srcRoot, dstRoot) {
   assertNoConditionals(src, file);
   const dest = path.join(dstRoot, path.relative(srcRoot, file));
   await fs.mkdir(path.dirname(dest), { recursive: true });
+  claimPath(dest, 'FE-sdk');
   await fs.writeFile(dest, src);
 }
 
@@ -374,7 +394,7 @@ function assertNoConditionals(src, file) {
 
 // Copy a whole directory tree verbatim (all file types). Skips internal/
 // subtrees; .mdx files are checked to ensure they carry no <IfGate>.
-async function copyTree(src, dst, { skipInternal, forbidIfGate } = {}) {
+async function copyTree(src, dst, { skipInternal, forbidIfGate, source } = {}) {
   if (!fsExistsSync(src)) return 0;
   let count = 0;
   for (const entry of await fs.readdir(src, { withFileTypes: true })) {
@@ -382,9 +402,10 @@ async function copyTree(src, dst, { skipInternal, forbidIfGate } = {}) {
     const s = path.join(src, entry.name);
     const d = path.join(dst, entry.name);
     if (entry.isDirectory()) {
-      count += await copyTree(s, d, { skipInternal, forbidIfGate });
+      count += await copyTree(s, d, { skipInternal, forbidIfGate, source });
     } else {
       await fs.mkdir(path.dirname(d), { recursive: true });
+      claimPath(d, source);
       if (forbidIfGate && entry.name.endsWith('.mdx')) {
         const content = await fs.readFile(s, 'utf8');
         assertNoConditionals(content, s);
