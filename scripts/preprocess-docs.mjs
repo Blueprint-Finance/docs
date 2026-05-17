@@ -11,15 +11,17 @@
 //   1. Load _meta/gates.yaml → gate name → {storyblok_field, default}.
 //   2. Fetch the `earn` story from Storyblok (mirrors the FE getStory
 //      contract in Concrete-app/src/core/utils/storyblok.ts).
-//   3. For each FE earn MDX, evaluate every gate per vault and expand
-//      <IfGate flag="…"> / <IfGate flag="…" inverse>. Unknown gate ⇒ fail.
+//   3. For each FE earn MDX, expand <IfGate> (per-vault feature gates) and
+//      <IfVersion> (per-vault version). Unknown gate ⇒ fail.
 //   4. Copy FE sdk/, BE public/, SC public/ verbatim (all file types).
 //   5. Assemble docs.json; copy _meta/INDEX.md + _meta/glossary.md.
 //
-// Gate model: every gate is vault-level — evaluated as
-//   Boolean(vault.content[storyblok_field] ?? default).
-// Group-level gates (group_hidden, group_deprecated, simple_balance) are dead
-// and unused; they simply resolve to their default.
+// Gate model: every feature gate is vault-level — evaluated as
+//   Boolean(vault.content[storyblok_field] ?? default). Group-level gates
+//   (group_hidden, …) are dead and unused; they resolve to their default.
+// Version axis: <IfVersion is="v2"> / <IfVersion not="v2"> resolves against
+//   the vault's vaultVersion.
+// Live vault set = Storyblok vaults ∩ FE _meta/earn-whitelist.json.
 
 import fs from 'node:fs/promises';
 import { existsSync as fsExistsSync } from 'node:fs';
@@ -48,6 +50,10 @@ const RESOLVE_RELATIONS =
 
 const IF_GATE_RE =
   /<IfGate\s+flag=(?:"([^"]+)"|'([^']+)')(\s+inverse)?\s*>([\s\S]*?)<\/IfGate>/g;
+
+// <IfVersion is="v2">…</IfVersion> / <IfVersion not="v2">…</IfVersion>
+const IF_VERSION_RE =
+  /<IfVersion\s+(is|not)=(?:"([^"]+)"|'([^']+)')\s*>([\s\S]*?)<\/IfVersion>/g;
 
 async function main() {
   const gates = await loadGates();
@@ -78,10 +84,12 @@ async function main() {
   const beCount = await copyTree(BE_PUBLIC, path.join(OUTPUT, 'public'), {
     skipInternal: true,
     forbidIfGate: true,
+    source: 'BE',
   });
   const scCount = await copyTree(SC_PUBLIC, path.join(OUTPUT, 'public'), {
     skipInternal: true,
     forbidIfGate: true,
+    source: 'SC',
   });
 
   for (const gate of gates.keys()) {
@@ -103,6 +111,22 @@ async function main() {
 
 function notInternal(p) {
   return !p.split(path.sep).includes('internal');
+}
+
+// Every file written under OUTPUT is claimed by exactly one source. A second
+// writer hitting the same path (e.g. BE and SC both shipping public/overview)
+// would silently overwrite — fail loudly instead.
+const claimedPaths = new Map();
+function claimPath(dest, source) {
+  const rel = path.relative(OUTPUT, dest);
+  const prev = claimedPaths.get(rel);
+  if (prev && prev !== source) {
+    throw new Error(
+      `Output path collision at ${rel}: written by both ${prev} and ${source}. ` +
+        `Two sources produce the same path — namespace one of them.`,
+    );
+  }
+  claimedPaths.set(rel, source);
 }
 
 // A Mintlify page ref drops the .mdx/.md extension and uses POSIX separators.
@@ -182,12 +206,64 @@ async function fetchVaults() {
       vaults.push({
         slug,
         name: story.content.name ?? story.name ?? slug,
+        version: String(story.content.vaultVersion || 'v1').trim(),
+        network: story.content.network ?? null,
+        addresses: parseAddresses(story.content.addresses),
         deprecated: Boolean(story.content.deprecated || group.deprecated),
         content: story.content,
       });
     }
   }
-  return vaults;
+  return applyWhitelist(vaults);
+}
+
+// Storyblok stores vault addresses as a newline-separated string; keep the
+// valid lowercased EVM addresses (mirrors FE storyblok.ts).
+function parseAddresses(raw) {
+  if (typeof raw !== 'string') return [];
+  return raw
+    .split(/[\n,]/)
+    .map((a) => a.trim().toLowerCase())
+    .filter((a) => /^0x[0-9a-f]{40}$/.test(a));
+}
+
+// The live Earn set is Storyblok ∩ FE earnWhitelist. FE emits the whitelist
+// (whitelist ∪ extra-vault-addresses) to _meta/earn-whitelist.json. If the
+// artifact is absent the worker still runs — it warns and keeps all vaults.
+async function loadWhitelist() {
+  const wl = path.join(FE_META, 'earn-whitelist.json');
+  if (!fsExistsSync(wl)) return null;
+  const doc = JSON.parse(await fs.readFile(wl, 'utf8'));
+  const list = Array.isArray(doc) ? doc : (doc.addresses ?? []);
+  return new Set(
+    list.map((a) => String(a).trim().toLowerCase()).filter(Boolean),
+  );
+}
+
+async function applyWhitelist(vaults) {
+  const whitelist = await loadWhitelist();
+  if (!whitelist) {
+    console.warn(
+      '⚠ _meta/earn-whitelist.json not found — processing all Storyblok ' +
+        'vaults. The live Earn set is Storyblok ∩ whitelist; FE must emit it.',
+    );
+    return vaults;
+  }
+  const kept = vaults.filter((v) => v.addresses.some((a) => whitelist.has(a)));
+  if (vaults.length > 0 && kept.length === 0) {
+    // Distinguish "whitelist filtered everything out" from the genuine
+    // "Storyblok returned nothing" case main() reports — otherwise an operator
+    // debugs Storyblok when the real fault is the whitelist artifact.
+    throw new Error(
+      `Whitelist filtered out all ${vaults.length} Storyblok vaults — no vault ` +
+        `address matched _meta/earn-whitelist.json. Check the whitelist artifact ` +
+        `(and that the vaults carry addresses).`,
+    );
+  }
+  console.log(
+    `Whitelist: kept ${kept.length}/${vaults.length} vaults (Storyblok ∩ earnWhitelist).`,
+  );
+  return kept;
 }
 
 async function fetchCacheVersion(token) {
@@ -263,7 +339,7 @@ async function renderEarnPerVault(file, vaults, gates, referencedGates, rendered
 
   for (const vault of vaults) {
     const gateValues = evaluateGates(vault.content, gates);
-    const rendered = src.replace(
+    const gateExpanded = src.replace(
       IF_GATE_RE,
       (_match, dq, sq, inverse, body) => {
         const flag = dq ?? sq;
@@ -272,8 +348,18 @@ async function renderEarnPerVault(file, vaults, gates, referencedGates, rendered
         return show ? body : '';
       },
     );
+    const rendered = gateExpanded.replace(
+      IF_VERSION_RE,
+      (_match, attr, dq, sq, body) => {
+        const want = dq ?? sq;
+        const matches = vault.version === want;
+        const show = attr === 'is' ? matches : !matches;
+        return show ? body : '';
+      },
+    );
     const dest = path.join(OUTPUT, 'public', vault.slug, relFromEarn);
     await fs.mkdir(path.dirname(dest), { recursive: true });
+    claimPath(dest, 'FE-earn');
     await fs.writeFile(dest, rendered);
     renderedByVault.get(vault.slug).push(relFromEarn);
   }
@@ -281,27 +367,34 @@ async function renderEarnPerVault(file, vaults, gates, referencedGates, rendered
 
 async function copyMdxOnce(file, srcRoot, dstRoot) {
   const src = await fs.readFile(file, 'utf8');
-  assertNoIfGate(src, file);
+  assertNoConditionals(src, file);
   const dest = path.join(dstRoot, path.relative(srcRoot, file));
   await fs.mkdir(path.dirname(dest), { recursive: true });
+  claimPath(dest, 'FE-sdk');
   await fs.writeFile(dest, src);
 }
 
-function assertNoIfGate(src, file) {
-  IF_GATE_RE.lastIndex = 0;
-  if (IF_GATE_RE.test(src)) {
-    IF_GATE_RE.lastIndex = 0;
-    throw new Error(
-      `<IfGate> is FE-earn-only but appears in ${path.relative(STAGING, file)}. ` +
-        `BE and SC content is vault-invariant — remove the gate or move the rule to FE.`,
-    );
+// <IfGate>/<IfVersion> are FE-earn-only — BE/SC/FE-sdk content must not use them.
+function assertNoConditionals(src, file) {
+  for (const [re, tag] of [
+    [IF_GATE_RE, '<IfGate>'],
+    [IF_VERSION_RE, '<IfVersion>'],
+  ]) {
+    re.lastIndex = 0;
+    const hit = re.test(src);
+    re.lastIndex = 0;
+    if (hit) {
+      throw new Error(
+        `${tag} is FE-earn-only but appears in ${path.relative(STAGING, file)}. ` +
+          `BE/SC content is vault-invariant — remove it or move the rule to FE earn.`,
+      );
+    }
   }
-  IF_GATE_RE.lastIndex = 0;
 }
 
 // Copy a whole directory tree verbatim (all file types). Skips internal/
 // subtrees; .mdx files are checked to ensure they carry no <IfGate>.
-async function copyTree(src, dst, { skipInternal, forbidIfGate } = {}) {
+async function copyTree(src, dst, { skipInternal, forbidIfGate, source } = {}) {
   if (!fsExistsSync(src)) return 0;
   let count = 0;
   for (const entry of await fs.readdir(src, { withFileTypes: true })) {
@@ -309,12 +402,13 @@ async function copyTree(src, dst, { skipInternal, forbidIfGate } = {}) {
     const s = path.join(src, entry.name);
     const d = path.join(dst, entry.name);
     if (entry.isDirectory()) {
-      count += await copyTree(s, d, { skipInternal, forbidIfGate });
+      count += await copyTree(s, d, { skipInternal, forbidIfGate, source });
     } else {
       await fs.mkdir(path.dirname(d), { recursive: true });
+      claimPath(d, source);
       if (forbidIfGate && entry.name.endsWith('.mdx')) {
         const content = await fs.readFile(s, 'utf8');
-        assertNoIfGate(content, s);
+        assertNoConditionals(content, s);
         await fs.writeFile(d, content);
       } else {
         await fs.copyFile(s, d);
@@ -386,7 +480,13 @@ async function emitDocsJson(vaults, renderedByVault, sdkPages) {
   await fs.writeFile(
     path.join(OUTPUT, '_meta', 'vaults.json'),
     JSON.stringify(
-      vaults.map(({ slug, name, deprecated }) => ({ slug, name, deprecated })),
+      vaults.map(({ slug, name, version, network, deprecated }) => ({
+        slug,
+        name,
+        version,
+        network,
+        deprecated,
+      })),
       null,
       2,
     ),
