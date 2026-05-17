@@ -455,7 +455,9 @@ function substitutePlaceholders(src, context, file, slug) {
     const value = dotted
       .split('.')
       .reduce((node, key) => (node == null ? undefined : node[key]), context);
-    if (value == null || value === '') {
+    // Objects/arrays (e.g. `{{ vault.withdrawal }}` with no leaf field) would
+    // stringify to "[object Object]" — treat them as unresolved instead.
+    if (value == null || value === '' || typeof value === 'object') {
       unresolvedPlaceholders.push({
         file: path.relative(STAGING, file),
         slug,
@@ -478,44 +480,64 @@ async function collectMdx(roots) {
   return out;
 }
 
+// Innermost <IfGate>/<IfVersion> whose body contains no nested conditional —
+// matched repeatedly (inside-out) so arbitrarily nested conditionals resolve.
+const INNERMOST_COND_RE =
+  /<(IfGate|IfVersion)\s+([^>]*?)>((?:(?!<\/?If(?:Gate|Version)\b)[\s\S])*?)<\/\1>/;
+
+function readAttr(attrs, name) {
+  const m = new RegExp(`\\b${name}=(?:"([^"]*)"|'([^']*)')`).exec(attrs);
+  return m ? (m[1] ?? m[2]) : undefined;
+}
+
+// Expand every <IfGate>/<IfVersion> in `src` for one vault, inside-out, so
+// nesting resolves (e.g. <IfVersion> within <IfGate>, or stacked <IfGate>s).
+// Unknown gate ⇒ throw.
+function expandConditionals(src, vault, gates, referencedGates, file) {
+  const gateValues = evaluateGates(vault.content, gates);
+  let out = src;
+  for (let guard = 0; guard < 100000; guard += 1) {
+    const m = INNERMOST_COND_RE.exec(out);
+    if (!m) return out;
+    const [whole, tag, attrs, body] = m;
+    let show;
+    if (tag === 'IfGate') {
+      const flag = readAttr(attrs, 'flag');
+      referencedGates.add(flag);
+      if (!gates.has(flag)) {
+        throw new Error(
+          `Unknown gate "${flag}" referenced in ${path.relative(STAGING, file)} — ` +
+            `add it to _meta/gates.yaml or remove the <IfGate>.`,
+        );
+      }
+      const enabled = gateValues.get(flag) === true;
+      show = /\binverse\b/.test(attrs) ? !enabled : enabled;
+    } else {
+      const notVal = readAttr(attrs, 'not');
+      show =
+        notVal !== undefined
+          ? vault.version !== notVal
+          : vault.version === readAttr(attrs, 'is');
+    }
+    out =
+      out.slice(0, m.index) +
+      (show ? body : '') +
+      out.slice(m.index + whole.length);
+  }
+  throw new Error(
+    `<IfGate>/<IfVersion> expansion did not terminate in ` +
+      `${path.relative(STAGING, file)}.`,
+  );
+}
+
 async function renderEarnPerVault(file, vaults, gates, referencedGates, renderedByVault) {
   const src = await fs.readFile(file, 'utf8');
-
-  for (const match of src.matchAll(IF_GATE_RE)) {
-    const flag = match[1] ?? match[2];
-    referencedGates.add(flag);
-    if (!gates.has(flag)) {
-      throw new Error(
-        `Unknown gate "${flag}" referenced in ${path.relative(STAGING, file)} — ` +
-          `add it to _meta/gates.yaml or remove the <IfGate>.`,
-      );
-    }
-  }
-
   const relFromEarn = path.relative(FE_EARN, file);
 
   for (const vault of vaults) {
-    const gateValues = evaluateGates(vault.content, gates);
-    const gateExpanded = src.replace(
-      IF_GATE_RE,
-      (_match, dq, sq, inverse, body) => {
-        const flag = dq ?? sq;
-        const enabled = gateValues.get(flag) === true;
-        const show = inverse ? !enabled : enabled;
-        return show ? body : '';
-      },
-    );
-    const versionExpanded = gateExpanded.replace(
-      IF_VERSION_RE,
-      (_match, attr, dq, sq, body) => {
-        const want = dq ?? sq;
-        const matches = vault.version === want;
-        const show = attr === 'is' ? matches : !matches;
-        return show ? body : '';
-      },
-    );
+    const expanded = expandConditionals(src, vault, gates, referencedGates, file);
     const rendered = substitutePlaceholders(
-      versionExpanded,
+      expanded,
       buildVaultContext(vault),
       file,
       vault.slug,
