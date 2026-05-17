@@ -123,6 +123,13 @@ jobs:
           set -euo pipefail
           find "$OUTPUT_DIR" -type d -name 'internal' -prune -exec rm -rf {} +
 
+      - name: Upload aggregated output artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aggregated-docs
+          path: ${{ env.OUTPUT_DIR }}
+          retention-days: 7
+
       - name: Publish to ${{ env.PUBLISH_BRANCH }}
         working-directory: ${{ env.OUTPUT_DIR }}
         run: |
@@ -130,8 +137,11 @@ jobs:
           git init -q -b "$PUBLISH_BRANCH"
           git config user.name 'concrete-docs-bot'
           git config user.email 'docs-bot@concrete.xyz'
+          # Dedicated publish token — needs contents:write on THIS repo only.
+          # Kept separate from DOCS_AGGREGATION_PAT (read-only on FE/BE/SC) so
+          # no single token has write access across every source repo.
           git remote add origin \
-            "https://x-access-token:${{ secrets.DOCS_AGGREGATION_PAT }}@github.com/${GITHUB_REPOSITORY}.git"
+            "https://x-access-token:${{ secrets.DOCS_PUBLISH_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git"
           # Fetch the prior tip so --force-with-lease has a real ref to compare
           # against; if the branch does not exist yet, the lease check is skipped.
           if git fetch --depth=1 origin "$PUBLISH_BRANCH" 2>/dev/null; then
