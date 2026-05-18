@@ -7,7 +7,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "preprocess": "node preprocess-docs.mjs"
+    "preprocess": "node preprocess-docs.mjs",
+    "preview": "node preview.mjs --serve",
+    "preview:build": "node preview.mjs"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
