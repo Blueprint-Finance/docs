@@ -1,21 +1,22 @@
 #!/usr/bin/env node
 // Concrete Mintlify preprocessor.
 //
-// Aggregates docs/business/ from FE/BE/SC into one Mintlify site:
-//   - FE earn rules are expanded per Storyblok vault via <IfGate>.
-//   - FE sdk / BE / SC content is copied verbatim (no per-vault expansion).
-//   - docs.json navigation is assembled from the base repo + a generated
-//     Earn tab + BE's and SC's own docs.json (paths normalized).
+// Aggregates docs/business/ from FE/BE/SC into one Mintlify site — two content
+// classes (see ~/.claude/coordination/mintlify.md "Documentation compilation
+// model"):
+//   - Class A: the base repo's conceptual docs — its docs.json nav is kept.
+//   - Class B: per-vault composed docs — FE earn rules, gated/version-resolved
+//     and {{ }}-filled, composed into one page per theme, per vault.
 //
 // Pipeline:
 //   1. Load _meta/gates.yaml → gate name → {storyblok_field, default}.
 //   2. Fetch the `earn` story from Storyblok (mirrors the FE getStory
 //      contract in Concrete-app/src/core/utils/storyblok.ts).
 //   3. Fetch per-vault config from BE earn-apy /vault:performance.
-//   4. For each FE earn MDX, expand <IfGate> + <IfVersion> and fill
-//      {{ vault.* }} placeholders. Unknown gate ⇒ fail.
+//   4. Per vault, per theme: expand <IfGate>/<IfVersion>, fill {{ vault.* }},
+//      drop empty rules, compose the survivors into one themed page.
 //   5. Copy FE sdk/, BE public/, SC public/ verbatim (all file types).
-//   6. Assemble docs.json; copy _meta/INDEX.md + _meta/glossary.md.
+//   6. Assemble docs.json (class A nav + Vaults tab); copy _meta artifacts.
 //
 // Gate model: every feature gate is vault-level — evaluated as
 //   Boolean(vault.content[storyblok_field] ?? default). Group-level gates
@@ -70,12 +71,16 @@ async function main() {
   for (const v of vaults) v.performance = performance.get(v.slug) ?? null;
 
   const referencedGates = new Set();
-  const renderedByVault = new Map(vaults.map((v) => [v.slug, []]));
 
-  // FE earn → per-vault <IfGate> expansion.
+  // FE earn → per-vault composition: group rules by theme, then per vault
+  // compose each theme's surviving rules into a single themed page.
   const earnFiles = (await collectMdx([FE_EARN])).filter(notInternal);
-  for (const file of earnFiles) {
-    await renderEarnPerVault(file, vaults, gates, referencedGates, renderedByVault);
+  const themedRules = await groupEarnRulesByTheme(earnFiles);
+  const composedByVault = new Map();
+  for (const vault of vaults) {
+    await composeVaultThemes(
+      vault, themedRules, gates, referencedGates, composedByVault,
+    );
   }
 
   // FE sdk → copy once verbatim.
@@ -108,7 +113,7 @@ async function main() {
   }
 
   await copyMetaArtifacts();
-  await emitDocsJson(vaults, renderedByVault, sdkPages.sort());
+  await emitDocsJson(vaults, composedByVault, sdkPages.sort());
 
   if (unresolvedPlaceholders.length > 0) {
     const sample = unresolvedPlaceholders
@@ -122,7 +127,7 @@ async function main() {
   }
 
   console.log(
-    `Preprocessed ${earnFiles.length} FE-earn × ${vaults.length} vaults, ` +
+    `Composed ${vaults.length} vault docs from ${earnFiles.length} earn rules; ` +
       `${sdkPages.length} FE-sdk, ${beCount} BE files, ${scCount} SC files → ${OUTPUT}`,
   );
 }
@@ -533,24 +538,89 @@ function expandConditionals(src, vault, gates, referencedGates, file) {
   );
 }
 
-async function renderEarnPerVault(file, vaults, gates, referencedGates, renderedByVault) {
-  const src = await fs.readFile(file, 'utf8');
-  const relFromEarn = path.relative(FE_EARN, file);
+// --- Per-vault composition (class B) -----------------------------------------
+// FE earn rules live under FE_EARN/<theme>/<rule>.mdx. Each theme composes into
+// one page per vault; rule order within a theme is filename order.
+const EARN_THEMES = [
+  { dir: 'vaults', page: 'overview', title: 'Overview' },
+  { dir: 'deposits', page: 'depositing', title: 'Depositing' },
+  { dir: 'withdrawals', page: 'withdrawing', title: 'Withdrawing' },
+  { dir: 'rewards', page: 'rewards', title: 'Rewards' },
+  { dir: 'cross-chain', page: 'cross-chain', title: 'Cross-chain' },
+];
 
-  for (const vault of vaults) {
-    const expanded = expandConditionals(src, vault, gates, referencedGates, file);
-    const rendered = substitutePlaceholders(
-      expanded,
-      buildVaultContext(vault),
-      file,
-      vault.slug,
-    );
-    const dest = path.join(OUTPUT, 'public', vault.slug, relFromEarn);
+// Group earn rule files by their theme folder, reading each source once.
+async function groupEarnRulesByTheme(earnFiles) {
+  const known = new Set(EARN_THEMES.map((t) => t.dir));
+  const themed = new Map(EARN_THEMES.map((t) => [t.dir, []]));
+  for (const file of [...earnFiles].sort()) {
+    const theme = path.relative(FE_EARN, file).split(path.sep)[0];
+    if (!known.has(theme)) {
+      console.warn(
+        `⚠ earn rule outside a known theme folder, skipped: ` +
+          `${path.relative(STAGING, file)}`,
+      );
+      continue;
+    }
+    themed.get(theme).push({ file, src: await fs.readFile(file, 'utf8') });
+  }
+  return themed;
+}
+
+function stripFrontmatter(src) {
+  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(src);
+  return m ? src.slice(m[0].length) : src;
+}
+
+// Shift ATX headings down one level (# → ##) so a rule's H1 sits under the
+// theme page; fenced code blocks are left untouched.
+function demoteHeadings(md) {
+  let inFence = false;
+  return md
+    .split('\n')
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      return !inFence && /^#{1,5}\s/.test(line) ? `#${line}` : line;
+    })
+    .join('\n');
+}
+
+// A rule whose body (minus headings) is all whitespace gated out entirely for
+// this vault — it contributes nothing and is dropped from the page.
+function isEffectivelyEmpty(body) {
+  return body.replace(/^#{1,6}\s.*$/gm, '').trim() === '';
+}
+
+// Compose one vault's earn docs: per theme, expand + fill each rule, drop the
+// empties, and write the survivors as a single themed page.
+async function composeVaultThemes(vault, themedRules, gates, referencedGates, composedByVault) {
+  const context = buildVaultContext(vault);
+  const pages = [];
+  for (const theme of EARN_THEMES) {
+    const sections = [];
+    for (const { file, src } of themedRules.get(theme.dir) ?? []) {
+      const expanded = expandConditionals(src, vault, gates, referencedGates, file);
+      const rendered = substitutePlaceholders(expanded, context, file, vault.slug);
+      const body = stripFrontmatter(rendered).trim();
+      if (isEffectivelyEmpty(body)) continue;
+      sections.push(demoteHeadings(body));
+    }
+    if (sections.length === 0) continue;
+    const title = `${vault.name} — ${theme.title}`;
+    const page =
+      `---\ntitle: ${JSON.stringify(title)}\n---\n\n` +
+      sections.join('\n\n') +
+      '\n';
+    const dest = path.join(OUTPUT, 'public', vault.slug, `${theme.page}.mdx`);
     await fs.mkdir(path.dirname(dest), { recursive: true });
     claimPath(dest, 'FE-earn');
-    await fs.writeFile(dest, rendered);
-    renderedByVault.get(vault.slug).push(relFromEarn);
+    await fs.writeFile(dest, page);
+    pages.push(`public/${vault.slug}/${theme.page}`);
   }
+  composedByVault.set(vault.slug, pages);
 }
 
 async function copyMdxOnce(file, srcRoot, dstRoot) {
@@ -620,41 +690,36 @@ async function copyMetaArtifacts() {
 
 // --- docs.json assembly ------------------------------------------------------
 
-async function emitDocsJson(vaults, renderedByVault, sdkPages) {
+async function emitDocsJson(vaults, composedByVault, sdkPages) {
   const base = JSON.parse(await fs.readFile(BASE_DOCS_JSON, 'utf8'));
 
-  const tabs = [];
+  // Class A — preserve the base repo's conceptual navigation verbatim,
+  // dropping only stray empty groups (e.g. an unfilled placeholder).
+  const tabs = (base.navigation?.tabs ?? []).map((tab) => ({
+    ...tab,
+    groups: (tab.groups ?? []).filter(
+      (g) => !Array.isArray(g.pages) || g.pages.length > 0,
+    ),
+  }));
 
-  // Documentation tab: base intro pages + shared reference.
-  const docGroups = [
-    {
-      group: 'Overview',
-      pages: ['introduction', 'how-it-works', 'key-concepts'],
-    },
-  ];
-  const refPages = [];
-  if (fsExistsSync(path.join(OUTPUT, '_meta', 'INDEX.md'))) refPages.push('_meta/INDEX');
-  if (fsExistsSync(path.join(OUTPUT, '_meta', 'glossary.md'))) {
-    refPages.push('_meta/glossary');
+  // Class B — one "Vaults" tab; a group per vault listing its theme pages.
+  const vaultGroups = vaults
+    .map((vault) => ({
+      group: vault.name,
+      pages: composedByVault.get(vault.slug) ?? [],
+    }))
+    .filter((g) => g.pages.length > 0);
+  if (vaultGroups.length > 0) tabs.push({ tab: 'Vaults', groups: vaultGroups });
+
+  // FE SDK.
+  if (sdkPages.length > 0) {
+    tabs.push({ tab: 'SDK', groups: [{ group: 'SDK', pages: sdkPages }] });
   }
-  if (refPages.length > 0) docGroups.push({ group: 'Reference', pages: refPages });
-  tabs.push({ tab: 'Documentation', groups: docGroups });
 
-  // Earn tab: one group per vault + SDK.
-  const earnGroups = vaults.map((vault) => {
-    const pages = (renderedByVault.get(vault.slug) ?? [])
-      .map((rel) => `public/${vault.slug}/${toPageRef(rel)}`)
-      .sort();
-    return { group: `Vault: ${vault.name}`, pages };
-  }).filter((g) => g.pages.length > 0);
-  if (sdkPages.length > 0) earnGroups.push({ group: 'SDK', pages: sdkPages });
-  if (earnGroups.length > 0) tabs.push({ tab: 'Earn', groups: earnGroups });
-
-  // API Reference tab: BE's own docs.json groups (paths already root-relative).
+  // Transitional developer-reference tabs from BE/SC's own docs.json.
+  // (Curating this material into class A is future content work.)
   const beGroups = await loadSourceGroups(BE_DOCS_JSON);
-  if (beGroups.length > 0) tabs.push({ tab: 'API Reference', groups: beGroups });
-
-  // Smart Contracts tab: SC's own docs.json groups, paths normalized.
+  if (beGroups.length > 0) tabs.push({ tab: 'Backend API', groups: beGroups });
   const scGroups = await loadSourceGroups(SC_DOCS_JSON);
   if (scGroups.length > 0) tabs.push({ tab: 'Smart Contracts', groups: scGroups });
 
