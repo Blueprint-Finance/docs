@@ -42,6 +42,14 @@
             ]
           },
           {
+            "group": "Ecosystem",
+            "pages": [
+              "ecosystem/overview",
+              "ecosystem/supported-chains",
+              "ecosystem/integrations"
+            ]
+          },
+          {
             "group": "Security",
             "pages": [
               "security/overview",
@@ -55,14 +63,6 @@
               "enterprise/overview",
               "enterprise/assetcx",
               "enterprise/vault-setup"
-            ]
-          },
-          {
-            "group": "Ecosystem",
-            "pages": [
-              "ecosystem/overview",
-              "ecosystem/supported-chains",
-              "ecosystem/integrations"
             ]
           }
         ]
