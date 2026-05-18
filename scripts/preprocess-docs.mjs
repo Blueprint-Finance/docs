@@ -76,6 +76,7 @@ async function main() {
   // compose each theme's surviving rules into a single themed page.
   const earnFiles = (await collectMdx([FE_EARN])).filter(notInternal);
   const themedRules = await groupEarnRulesByTheme(earnFiles);
+  rewriteEarnLinks(themedRules);
   const composedByVault = new Map();
   for (const vault of vaults) {
     await composeVaultThemes(
@@ -232,6 +233,7 @@ async function fetchVaults() {
       vaults.push({
         slug,
         name: story.content.name ?? story.name ?? slug,
+        group: group.name ?? 'Vaults',
         version: String(story.content.vaultVersion || 'v1').trim(),
         network: story.content.network ?? null,
         addresses: parseAddresses(story.content.addresses),
@@ -567,6 +569,56 @@ async function groupEarnRulesByTheme(earnFiles) {
   return themed;
 }
 
+const MD_LINK_RE = /\[([^\]]*)\]\(([^)\s]+)\)/g;
+
+// GitHub/Mintlify-style heading anchor slug.
+function slugify(text) {
+  return String(text)
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+function extractH1(src) {
+  const m = /^#\s+(.+?)\s*$/m.exec(stripFrontmatter(src));
+  return m ? m[1] : null;
+}
+
+// FE earn rules cross-link by relative path (../vaults/versions, ./caps).
+// Composition collapses rules into theme pages, so each such link is rewritten
+// to <themePage>#<rule-anchor>. Vault-independent — mutates themedRules once.
+function rewriteEarnLinks(themedRules) {
+  const themePageOf = new Map(EARN_THEMES.map((t) => [t.dir, t.page]));
+  const index = new Map();
+  for (const [themeDir, rules] of themedRules) {
+    for (const { file, src } of rules) {
+      const h1 = extractH1(src);
+      index.set(`${themeDir}/${path.basename(file, '.mdx')}`, {
+        themePage: themePageOf.get(themeDir),
+        anchor: h1 ? slugify(h1) : '',
+      });
+    }
+  }
+  for (const [themeDir, rules] of themedRules) {
+    const ownThemePage = themePageOf.get(themeDir);
+    for (const rule of rules) {
+      rule.src = rule.src.replace(MD_LINK_RE, (whole, text, target) => {
+        if (/^(https?:|mailto:|#|\/)/i.test(target)) return whole;
+        const [rawPath, frag] = target.split('#');
+        const resolved = path.posix
+          .join(themeDir, rawPath)
+          .replace(/\.mdx?$/, '');
+        const hit = index.get(resolved);
+        if (!hit) return whole;
+        const page = hit.themePage === ownThemePage ? '' : hit.themePage;
+        return `[${text}](${page}#${frag || hit.anchor})`;
+      });
+    }
+  }
+}
+
 function stripFrontmatter(src) {
   const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(src);
   return m ? src.slice(m[0].length) : src;
@@ -611,7 +663,8 @@ async function composeVaultThemes(vault, themedRules, gates, referencedGates, co
     if (sections.length === 0) continue;
     const title = `${vault.name} — ${theme.title}`;
     const page =
-      `---\ntitle: ${JSON.stringify(title)}\n---\n\n` +
+      `---\ntitle: ${JSON.stringify(title)}\n` +
+      `sidebarTitle: ${JSON.stringify(theme.title)}\n---\n\n` +
       sections.join('\n\n') +
       '\n';
     const dest = path.join(OUTPUT, 'public', vault.slug, `${theme.page}.mdx`);
@@ -702,14 +755,26 @@ async function emitDocsJson(vaults, composedByVault, sdkPages) {
     ),
   }));
 
-  // Class B — one "Vaults" tab; a group per vault listing its theme pages.
-  const vaultGroups = vaults
-    .map((vault) => ({
-      group: vault.name,
-      pages: composedByVault.get(vault.slug) ?? [],
-    }))
-    .filter((g) => g.pages.length > 0);
-  if (vaultGroups.length > 0) tabs.push({ tab: 'Vaults', groups: vaultGroups });
+  // Class B — "Vaults" tab: a top-level group per Storyblok vault-group, each
+  // vault a nested collapsed group (expanded:false) of its theme pages.
+  // (Mintlify only collapses nested groups; top-level groups always expand.)
+  const byGroup = new Map();
+  for (const vault of vaults) {
+    const pages = composedByVault.get(vault.slug) ?? [];
+    if (pages.length === 0) continue;
+    const gname = vault.group || 'Vaults';
+    if (!byGroup.has(gname)) byGroup.set(gname, []);
+    byGroup.get(gname).push({ group: vault.name, expanded: false, pages });
+  }
+  if (byGroup.size > 0) {
+    tabs.push({
+      tab: 'Vaults',
+      groups: [...byGroup].map(([gname, vaultGroups]) => ({
+        group: gname,
+        pages: vaultGroups,
+      })),
+    });
+  }
 
   // FE SDK.
   if (sdkPages.length > 0) {
