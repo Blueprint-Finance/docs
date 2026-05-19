@@ -581,9 +581,21 @@ function slugify(text) {
     .replace(/-+/g, '-');
 }
 
+// First H1 that sits outside any <IfGate>/<IfVersion> block — that heading is
+// present on the composed page for every vault, so its anchor is stable. An
+// H1 inside a conditional would render (and slug) differently per vault.
 function extractH1(src) {
-  const m = /^#\s+(.+?)\s*$/m.exec(stripFrontmatter(src));
-  return m ? m[1] : null;
+  let depth = 0;
+  for (const line of stripFrontmatter(src).split('\n')) {
+    if (depth === 0) {
+      const m = /^#\s+(.+?)\s*$/.exec(line);
+      if (m) return m[1];
+    }
+    depth += (line.match(/<If(?:Gate|Version)\b/g) || []).length;
+    depth -= (line.match(/<\/If(?:Gate|Version)>/g) || []).length;
+    if (depth < 0) depth = 0;
+  }
+  return null;
 }
 
 // FE earn rules cross-link by relative path (../vaults/versions, ./caps).
@@ -627,15 +639,20 @@ function stripFrontmatter(src) {
 // Shift ATX headings down one level (# → ##) so a rule's H1 sits under the
 // theme page; fenced code blocks are left untouched.
 function demoteHeadings(md) {
-  let inFence = false;
+  // null = outside a fence; '`' or '~' = inside a fence opened with that char.
+  // A closing fence must use the opening character (CommonMark).
+  let fenceChar = null;
   return md
     .split('\n')
     .map((line) => {
-      if (/^\s*(```|~~~)/.test(line)) {
-        inFence = !inFence;
+      const fence = /^\s*(`{3,}|~{3,})/.exec(line);
+      if (fence) {
+        const ch = fence[1][0];
+        if (fenceChar === null) fenceChar = ch;
+        else if (fenceChar === ch) fenceChar = null;
         return line;
       }
-      return !inFence && /^#{1,5}\s/.test(line) ? `#${line}` : line;
+      return fenceChar === null && /^#{1,5}\s/.test(line) ? `#${line}` : line;
     })
     .join('\n');
 }
