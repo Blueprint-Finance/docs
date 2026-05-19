@@ -13,7 +13,7 @@
 //   2. Fetch the `earn` story from Storyblok (mirrors the FE getStory
 //      contract in Concrete-app/src/core/utils/storyblok.ts).
 //   3. Fetch per-vault config from BE earn-apy /vault:performance.
-//   4. Per vault, per theme: expand <IfGate>/<IfVersion>, fill {{ vault.* }},
+//   4. Per vault, per theme: expand <IfGate>/<IfVersion>/<IfRc>, fill {{ }},
 //      drop empty rules, compose the survivors into one themed page.
 //   5. Copy FE sdk/, BE public/, SC public/ verbatim (all file types).
 //   6. Assemble docs.json (class A nav + Vaults tab); copy _meta artifacts.
@@ -23,6 +23,8 @@
 //   (group_hidden, …) are dead and unused; they resolve to their default.
 // Version axis: <IfVersion is="v2"> / <IfVersion not="v2"> resolves against
 //   the vault's vaultVersion.
+// Presence axis: <IfRc> keeps its body only when BE returned a non-empty
+//   withdrawals_config_rc (a pending release-candidate schedule) for the vault.
 // Live vault set = Storyblok vaults ∩ FE _meta/earn-whitelist.json.
 
 import fs from 'node:fs/promises';
@@ -59,6 +61,11 @@ const IF_GATE_RE =
 // <IfVersion is="v2">…</IfVersion> / <IfVersion not="v2">…</IfVersion>
 const IF_VERSION_RE =
   /<IfVersion\s+(is|not)=(?:"([^"]+)"|'([^']+)')\s*>([\s\S]*?)<\/IfVersion>/g;
+
+// <IfRc>…</IfRc> — presence conditional: body kept only when the vault has a
+// non-empty BE withdrawals_config_rc (a pending release-candidate schedule).
+// Attribute-less by design; no inverse modifier.
+const IF_RC_RE = /<IfRc\s*>([\s\S]*?)<\/IfRc>/g;
 
 async function main() {
   const gates = await loadGates();
@@ -487,10 +494,11 @@ async function collectMdx(roots) {
   return out;
 }
 
-// Innermost <IfGate>/<IfVersion> whose body contains no nested conditional —
-// matched repeatedly (inside-out) so arbitrarily nested conditionals resolve.
+// Innermost <IfGate>/<IfVersion>/<IfRc> whose body contains no nested
+// conditional — matched repeatedly (inside-out) so arbitrarily nested
+// conditionals resolve. <IfRc> is attribute-less; the others carry attrs.
 const INNERMOST_COND_RE =
-  /<(IfGate|IfVersion)\s+([^>]*?)>((?:(?!<\/?If(?:Gate|Version)\b)[\s\S])*?)<\/\1>/;
+  /<(IfGate|IfVersion|IfRc)\b([^>]*?)>((?:(?!<\/?If(?:Gate|Version|Rc)\b)[\s\S])*?)<\/\1>/;
 
 function readAttr(attrs, name) {
   const m = new RegExp(`\\b${name}=(?:"([^"]*)"|'([^']*)')`).exec(attrs);
@@ -508,7 +516,13 @@ function expandConditionals(src, vault, gates, referencedGates, file) {
     if (!m) return out;
     const [whole, tag, attrs, body] = m;
     let show;
-    if (tag === 'IfGate') {
+    if (tag === 'IfRc') {
+      // Presence conditional — keep the body only when BE returned a non-empty
+      // withdrawals_config_rc for this vault (most vaults have {}).
+      const rc = vault.performance?.withdrawals_config_rc;
+      show =
+        rc != null && typeof rc === 'object' && Object.keys(rc).length > 0;
+    } else if (tag === 'IfGate') {
       const flag = readAttr(attrs, 'flag');
       referencedGates.add(flag);
       if (!gates.has(flag)) {
@@ -591,8 +605,8 @@ function extractH1(src) {
       const m = /^#\s+(.+?)\s*$/.exec(line);
       if (m) return m[1];
     }
-    depth += (line.match(/<If(?:Gate|Version)\b/g) || []).length;
-    depth -= (line.match(/<\/If(?:Gate|Version)>/g) || []).length;
+    depth += (line.match(/<If(?:Gate|Version|Rc)\b/g) || []).length;
+    depth -= (line.match(/<\/If(?:Gate|Version|Rc)>/g) || []).length;
     if (depth < 0) depth = 0;
   }
   return null;
@@ -702,11 +716,13 @@ async function copyMdxOnce(file, srcRoot, dstRoot) {
   await fs.writeFile(dest, src);
 }
 
-// <IfGate>/<IfVersion> are FE-earn-only — BE/SC/FE-sdk content must not use them.
+// <IfGate>/<IfVersion>/<IfRc> are FE-earn-only — BE/SC/FE-sdk content must not
+// use them.
 function assertNoConditionals(src, file) {
   for (const [re, tag] of [
     [IF_GATE_RE, '<IfGate>'],
     [IF_VERSION_RE, '<IfVersion>'],
+    [IF_RC_RE, '<IfRc>'],
   ]) {
     re.lastIndex = 0;
     const hit = re.test(src);
