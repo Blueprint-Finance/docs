@@ -42,8 +42,12 @@
             ]
           },
           {
-            "group": "Vaults",
-            "pages": []
+            "group": "Ecosystem",
+            "pages": [
+              "ecosystem/overview",
+              "ecosystem/supported-chains",
+              "ecosystem/integrations"
+            ]
           },
           {
             "group": "Security",
@@ -60,20 +64,11 @@
               "enterprise/assetcx",
               "enterprise/vault-setup"
             ]
-          },
-          {
-            "group": "Ecosystem",
-            "pages": [
-              "ecosystem/overview",
-              "ecosystem/supported-chains",
-              "ecosystem/integrations"
-            ]
           }
         ]
       },
       {
         "tab": "API Reference",
-        "openapi": ["api-reference/openapi.json"],
         "groups": [
           {
             "group": "Get started",
