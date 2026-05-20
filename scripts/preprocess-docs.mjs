@@ -638,9 +638,13 @@ function computeWithdrawalCycleSummary(vault) {
 }
 
 // Worst-case days the user could wait. Matches `cycle_summary`'s precedence
-// (primary cron → RC → queue delay → null) so the numeric and the prose stay
-// consistent — an author dropping both into the same paragraph won't see a
-// "Thursdays, 12:30 PM UTC" sentence next to a queue-delay-derived day count.
+// step-for-step (primary cron → RC → queue delay → null) so the numeric and
+// the prose stay genuinely consistent: when one resolves at a given step the
+// other resolves at the same step. The primary step deliberately requires
+// BOTH cutoff and payout crons usable, identical to derivePrimaryCycleSummary
+// — without payout_cron the schedule-pane sentence can't be formed, so
+// cycle_days falls through too rather than emit a cutoff-only number next to
+// an RC-derived sentence.
 // Authors reach for this when they want a numeric value to slot into prose
 // ("up to {{ vault.withdrawal.cycle_days }} days").
 function computeWithdrawalCycleDays(vault) {
@@ -648,7 +652,11 @@ function computeWithdrawalCycleDays(vault) {
   const wc = vault.performance?.withdrawals_config ?? {};
   const wcRc = vault.performance?.withdrawals_config_rc ?? {};
 
-  if (!c.disableWithdrawalCron && isUsableCron(wc.cutoff_cron)) {
+  if (
+    !c.disableWithdrawalCron &&
+    isUsableCron(wc.cutoff_cron) &&
+    isUsableCron(wc.payout_cron)
+  ) {
     const d = computeFullCycleDays(wc.cutoff_cron);
     if (d) return d;
   }
