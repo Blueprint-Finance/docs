@@ -867,19 +867,31 @@ async function copyMetaArtifacts() {
 // under the single-branch publish model) does not produce duplicate tabs.
 const CLASS_B_TABS = new Set(['Vaults', 'SDK', 'Backend API', 'Smart Contracts']);
 
+// Groups inside otherwise-class-A tabs that the worker also regenerates. Same
+// stripping logic as CLASS_B_TABS — keep the class-A tab from the base but
+// drop these groups before re-appending the freshly generated versions. The
+// publish-time merge in scripts/merge-docs-json.mjs MUST stay in sync with
+// this map.
+const CLASS_B_GROUPS_IN_CLASS_A_TABS = new Map([
+  ['Documentation', new Set(['Earn concepts'])],
+]);
+
 async function emitDocsJson(vaults, composedByVault, sdkPages, classAPages = []) {
   const base = JSON.parse(await fs.readFile(BASE_DOCS_JSON, 'utf8'));
 
   // Class A — preserve the base repo's conceptual navigation verbatim,
-  // dropping any class-B tab (regenerated below) and stray empty groups.
+  // dropping any class-B tab (regenerated below), any class-B group inside
+  // a class-A tab (also regenerated below), and stray empty groups.
   const tabs = (base.navigation?.tabs ?? [])
     .filter((tab) => !CLASS_B_TABS.has(tab.tab))
-    .map((tab) => ({
-      ...tab,
-      groups: (tab.groups ?? []).filter(
-        (g) => !Array.isArray(g.pages) || g.pages.length > 0,
-      ),
-    }));
+    .map((tab) => {
+      const ownedGroups = CLASS_B_GROUPS_IN_CLASS_A_TABS.get(tab.tab);
+      const groups = (tab.groups ?? []).filter((g) => {
+        if (ownedGroups && ownedGroups.has(g.group)) return false;
+        return !Array.isArray(g.pages) || g.pages.length > 0;
+      });
+      return { ...tab, groups };
+    });
 
   // Class A — "Earn concepts" group: append the emit:once FE earn rules to
   // the Documentation tab, sub-grouped by theme in EARN_THEMES order. Skipped

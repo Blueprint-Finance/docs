@@ -144,7 +144,9 @@ jobs:
           set -euo pipefail
           # Worker-owned paths — everything else on main is class-A content or
           # tooling and must not be overwritten by an aggregation run.
-          OWNED=(public _meta docs.json)
+          # `concepts/` holds `emit: once` class-A earn rules written once by
+          # the preprocessor; only present when at least one FE rule is marked.
+          OWNED=(public _meta concepts docs.json)
 
           # Sync the local checkout to the latest main so the commit applies on
           # the current tip. Discards any local edits the workflow may have
@@ -163,7 +165,10 @@ jobs:
 
           # Overlay the owned paths from the preprocessor output. --delete on
           # directory targets so removed vaults or themes don't leave stale
-          # files behind in the published tree.
+          # files behind in the published tree. An OWNED directory that the
+          # current run did not produce (e.g. `concepts/` with no `emit: once`
+          # files) is removed from main so a stale copy from a previous run
+          # doesn't linger.
           for path in "${OWNED[@]}"; do
             src="$OUTPUT_DIR/$path"
             if [ -d "$src" ]; then
@@ -171,6 +176,8 @@ jobs:
               rsync -a --delete "$src/" "./$path/"
             elif [ -f "$src" ]; then
               cp "$src" "./$path"
+            elif [ -d "./$path" ]; then
+              rm -rf "./$path"
             fi
           done
 
