@@ -6,9 +6,11 @@ sidebarTitle: "Withdrawing"
 ## Epoch lifecycle
 
 
-Withdrawal cycle: —. Requests
-submitted after the cutoff roll into the next epoch instead. Closed-pending
-requests settle on-chain and become claimable when the next epoch starts.
+—
+
+Requests submitted after the cutoff roll into the next epoch instead.
+Closed-pending requests settle on-chain and become claimable when the
+next epoch starts.
 
 See [Withdrawal epoch lifecycle](/concepts/earn/withdrawals/epoch-cycle-concept#withdrawal-epoch-lifecycle) for the full
 explanation of how epochs start, close, and settle.
@@ -20,15 +22,3 @@ explanation of how epochs start, close, and settle.
 This vault has no cap configured, so every request queues into its
 native epoch and settles in FIFO order within that epoch. See
 [Queue position](/concepts/earn/withdrawals/queue-position-concept#queue-position) for the full mechanics.
-
-## Withdrawal schedule transitions
-
-
-
-This vault has an upcoming schedule transition. See
-[Withdrawal schedule transitions](/concepts/earn/withdrawals/rc-config-concept#withdrawal-schedule-transitions) for how the
-boundary applies to existing requests.
-
-From `2026-03-20T12:00:00Z` onward, epochs follow the
-new schedule: cutoff `0 5 12 * * 1,4`, payout
-`0 0 12 * * 1,4`.
