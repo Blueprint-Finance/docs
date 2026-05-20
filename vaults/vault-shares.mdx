@@ -1,49 +1,41 @@
 ---
 title: "ct[Asset] Tokens: Yield-Bearing Vault Shares Explained"
 sidebarTitle: "Vault shares"
-description: "When you deposit into a Concrete vault, you receive ct[Asset] tokens that appreciate as the vault earns yield and remain composable across DeFi."
+description: "When you deposit into a Concrete vault, you receive ct[Asset] tokens representing your proportional ownership of the vault's assets. The share-to-asset exchange rate rises as the vault earns yield."
 ---
 
-When you deposit into a Concrete vault, you receive `ct[Asset]` tokens in return. These tokens are your vault shares — a yield-bearing receipt that proves your proportional ownership of the vault's assets. For example, depositing USDT into the Stable Vault gives you `ctDefiUSDT`, and depositing WBTC gives you `ctWBTC`. The tokens sit in your wallet like any other ERC-20; you do not need to do anything with them for yield to accrue.
+When you deposit into a Concrete vault, you receive `ct[Asset]` tokens in return. These tokens are your vault shares — a yield-bearing receipt that represents your proportional ownership of the vault's underlying assets. Each vault sets its own ERC-20 share name and symbol at deployment (for example, a Senior USDC vault might issue shares with the symbol `ctSrUSDC`). The exact symbol you receive depends on the specific vault you deposit into. The tokens sit in your wallet like any other ERC-20; you do not need to do anything with them for yield to accrue.
 
 ## How share price is calculated
 
-Your `ct[Asset]` token balance stays fixed after your deposit. What changes is the value of each token. Share price is calculated as:
+Your `ct[Asset]` token balance stays fixed after your deposit. What changes is the share-to-asset exchange rate, calculated as:
 
+```text
+exchange rate = total vault assets ÷ total shares outstanding
 ```
-share price = total vault assets ÷ total shares outstanding
-```
 
-As the vault earns yield, total assets increase. With the same number of shares outstanding, each share is worth more. When you eventually withdraw, your `ct[Asset]` tokens are redeemed at the current share price, returning you the original asset plus any yield the vault earned during your deposit period.
+As the vault earns yield, total assets increase. With the same number of shares outstanding, each share is redeemable for more of the underlying asset. When you withdraw, your `ct[Asset]` shares are redeemed against the exchange rate that applies at the time the withdrawal is settled — for vaults with an asynchronous withdrawal queue (the most common configuration), this is the share price locked at the time the epoch is processed.
 
-## Composability across DeFi
+## ct\[Asset\] tokens are standard ERC-20
 
-`ct[Asset]` tokens are standard ERC-20 tokens. This means they are composable — usable across DeFi in ways that a locked or illiquid vault position cannot be:
-
-- **Trading** — transfer or trade your vault shares on secondary markets
-- **Liquidity provisioning** — use `ct[Asset]` tokens in liquidity pools
-- **Leverage** — use vault shares as collateral in lending protocols
-- **Structured products** — `ct[Asset]` tokens form the base layer for derivatives and structured products built on Concrete
-
-This composability transforms your vault deposit from a passive, waiting position into an active financial primitive that can be deployed across the ecosystem while still accruing yield from the underlying vault.
+`ct[Asset]` tokens follow the ERC-20 standard, meaning they can be freely transferred to any address. Whoever holds the tokens at the time of redemption holds the claim on the underlying assets. Note that transferring `ct[Asset]` shares does **not** transfer any pending withdrawal requests. If you have an unprocessed withdrawal request and transfer your remaining shares, the pending request remains tied to the original address.
 
 ## Share price in practice
 
 <AccordionGroup>
   <Accordion title="Why does my token balance not increase?">
-    Your `ct[Asset]` token count stays the same after deposit. Yield is reflected in the increasing value of each token, not in a growing balance. When you redeem, the vault calculates how many underlying assets each token is worth at that moment and returns that amount to you.
+    Your `ct[Asset]` token count stays the same after deposit. Yield is reflected in the rising share-to-asset exchange rate, not in a growing balance. When you redeem, the vault calculates how many underlying assets each share is worth at that moment and returns that amount to you.
   </Accordion>
+
   <Accordion title="Can I transfer my ct[Asset] tokens?">
     Yes. `ct[Asset]` tokens are standard ERC-20 tokens and can be transferred to any address. Whoever holds the tokens at the time of redemption receives the underlying assets.
   </Accordion>
+
   <Accordion title="What determines how much I receive on withdrawal?">
-    The amount you receive equals your `ct[Asset]` token count multiplied by the current share price (total vault assets ÷ total shares outstanding) at the time your withdrawal is processed. If the vault has earned yield since your deposit, you receive more than you put in.
+    The amount you receive equals your `ct[Asset]` share count multiplied by the share-to-asset exchange rate applied to your withdrawal. For vaults with an asynchronous withdrawal queue, this is the exchange rate locked at the time the epoch containing your request is processed. If the vault has earned yield since your deposit, you receive more than you put in; if the vault has experienced losses or fees have accrued, you may receive less.
   </Accordion>
-  <Accordion title="What if the vault loses value?">
-    If vault losses reduce total assets, the share price falls and you would receive less than your initial deposit on withdrawal. All strategies involve risk, including possible loss of principal.
+
+  <Accordion title="Can the share value go down?">
+    Yes. The share-to-asset exchange rate can decrease in two cases: if the vault's strategies report losses, or when management and performance fees accrue (both are paid by minting new shares to the fee recipient, which dilutes existing shareholders). All vault strategies involve risk, including possible loss of principal.
   </Accordion>
 </AccordionGroup>
-
-<Note>
-  Concrete is building additional financial products on top of `ct[Asset]` tokens, including structured products and derivative instruments. Holding `ct[Asset]` tokens positions you to access these future layers of composability as they launch.
-</Note>
