@@ -18,7 +18,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // Both constants MUST stay in sync with their counterparts in
-// scripts/preprocess-docs.mjs.
+// scripts/preprocess-docs.mjs. The "Earn concepts" entry below now exists
+// only to clean up the legacy Documentation-tab emission left on main from
+// pre-this-PR runs — the worker emits Earn concepts at the head of the
+// Vaults tab now.
 const CLASS_B_TABS = new Set(['Vaults', 'SDK', 'Backend API', 'Smart Contracts']);
 const CLASS_B_GROUPS_IN_CLASS_A_TABS = new Map([
   ['Documentation', new Set(['Earn concepts'])],
