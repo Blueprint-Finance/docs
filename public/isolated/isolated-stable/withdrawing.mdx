@@ -7,10 +7,10 @@ sidebarTitle: "Withdrawing"
 
 
 This vault's cutoff runs on the cron schedule
-`—`. Requests submitted after the cutoff
+`0 1 12 * * 1`. Requests submitted after the cutoff
 roll into the next epoch instead. Closed-pending requests settle on-chain
 and become claimable on the cron schedule
-`—`, which also starts the next epoch.
+`0 1 12 * * 2`, which also starts the next epoch.
 
 See [Withdrawal epoch lifecycle](/concepts/earn/withdrawals/epoch-cycle-concept#withdrawal-epoch-lifecycle) for the full
 explanation of how epochs start, close, and settle.
