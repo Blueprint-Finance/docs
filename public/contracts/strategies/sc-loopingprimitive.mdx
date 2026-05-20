@@ -1,0 +1,150 @@
+---
+id: 'sc-loopingprimitive'
+title: 'LoopingPrimitive'
+audience: 'public'
+module: 'periphery'
+scope: 'strategies'
+source_refs:
+  - 'src/periphery/strategies/LoopingPrimitive.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'leverage-looping'
+---
+
+## LoopingPrimitive
+
+Abstract base for looping strategies: orchestrates the flash-loan callback,
+        executes the supply/borrow/repay/withdraw/swap legs of a leverage operation,
+        and exposes setters for the flash and swap modules.
+
+_Supports four leverage flows: allocate+supply, deallocate+supply, allocate+repay,
+     and deallocate+repay. When the flash amount is zero the operations are executed
+     inline, without invoking the flash module._
+
+### executeFlash
+
+```solidity
+function executeFlash(address flashToken, uint256 flashAmount, uint256 flashPremiumAmount, address requester, LoopModality loopModality, bytes data) external virtual returns (bool)
+```
+
+Flash loan callback invoked by the flash module to run the looping legs.
+
+_Validates that the caller is the configured flash module and that the
+     requester is this contract before decoding the data and executing the
+     paired supply/borrow or repay/withdraw operation. Returns `true` on success._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| flashToken | address | The token being flash borrowed. |
+| flashAmount | uint256 | The amount being flash borrowed. |
+| flashPremiumAmount | uint256 | The premium amount that must be paid for the flash loan. |
+| requester | address | The address that requested the flash loan; must equal `address(this)`. |
+| loopModality | LoopModality | The loop modality indicating which leverage flow is being executed. |
+| data | bytes | ABI-encoded tuple of `(address pairedToken, uint256 pairedTokenAmount, uint256 floatingAmount)`. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | Always `true` when execution succeeds; reverts otherwise. |
+
+### flashModule
+
+```solidity
+function flashModule() public view returns (address)
+```
+
+Returns the address of the flash module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The address of the flash module. |
+
+### swapModule
+
+```solidity
+function swapModule() public view returns (address)
+```
+
+Returns the address of the swap module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The address of the swap module. |
+
+### _leverage
+
+```solidity
+function _leverage(struct FlashLoanParams params, LoopModality loopModality, struct TokenPair tokenPair) internal virtual
+```
+
+Executes leverage operations, either plain operations or flash loan-based operations.
+
+_If the operation is plain (no flash loan needed), executes directly.
+     Otherwise, initiates a flash loan or executes operations directly if flashAmount is zero._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| params | struct FlashLoanParams | Flash loan parameters containing position and operation details. |
+| loopModality | LoopModality | The loop modality indicating the type of operation. |
+| tokenPair | struct TokenPair | The token pair (collateral and borrow tokens). |
+
+### _executeFlashOperations
+
+```solidity
+function _executeFlashOperations(struct FlashOperationParams op) internal virtual
+```
+
+Executes the flash loan operations based on the operation parameters.
+
+_Handles four cases: allocate+supply, deallocate+supply, allocate+repay, deallocate+repay.
+     If flashAmount is zero, operations are executed directly without a flash loan._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| op | struct FlashOperationParams | Flash operation parameters containing all necessary data for execution. |
+
+### _setFlashModule
+
+```solidity
+function _setFlashModule(address flashModule_, bool emitEvent) internal virtual
+```
+
+Sets the flash module address.
+
+_Reverts if flashModule_ is the zero address._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| flashModule_ | address | The address of the new flash module. |
+| emitEvent | bool | Whether to emit the FlashModuleSet event. |
+
+### _setSwapModule
+
+```solidity
+function _setSwapModule(address swapModule_, bool emitEvent) internal virtual
+```
+
+Sets the swap module address.
+
+_Reverts if swapModule_ is the zero address._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| swapModule_ | address | The address of the new swap module. |
+| emitEvent | bool | Whether to emit the SwapModuleSet event. |
+

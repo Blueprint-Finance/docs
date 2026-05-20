@@ -1,0 +1,158 @@
+---
+id: 'sc-upgradeablevault'
+title: 'UpgradeableVault'
+audience: 'public'
+module: 'core'
+scope: 'base'
+source_refs:
+  - 'src/common/UpgradeableVault.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'vault-core'
+  - 'vault-upgradeability'
+---
+
+## UpgradeableVault
+
+Abstract base for every Concrete vault implementation. Wires initialization and
+        the upgrade flow to the controlling `ConcreteFactory`, so only the factory can
+        initialize a vault proxy or move it to a new implementation.
+
+_Concrete vault implementations inherit this contract; integrators inspecting a vault
+     proxy rely on the upgrade authorization it enforces._
+
+### factory
+
+```solidity
+address factory
+```
+
+Address of the `ConcreteFactory` instance authorized to initialize and upgrade this vault.
+
+### ID
+
+```solidity
+function ID() public pure virtual returns (uint64)
+```
+
+Returns the encoded contract identifier of this vault implementation.
+
+_Must be overridden by concrete implementations. Concrete implementations are also expected
+     to implement the `IContractId` interface so the factory can resolve them._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The encoded contract ID (contractType, flavour, version). |
+
+### constructor
+
+```solidity
+constructor(address factoryAddr) internal
+```
+
+Disables initializers on the implementation contract so it cannot be used directly.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| factoryAddr | address | Address of the `ConcreteFactory` that will manage proxies pointing to this implementation. |
+
+### notInitialized
+
+```solidity
+modifier notInitialized()
+```
+
+_Reverts with `AlreadyInitialized` when the contract has already been initialized._
+
+### version
+
+```solidity
+function version() public view returns (uint64)
+```
+
+Returns the vault's initialisation version.
+
+_Starts at 1 and increments by 1 on each upgrade. Note that legacy versions could
+     advance in larger steps and so the version is not necessarily the same as the
+     vault implementation ID._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The current initialisation version of the vault. |
+
+### initialize
+
+```solidity
+function initialize(uint64 initialVaultImpl, address owner_, struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration defaultEnforcedVaultConfig, bytes data) external
+```
+
+Initialise the proxy with the supplied version, owner, defaults, and impl-specific data.
+
+_Only callable by the factory and only once per vault._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| initialVaultImpl | uint64 |  |
+| owner_ | address |  |
+| defaultEnforcedVaultConfig | struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration | The factory-supplied default configuration (e.g. fee recipients). |
+| data | bytes | Implementation-specific initialisation calldata forwarded to the vault. |
+
+### upgrade
+
+```solidity
+function upgrade(uint64 newVaultImpl, bytes data) external
+```
+
+Upgrade the vault to a newer implementation version.
+
+_Only callable by the factory._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newVaultImpl | uint64 | Target vault implementation ID. |
+| data | bytes | Implementation-specific upgrade calldata forwarded to the new implementation. |
+
+### _initialize
+
+```solidity
+function _initialize(uint64 initialVaultImpl, address owner, struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration defaultEnforcedVaultConfig, bytes data) internal virtual
+```
+
+_Implementation hook invoked by `initialize`. Concrete vaults override this to set up
+     implementation-specific storage and modules._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| initialVaultImpl | uint64 | Initial vault ID from the factory. |
+| owner | address | Vault proxy owner address. |
+| defaultEnforcedVaultConfig | struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration | Default configuration enforced by the factory at deploy time. |
+| data | bytes | Arbitrary ABI-encoded payload used to initialize the concrete implementation. |
+
+### _upgrade
+
+```solidity
+function _upgrade(uint64 newVaultImpl, bytes data) internal virtual
+```
+
+_Implementation hook invoked by `upgrade`. Concrete vaults override this to apply
+     version-specific migration logic._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newVaultImpl | uint64 | Vault proxy's new vault ID. |
+| data | bytes | Arbitrary payload forwarded to the new implementation's upgrade flow. |
+

@@ -1,0 +1,41 @@
+---
+id: 'sc-allocatemodule'
+title: 'AllocateModule'
+audience: 'public'
+module: 'core'
+scope: 'module'
+source_refs:
+  - 'src/module/AllocateModule.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'strategy-allocation'
+---
+
+## AllocateModule
+
+Strategy allocation/deallocation module called by Concrete vaults via `delegatecall`.
+        Iterates an array of `AllocateParams` and, for each active strategy, either deposits the
+        vault's idle assets into the strategy or pulls assets out of it, updating the per-strategy
+        `allocated` accounting and emitting `AllocatedFunds` for each step.
+
+_Because vaults invoke this contract via `delegatecall`, all state reads/writes target the
+     caller vault's storage. The contract holds no state itself._
+
+### allocateFunds
+
+```solidity
+function allocateFunds(bytes data) external
+```
+
+Execute an ordered batch of allocation and deallocation operations against the vault's strategies.
+
+_For each entry the module either calls `allocateFunds` (deposit) or `deallocateFunds`
+     (withdrawal) on the target strategy, then updates the vault's internal per-strategy
+     allocation accounting. The batch is atomic — any failing leg reverts the whole call._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | ABI-encoded `AllocateParams[]` describing every leg of the batch. |
+

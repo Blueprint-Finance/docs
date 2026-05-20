@@ -1,0 +1,356 @@
+---
+id: 'sc-basestrategy'
+title: 'BaseStrategy'
+audience: 'public'
+module: 'periphery'
+scope: 'strategies'
+source_refs:
+  - 'src/periphery/strategies/BaseStrategy.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'strategies'
+---
+
+## BaseStrategy
+
+Abstract base strategy that wires a strategy implementation to a single vault.
+        Provides shared functionality for fund allocation, deallocation, withdrawal,
+        pausing, role-based access control, and the maximum-withdraw limit. Concrete
+        strategies inherit this contract and implement the position-management hooks.
+
+_Uses EIP-7201 storage layout for upgradeability._
+
+### ID
+
+```solidity
+function ID() public pure virtual returns (uint64)
+```
+
+Returns the unique contract identifier encoding type, flavour, and version.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The encoded contract id. |
+
+### constructor
+
+```solidity
+constructor() internal
+```
+
+Constructor that disables initializers on the implementation contract.
+
+### __BaseStrategy_init
+
+```solidity
+function __BaseStrategy_init(address admin, address vault_) internal virtual
+```
+
+Internal initializer that wires the strategy to its admin and bound vault.
+
+_Sets role admins, grants the initial role set, and reads the underlying asset
+     from the vault. Callable only by child initializers._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| admin | address | The address that will receive `ROLE_ADMIN`, `OPERATOR_ROLE`,              `STRATEGY_ADMIN`, and `PAUSER` roles. |
+| vault_ | address | The address of the authorized vault. Must implement `IERC4626`. |
+
+### onlyVault
+
+```solidity
+modifier onlyVault()
+```
+
+_Restricts function access to the bound vault._
+
+### _previewPosition
+
+```solidity
+function _previewPosition() internal view virtual returns (uint256)
+```
+
+_Returns the current position value, denominated in the strategy asset.
+     Must be implemented by derived strategies._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The current position value. |
+
+### _allocateToPosition
+
+```solidity
+function _allocateToPosition(bytes data) internal virtual returns (uint256)
+```
+
+_Allocates funds to the underlying position._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | Encoded payload whose first word is the amount to allocate; remaining             bytes are strategy-specific. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount allocated. |
+
+### _deallocateFromPosition
+
+```solidity
+function _deallocateFromPosition(bytes data) internal virtual returns (uint256)
+```
+
+_Deallocates funds from the underlying position._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | Encoded payload whose first word is the amount to deallocate; remaining             bytes are strategy-specific. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount deallocated. |
+
+### _withdrawFromPosition
+
+```solidity
+function _withdrawFromPosition(uint256 assets) internal virtual returns (uint256)
+```
+
+_Withdraws funds from the underlying position to service a vault withdrawal._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | uint256 | The amount of assets to withdraw. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount withdrawn. |
+
+### allocateFunds
+
+```solidity
+function allocateFunds(bytes data) external virtual returns (uint256)
+```
+
+Allocate funds from the bound vault into the underlying protocol.
+
+_Invoked by the vault when capital is being deployed. Implementations MUST emit the
+     `AllocateFunds` event and MUST revert if the full requested amount cannot be deposited
+     (e.g. allocation cap reached, slippage exceeded, protocol-side rejection). Most
+     implementations require the strategy to be pre-approved for the vault's asset._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | Strategy-specific calldata (e.g. slippage tolerance, routing parameters). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The amount of underlying assets that were successfully allocated. |
+
+### deallocateFunds
+
+```solidity
+function deallocateFunds(bytes data) external virtual returns (uint256)
+```
+
+Deallocate funds from the underlying protocol back to the bound vault.
+
+_Invoked by the vault when capital is being unwound. Implementations MUST emit the
+     `DeallocateFunds` event and MUST revert if the full requested amount cannot be
+     withdrawn (e.g. withdrawal cap reached, slippage exceeded, insufficient liquidity)._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | Strategy-specific calldata (e.g. slippage tolerance, withdrawal routing). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The amount of underlying assets that were successfully returned to the vault. |
+
+### onWithdraw
+
+```solidity
+function onWithdraw(uint256 assets) external virtual returns (uint256)
+```
+
+Send `assets` of the underlying token directly to the caller (the vault).
+
+_Invoked by the vault while servicing a user withdrawal. Implementations MUST emit
+     the `Withdraw` event and MUST revert if `assets` cannot be fully covered._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | uint256 | The asset amount the vault is requesting. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The amount of assets actually transferred to the vault. |
+
+### asset
+
+```solidity
+function asset() public view virtual returns (address)
+```
+
+Returns the underlying ERC-20 asset the strategy operates on.
+
+_MUST match the bound vault's asset. MUST NOT revert._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The address of the underlying ERC-20 asset. |
+
+### totalAllocatedValue
+
+```solidity
+function totalAllocatedValue() external view virtual returns (uint256)
+```
+
+Returns the total value of assets the bound vault has allocated to this strategy.
+
+_Used during yield accrual to compute the strategy's yield or loss since the previous
+     accrual. MUST account for losses/depreciation in the underlying protocol, MUST return
+     `0` when nothing is allocated, and MUST NOT revert._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The total allocated value, denominated in `asset()`. |
+
+### maxAllocation
+
+```solidity
+function maxAllocation() external pure virtual returns (uint256)
+```
+
+Returns the maximum amount of assets that may be allocated in a single
+        `allocateFunds` call.
+
+_MUST NOT revert. MAY return `0` when the protocol cannot accept more funds and
+     MAY return `type(uint256).max` when there is no practical limit._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The maximum allocatable amount in a single allocation. |
+
+### maxWithdraw
+
+```solidity
+function maxWithdraw() public view virtual returns (uint256)
+```
+
+Returns the maximum amount of assets the vault may withdraw from the strategy in a single
+        `onWithdraw` call.
+
+_MUST NOT revert. SHOULD reflect current liquidity constraints and any strategy-specific
+     withdrawal limits. MAY return `0` if no funds are currently withdrawable._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The maximum withdrawable amount in a single call. |
+
+### getVault
+
+```solidity
+function getVault() external view virtual returns (address)
+```
+
+Returns the address of the vault this strategy is bound to.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The authorized vault address. |
+
+### setMaxWithdraw
+
+```solidity
+function setMaxWithdraw(uint256 maxWithdraw_) external virtual
+```
+
+Sets the maximum withdrawal amount the strategy will service in a single call.
+
+_Callable only by `STRATEGY_ADMIN`. Used as an absolute cap returned by
+     `maxWithdraw()`; `type(uint256).max` disables the cap._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxWithdraw_ | uint256 | The maximum amount that can be withdrawn. |
+
+### rescueToken
+
+```solidity
+function rescueToken(address token, uint256 amount) external virtual
+```
+
+Recovers non-asset ERC20 tokens accidentally sent to the strategy.
+
+_Callable only by `STRATEGY_ADMIN`. Cannot be used to rescue the strategy's
+     bound asset token._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The token address to rescue. |
+| amount | uint256 | The amount to rescue. Pass `0` to rescue the full contract balance. |
+
+### pause
+
+```solidity
+function pause() external
+```
+
+Pauses the strategy, blocking allocations, deallocations, and withdrawals.
+
+_Callable only by `PAUSER`._
+
+### unpause
+
+```solidity
+function unpause() external
+```
+
+Unpauses the strategy, re-enabling allocations, deallocations, and withdrawals.
+
+_Callable only by `PAUSER`._
+

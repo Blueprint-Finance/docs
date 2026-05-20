@@ -1,0 +1,69 @@
+---
+id: 'sc-concretebridgedstandardvaultimpl'
+title: 'ConcreteBridgedStandardVaultImpl'
+audience: 'public'
+module: 'core'
+scope: 'vault'
+source_refs:
+  - 'src/implementation/ConcreteBridgedStandardVaultImpl.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'cross-chain'
+  - 'vault-core'
+---
+
+## ConcreteBridgedStandardVaultImpl
+
+Standard vault implementation that extends `ConcreteStandardVaultImpl` with unbacked-mint
+        capability. Serves as the migration target for old vaults during cross-chain migrations
+        (or migration from another vault). It allows an initial mint of shares without depositing
+        underlying assets; backing assets are expected to be allocated directly on the strategy.
+        Once the migration phase ends this vault can itself be migrated to a standard vault.
+
+### ID
+
+```solidity
+function ID() public pure virtual returns (uint64)
+```
+
+Returns the encoded contract identifier for this bridged standard vault implementation.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The encoded contract ID for the standard bridged vault flavour. |
+
+### constructor
+
+```solidity
+constructor(address factory) public
+```
+
+Disables initializers on the implementation contract.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| factory | address | The address of the `ConcreteFactory` that will manage proxies for this implementation. |
+
+### unbackedMint
+
+```solidity
+function unbackedMint(uint256 shares) external
+```
+
+Mints vault shares without depositing any underlying assets, for the initial mint of a migration.
+
+_Caller must hold `VAULT_MANAGER`. Reverts when `shares` is zero, when `totalSupply()` is
+     non-zero (only valid as the initial mint), or when deposit limits are still configured.
+     No assets are transferred in; the backing for the minted shares is expected to be
+     allocated directly on the strategy._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 | Amount of shares to mint to the caller for later distribution. |
+

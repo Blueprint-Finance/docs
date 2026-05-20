@@ -1,0 +1,152 @@
+---
+id: 'sc-simplestrategy'
+title: 'SimpleStrategy'
+audience: 'public'
+module: 'periphery'
+scope: 'strategies'
+source_refs:
+  - 'src/periphery/strategies/SimpleStrategy.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'strategies'
+---
+
+## SimpleStrategy
+
+A simple strategy implementation that holds assets without generating yield.
+        Serves as a concrete implementation for strategies that simply hold assets
+        and can be used for testing or as a fallback strategy.
+
+_Uses EIP-7201 storage layout for upgradeability and caches deposit balance in storage._
+
+### ID
+
+```solidity
+function ID() public pure virtual returns (uint64)
+```
+
+Returns the unique contract identifier encoding type, flavour, and version.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The encoded contract id (contractType=2 strategy, flavour=1 simple-strategy, version=1.1.0). |
+
+### constructor
+
+```solidity
+constructor() public
+```
+
+Constructor that disables initializers on the implementation contract.
+
+### initialize
+
+```solidity
+function initialize(address admin, address vault_) external virtual
+```
+
+Initializes the strategy with an admin and the bound vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| admin | address | The address that will receive admin roles. |
+| vault_ | address | The address of the authorized vault. |
+
+### _previewPosition
+
+```solidity
+function _previewPosition() internal view returns (uint256)
+```
+
+_Implementation of _previewPosition for SimpleStrategy
+Returns the allocated amount since this strategy doesn't generate yield_
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The current allocated amount |
+
+### _allocateToPosition
+
+```solidity
+function _allocateToPosition(bytes data) internal returns (uint256)
+```
+
+_Implementation of _allocateToPosition for SimpleStrategy
+Simply updates the allocated amount since this strategy just holds assets_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | The data containing the amount to allocate |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount allocated (same as input) |
+
+### _deallocateFromPosition
+
+```solidity
+function _deallocateFromPosition(bytes data) internal returns (uint256)
+```
+
+_Implementation of _deallocateFromPosition for SimpleStrategy
+Simply updates the allocated amount since this strategy just holds assets_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | The data containing the amount to deallocate |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount deallocated |
+
+### _withdrawFromPosition
+
+```solidity
+function _withdrawFromPosition(uint256 assets) internal returns (uint256)
+```
+
+_Implementation of _withdrawFromPosition for SimpleStrategy
+Simply updates the allocated amount since this strategy just holds assets_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | uint256 | The amount of assets to withdraw |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount withdrawn |
+
+### strategyType
+
+```solidity
+function strategyType() external pure returns (enum StrategyType)
+```
+
+Returns the strategy type for `SimpleStrategy`.
+
+_`SimpleStrategy` executes operations atomically in the same transaction._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | enum StrategyType | The `ATOMIC` strategy type. |
+

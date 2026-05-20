@@ -1,0 +1,134 @@
+---
+title: "frxUSD+ — Withdrawing"
+sidebarTitle: "Withdrawing"
+---
+
+## Cancelling a queued withdrawal
+
+
+A queued withdrawal can be **cancelled by the requester at any time
+before it is paid out**. Cancellation is a single on-chain action; once
+confirmed, the request is removed from the queue and the user's share
+balance is restored.
+
+What the user is promised:
+
+- Cancellation is available as long as the request is in the queue —
+  whether it sits in the open epoch, in a closed-pending epoch, or
+  split across multiple epochs as overflow slices.
+- Cancelling a request removes **all of its slices** at once. A user
+  cannot cancel just the overflow portion and keep the in-cap portion.
+- Once cancelled, the underlying shares are immediately spendable: the
+  user can leave them in the vault to keep earning yield or submit a
+  fresh withdraw request to re-enter the queue at the current tail.
+- A request that has already been settled (paid out on-chain) cannot be
+  cancelled. From the user's side this is observable as the request
+  having moved to a claimable or claimed state.
+
+Cancellation does not impose a cooldown or fee at the protocol level.
+Each cancel is a normal on-chain transaction with its own gas cost.
+
+## Withdrawal disable
+
+
+
+
+The vault processes withdrawals according to its standard flow.
+
+
+A withdraw transaction submits a request that is queued to the next
+applicable epoch.
+
+## Epoch lifecycle
+
+
+The vault progresses through repeating **epochs**. At any moment exactly
+one epoch is *open* and accepting new requests; zero or more *closed-
+pending* epochs sit between their cutoff and their payout.
+
+The lifecycle is strictly sequential per epoch:
+
+1. **Start.** The epoch opens and begins accepting requests.
+2. **Cutoff.** This vault's cutoff runs on the cron schedule
+   `—`. Requests submitted after the cutoff
+   roll into the next epoch instead.
+3. **Payout.** Closed-pending requests are settled on-chain and become
+   claimable on the cron schedule `—`.
+4. **Next epoch start.** A fresh epoch opens to receive new requests.
+
+The cutoff and payout dates surfaced to users are computed from the
+**current epoch's `startBlockTimestamp`** combined with the cron schedule —
+never from wall-clock time alone. This guarantees the dates align with how
+the contract actually advances.
+
+## Withdrawal queue and delay
+
+
+The vault settles withdrawals **asynchronously**. When a user submits a
+withdraw request, the request is added to the open epoch's queue and is
+paid out at that epoch's payout. The interval between submission and payout
+is the *withdrawal delay*.
+
+What the user is promised:
+
+- The request is recorded on submission with a queue place (oldest = 1).
+- The request is paid out at the **next payout** that falls after the
+  epoch's cutoff, subject to any cap rules (see [Withdrawal caps](#withdrawal-caps)).
+- Until paid, the request can be cancelled by the user; once cancelled it
+  releases the user's share balance.
+
+The duration of the delay is communicated to the user in three forms:
+
+- The CMS field `withdrawalQueueDelay` — a human-readable summary
+  (e.g. "up to 7 days") shown in the queue card prose.
+- The CMS field `withdrawalQueueDescription` — optional rich-text override
+  for vaults whose schedule needs extra explanation.
+- The dynamically-computed next payout date — derived from the vault's
+  withdrawal cron and current epoch (see [Epoch cycle](#epoch-lifecycle)).
+
+The summary and description are editorial copy. The dynamic date is the
+load-bearing value: it is what determines when assets actually become
+claimable for a given request.
+
+## Queue position numbering
+
+
+Withdrawal requests are settled in **FIFO** order: the oldest unsettled
+request is paid first, the next-oldest is paid next, and so on. The number
+the UI shows next to a request is its position in that order — `1` means
+"paid next", larger numbers mean "further back in line".
+
+
+For vaults without withdrawal caps, every request queues into its native
+epoch and the position is simply its FIFO place within that epoch's
+queue. The number does not change once assigned (other than counting
+down as earlier requests are paid).
+
+## Schedule changes (RC config)
+
+
+A vault's withdrawal cron schedule (cutoff time, payout time, cycle length)
+can change over time — for example, moving from weekly to bi-weekly
+payouts. To make these transitions predictable, every vault carries an
+optional **release-candidate (RC) withdrawal config** with a `startingFrom`
+timestamp.
+
+What the user is promised:
+
+- Epochs that start **before** `startingFrom` follow the previous
+  (base) schedule end-to-end. Their cutoff and payout dates do not move.
+- Epochs that start **at or after** `startingFrom` follow the new (RC)
+  schedule.
+- The schedule never changes mid-epoch: the boundary is always the start
+  of an epoch, never inside one.
+
+<IfRc>
+A schedule change is pending for this vault. From
+`—` onward, epochs follow the new
+schedule: cutoff `—`, payout
+`—`.
+</IfRc>
+
+A "Learn more" link can be attached via `withdrawalRcLearnMoreLink` to
+explain a specific schedule change to users; it is shown in the queue card
+when an RC config is active or imminent for the vault.

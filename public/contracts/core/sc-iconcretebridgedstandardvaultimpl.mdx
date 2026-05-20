@@ -1,0 +1,78 @@
+---
+id: 'sc-iconcretebridgedstandardvaultimpl'
+title: 'IConcreteBridgedStandardVaultImpl'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IConcreteBridgedStandardVaultImpl.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'cross-chain'
+  - 'vault-core'
+---
+
+## IConcreteBridgedStandardVaultImpl
+
+Interface for a standard vault that serves as migration target for old vaults.
+
+_This interface extends the standard vault functionality with the ability to mint shares without
+     depositing underlying assets. Old vaults migrate TO this version during cross-chain migrations._
+
+### ZeroAmount
+
+```solidity
+error ZeroAmount()
+```
+
+_Thrown when attempting to operate with zero amount._
+
+### NotInitialMint
+
+```solidity
+error NotInitialMint()
+```
+
+_Thrown when attempting to mint unbacked shares when it's not the initial mint._
+
+### DepositLimitsNotZero
+
+```solidity
+error DepositLimitsNotZero()
+```
+
+_Thrown when attempting to mint unbacked shares when deposit limits are not zero._
+
+### UnbackedMint
+
+```solidity
+event UnbackedMint(uint256 shares)
+```
+
+Emitted when shares are minted without underlying-asset backing.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 | The amount of shares minted without backing assets. |
+
+### unbackedMint
+
+```solidity
+function unbackedMint(uint256 shares) external
+```
+
+Mint vault shares without depositing any underlying assets.
+
+_Only callable by accounts with the VAULT_MANAGER role. Used only for vault
+     migration where the assets backing newly minted shares are expected to be
+     updated directly at the strategy level. Shares are minted to the caller for
+     later distribution to end users._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 | Amount of shares to mint for the caller. |
+

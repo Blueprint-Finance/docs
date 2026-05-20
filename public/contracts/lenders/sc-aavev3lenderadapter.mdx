@@ -1,0 +1,637 @@
+---
+id: 'sc-aavev3lenderadapter'
+title: 'AaveV3LenderAdapter'
+audience: 'public'
+module: 'periphery'
+scope: 'lenders'
+source_refs:
+  - 'src/periphery/lenders/AaveV3LenderAdapter.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'lending-integration'
+---
+
+## AaveV3LenderAdapter
+
+Lender module that brokers supply, withdraw, borrow, and repay operations
+        between a Concrete looping strategy and an Aave V3 pool. Holds the strategy's
+        collateral and debt positions, exposes price and rate views in WAD/RAY, and
+        enforces that only the bound strategy (and optionally the owner for supply/repay)
+        can mutate the position.
+
+### StrategySet
+
+```solidity
+event StrategySet(address strategy)
+```
+
+Emitted when the bound strategy address is set or rotated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | The new strategy address authorized to call mutating functions. |
+
+### ZeroAddress
+
+```solidity
+error ZeroAddress()
+```
+
+_Thrown when a zero address is supplied for a parameter that must be non-zero._
+
+### UnsupportedInterestRateMode
+
+```solidity
+error UnsupportedInterestRateMode()
+```
+
+_Thrown during initialization when the interest rate mode is neither stable nor variable._
+
+### InvalidPool
+
+```solidity
+error InvalidPool()
+```
+
+_Thrown when the Aave addresses provider returns a zero pool address._
+
+### InvalidPriceOracle
+
+```solidity
+error InvalidPriceOracle()
+```
+
+_Thrown when the Aave addresses provider returns a zero price oracle address._
+
+### InvalidCollateralPrice
+
+```solidity
+error InvalidCollateralPrice()
+```
+
+_Thrown when the price oracle returns a zero price for the collateral token._
+
+### InvalidDebtPrice
+
+```solidity
+error InvalidDebtPrice()
+```
+
+_Thrown when the price oracle returns a zero price for the borrow token._
+
+### Unauthorized
+
+```solidity
+error Unauthorized()
+```
+
+_Thrown when a mutating function is called by an account that is not the bound strategy
+     (or the owner, where allowed)._
+
+### ZeroStrategyAddress
+
+```solidity
+error ZeroStrategyAddress()
+```
+
+_Thrown when a mutating function is called before the strategy address has been set._
+
+### DEFAULT_REPAY_RAY_ROUNDING_BUFFER
+
+```solidity
+uint256 DEFAULT_REPAY_RAY_ROUNDING_BUFFER
+```
+
+Safety buffer added when sizing a full debt repayment.
+
+_Aave-style variable debt is stored in scaled units and converted
+     to underlying amounts using ray (1e27) fixed-point arithmetic.
+     Conversions between scaled debt and underlying are not perfectly
+     invertible due to integer rounding, which can leave a small
+     residual debt (1–few minimal units) when repaying an amount
+     computed from a quoted balance.
+     This buffer intentionally over-sizes the repayment amount to
+     guarantee that the entire scaled debt is burned and the position
+     can always be fully unwound, without relying on MAX_UINT semantics._
+
+### STABLE_RATE_MODE
+
+```solidity
+uint256 STABLE_RATE_MODE
+```
+
+### VARIABLE_RATE_MODE
+
+```solidity
+uint256 VARIABLE_RATE_MODE
+```
+
+### COLLATERAL_TOKEN
+
+```solidity
+address COLLATERAL_TOKEN
+```
+
+Returns the collateral token managed by this lender module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+
+### collateralDecimals
+
+```solidity
+uint8 collateralDecimals
+```
+
+### BORROW_TOKEN
+
+```solidity
+address BORROW_TOKEN
+```
+
+Returns the borrow token managed by this lender module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+
+### borrowDecimals
+
+```solidity
+uint8 borrowDecimals
+```
+
+### dataProvider
+
+```solidity
+contract IPoolDataProvider dataProvider
+```
+
+### addressesProvider
+
+```solidity
+contract IPoolAddressesProvider addressesProvider
+```
+
+### pool
+
+```solidity
+contract IPool pool
+```
+
+### priceOracle
+
+```solidity
+contract IPriceOracleGetter priceOracle
+```
+
+### constructor
+
+```solidity
+constructor(address collateralToken_, address borrowToken_, address dataProvider_) public
+```
+
+Captures the immutable collateral, borrow, and Aave V3 data provider references.
+
+_Reads the Aave pool and price oracle from the data provider's addresses provider,
+     and reverts if any address resolves to zero. Disables initializers on the
+     implementation contract._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralToken_ | address | The ERC20 token used as collateral in the Aave V3 pool. |
+| borrowToken_ | address | The ERC20 token to borrow against the supplied collateral. |
+| dataProvider_ | address | The Aave V3 `IPoolDataProvider` used to resolve the pool,        price oracle, and reserve configuration. |
+
+### __AaveV3LenderAdapter_init
+
+```solidity
+function __AaveV3LenderAdapter_init(address admin_, uint256 interestRateMode_) internal virtual
+```
+
+_Internal initializer that records the admin (owner) and interest rate mode.
+     Must be called by an external initializer in the inheriting contract._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| admin_ | address | The address that will own the adapter and may call owner-gated functions. |
+| interestRateMode_ | uint256 | Either `STABLE_RATE_MODE` (1) or `VARIABLE_RATE_MODE` (2). |
+
+### setStrategy
+
+```solidity
+function setStrategy(address strategy_) external
+```
+
+Sets the strategy address authorized to call mutating functions on this adapter.
+
+_Callable only by the owner. Required before any strategy-only entrypoint
+     (`withdraw`, `borrow`, `supply`, `repay`) can be invoked._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy_ | address | The address of the strategy to bind. Must be non-zero. |
+
+### onlyStrategy
+
+```solidity
+modifier onlyStrategy()
+```
+
+_Restricts function access to the bound strategy. Reverts with
+     `ZeroStrategyAddress` if no strategy has been set._
+
+### onlyStrategyOrOwner
+
+```solidity
+modifier onlyStrategyOrOwner()
+```
+
+_Restricts function access to the bound strategy or the owner. Reverts with
+     `ZeroStrategyAddress` if no strategy has been set._
+
+### supply
+
+```solidity
+function supply(uint256 amount) external virtual
+```
+
+Pulls collateral from the caller and supplies it to the Aave V3 pool.
+
+_Callable by the bound strategy or the owner. The caller must approve this
+     adapter to transfer `amount` of `COLLATERAL_TOKEN`. A zero `amount` is a no-op._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of `COLLATERAL_TOKEN` to supply. |
+
+### _supply
+
+```solidity
+function _supply(uint256 amount) internal virtual
+```
+
+_Approves the Aave pool to pull `amount` of `COLLATERAL_TOKEN` and supplies
+     on behalf of this contract. Assumes the tokens are already held by this contract._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of `COLLATERAL_TOKEN` to supply. |
+
+### withdraw
+
+```solidity
+function withdraw(uint256 amount) external virtual
+```
+
+Withdraws collateral from the Aave V3 pool and forwards it to the strategy.
+
+_Callable only by the bound strategy. A zero `amount` is a no-op._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of `COLLATERAL_TOKEN` to withdraw. |
+
+### _withdraw
+
+```solidity
+function _withdraw(uint256 amount) internal virtual
+```
+
+_Withdraws `amount` of `COLLATERAL_TOKEN` from the Aave pool to this contract._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of `COLLATERAL_TOKEN` to withdraw from the pool. |
+
+### borrow
+
+```solidity
+function borrow(uint256 amount) external virtual
+```
+
+Borrows from the Aave V3 pool against the supplied collateral and forwards
+        the proceeds to the strategy.
+
+_Callable only by the bound strategy. A zero `amount` is a no-op._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of `BORROW_TOKEN` to borrow. |
+
+### _borrow
+
+```solidity
+function _borrow(uint256 amount) internal virtual
+```
+
+_Issues an Aave V3 borrow for `amount` of `BORROW_TOKEN` using the configured
+     interest rate mode and no referral code._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of `BORROW_TOKEN` to borrow from the pool. |
+
+### repay
+
+```solidity
+function repay(uint256 amount) external virtual
+```
+
+Pulls borrow tokens from the caller and repays the Aave V3 debt position.
+
+_Callable by the bound strategy or the owner. The caller must approve this
+     adapter to transfer `amount` of `BORROW_TOKEN`. A zero `amount` is a no-op._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of `BORROW_TOKEN` to repay. |
+
+### _repay
+
+```solidity
+function _repay(uint256 amount) internal virtual
+```
+
+_Approves the Aave pool to pull `amount` of `BORROW_TOKEN` and repays the
+     debt position using the configured interest rate mode._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of `BORROW_TOKEN` to repay to the pool. |
+
+### getCollateralAmount
+
+```solidity
+function getCollateralAmount() public view virtual returns (uint256)
+```
+
+Returns the adapter's current collateral position with the Aave V3 pool.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The aToken balance held by this adapter, denominated in `COLLATERAL_TOKEN`. |
+
+### getDebtAmount
+
+```solidity
+function getDebtAmount() public view virtual returns (uint256)
+```
+
+Returns the adapter's current debt position, sized for full repayment.
+
+_Adds `_repayRayRoundingBuffer()` (a few minimal units) on top of the debt
+     token balance so a quoted full repayment always burns the underlying scaled
+     debt completely. Returns `0` when there is no debt._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The current debt amount including the rounding buffer, in `BORROW_TOKEN` units. |
+
+### getBorrowRateInWad
+
+```solidity
+function getBorrowRateInWad() external view virtual returns (uint64)
+```
+
+Returns the current Aave V3 borrow rate for the configured interest rate mode.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The borrow rate in WAD (1e18 = 100%). |
+
+### getSupplyRateInWad
+
+```solidity
+function getSupplyRateInWad() external view virtual returns (uint64)
+```
+
+Returns the current Aave V3 supply rate for the collateral asset.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The supply rate in WAD (1e18 = 100%). |
+
+### getCurrentEstimatedRewards
+
+```solidity
+function getCurrentEstimatedRewards() external view virtual returns (uint64 rateInWad, uint256 amount)
+```
+
+Returns the current estimated reward rate and amount for the adapter.
+
+_This adapter does not surface external rewards; both values are always zero._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| rateInWad | uint64 | The estimated reward rate in WAD; always zero. |
+| amount | uint256 | The estimated reward amount in `COLLATERAL_TOKEN` units; always zero. |
+
+### collateralPriceInBorrowTokensInRay
+
+```solidity
+function collateralPriceInBorrowTokensInRay() public view virtual returns (uint256)
+```
+
+Returns the price of one base unit of `COLLATERAL_TOKEN` in base units of
+        `BORROW_TOKEN`, quoted in RAY (1e27).
+
+_Quotes are read from the Aave price oracle in USD and converted to a
+     decimal-aware ratio so collateral amounts can be converted into borrow token
+     amounts and vice versa without ad-hoc decimal handling._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The collateral-in-borrow-token price quoted in RAY. |
+
+### getCurrentLtvInWad
+
+```solidity
+function getCurrentLtvInWad() public view virtual returns (uint64)
+```
+
+Returns the current loan-to-value of the adapter's Aave V3 position.
+
+_Computed from Aave's `getUserAccountData` (base-currency totals). Returns
+     zero when there is no collateral._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The current LTV in WAD (1e18 = 100%). |
+
+### getMaxLtvInWad
+
+```solidity
+function getMaxLtvInWad() public view virtual returns (uint64)
+```
+
+Returns the maximum LTV configured by Aave V3 for the collateral asset.
+
+_Converts the configured LTV (in basis points) into WAD._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The maximum LTV in WAD (1e18 = 100%). |
+
+### getAvailablePoolLiquidity
+
+```solidity
+function getAvailablePoolLiquidity() public view virtual returns (uint256)
+```
+
+Returns the amount of collateral liquidity currently available for withdrawal
+        from the Aave V3 pool.
+
+_Equals the balance of `COLLATERAL_TOKEN` held by the reserve's aToken contract.
+     Returns zero if the reserve has no aToken configured._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The pool's available `COLLATERAL_TOKEN` liquidity. |
+
+### getTokenPair
+
+```solidity
+function getTokenPair() external view virtual returns (struct TokenPair)
+```
+
+Returns the collateral and borrow token pair backing this adapter.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct TokenPair | The `TokenPair` with `collateralToken = COLLATERAL_TOKEN` and `borrowToken = BORROW_TOKEN`. |
+
+### getPosition
+
+```solidity
+function getPosition() external view virtual returns (uint256 collateralAmount, uint256 debtAmount)
+```
+
+Returns the current collateral and debt amounts held by this adapter.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 | The current collateral amount in `COLLATERAL_TOKEN` units. |
+| debtAmount | uint256 | The current debt amount in `BORROW_TOKEN` units, including the rounding buffer. |
+
+### getFullPosition
+
+```solidity
+function getFullPosition() external view virtual returns (uint256 collateralAmount, uint256 debtAmount, uint64 currentLtvInWad, uint256 collateralPriceInRay)
+```
+
+Returns the full snapshot of the adapter's Aave V3 position.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 | The current collateral amount in `COLLATERAL_TOKEN` units. |
+| debtAmount | uint256 | The current debt amount in `BORROW_TOKEN` units, including the rounding buffer. |
+| currentLtvInWad | uint64 | The current LTV in WAD. |
+| collateralPriceInRay | uint256 | The collateral price quoted in borrow-token base units (RAY). |
+
+### _rayToWad
+
+```solidity
+function _rayToWad(uint256 rateInRay) internal pure returns (uint64)
+```
+
+_Converts a RAY-denominated rate (1e27) to WAD (1e18), truncated to uint64._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| rateInRay | uint256 | The rate quoted in RAY. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The rate quoted in WAD as a uint64. |
+
+### _repayRayRoundingBuffer
+
+```solidity
+function _repayRayRoundingBuffer() internal pure virtual returns (uint256)
+```
+
+Safety buffer added when sizing a full debt repayment.
+
+_See explanation above._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The safety buffer. |
+
+### rescueToken
+
+```solidity
+function rescueToken(address token, uint256 amount) external
+```
+
+Recovers ERC20 tokens held by the adapter.
+
+_Callable only by the owner. There is no asset-token guard here, so the
+     owner is trusted not to rescue the strategy's active collateral or debt
+     tokens while a position is open._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The address of the token to rescue. |
+| amount | uint256 | The amount to rescue. Pass `0` to rescue the full contract balance. |
+

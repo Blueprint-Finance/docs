@@ -1,0 +1,36 @@
+---
+id: 'sc-ivaultproxy'
+title: 'IVaultProxy'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IVaultProxy.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'vault-upgradeability'
+---
+
+## IVaultProxy
+
+ERC-1967-style upgrade entry point implemented by Concrete vault proxies.
+
+_Exposes a single `upgradeToAndCall` used by the factory to swap the proxy's
+     implementation address and atomically invoke an initialisation/upgrade call
+     on the new implementation in the same transaction._
+
+### upgradeToAndCall
+
+```solidity
+function upgradeToAndCall(address newImplementation, bytes data) external
+```
+
+Upgrade the proxy to `newImplementation` and immediately invoke `data` on the new implementation.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newImplementation | address | Address of the new implementation contract. |
+| data | bytes | Calldata executed against the new implementation after the upgrade. |
+

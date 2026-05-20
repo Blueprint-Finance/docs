@@ -1,0 +1,97 @@
+---
+title: "Morpho USD — Cross-chain"
+sidebarTitle: "Cross-chain"
+---
+
+## Bridge and withdrawal ETAs
+
+Some vault flows complete asynchronously across chains — bridging assets
+into a destination chain, or finalising a withdrawal that involves an
+off-chain settlement step. When the timing of these steps is not yet
+visible on-chain, the CMS pins a forward-looking ETA so the UI can
+communicate expectations.
+
+Two ETA fields are surfaced:
+
+- **`bridgeEta`** — When the cross-chain bridge step of a deposit or
+  migration is expected to complete. Used while assets are in flight.
+- **`withdrawalEta`** — When a withdrawal milestone (typically the
+  destination-chain settlement) is expected to be reachable.
+
+ETAs are editorial promises sourced from the operations team. They are
+shown alongside on-chain timestamps when both are available, with the
+on-chain value taking precedence once the step has actually occurred.
+
+The destination chain for a cross-chain flow is named via
+`bridgeDestinationChainName` so the UI can show "bridging to `<chain>`"
+copy without inferring it from contract state.
+
+## Cross-chain messaging (LayerZero)
+
+Some Concrete vaults span multiple chains: a user interacts with the
+vault on a source chain, but the underlying strategy or share balance
+lives on a destination chain. The bridge between the two is built on
+**LayerZero**, a generic cross-chain messaging protocol.
+
+What the user is promised:
+
+- A cross-chain action (e.g. claiming pre-deposit shares, cross-chain
+  withdrawal) emits a message from the source-chain contract. LayerZero
+  carries the message to the destination chain, where the receiving
+  contract executes the corresponding action.
+- Cross-chain actions are **payable**: the user pays an additional fee
+  on the source chain to cover destination-chain execution and
+  LayerZero verifier costs. The UI quotes this fee before the user
+  signs and applies a small safety buffer so transient gas-price
+  movement does not cause the transaction to revert.
+- Delivery is asynchronous. After the source-chain transaction
+  confirms, there is a delay (typically minutes, occasionally longer
+  under network congestion) before the destination-chain state
+  updates. The UI surfaces this delay rather than implying instant
+  settlement.
+- Funds are not at risk during the in-flight period in the sense of
+  custody — the source-chain action has already burned/locked the
+  user's position before the message is sent — but the user cannot act
+  on the destination-chain side until the message is delivered.
+
+LayerZero is used today for **pre-deposit share claims** (see
+[Pre-deposit claim](#pre-deposit-share-claiming)) and for **cross-chain
+withdrawals** on vaults whose underlying strategy executes on a
+different chain than the user deposits from. Additional flows may use
+the same primitive in the future; the user-facing pattern (quote → sign
+on source → wait for delivery → use on destination) is shared across
+them.
+
+For protocol-level detail on options, executor settings, and fee
+estimation, see the smart-contract repository's LayerZero documentation.
+
+## Pre-deposit share claiming
+
+A **pre-deposit vault** lets a user deposit on one chain (the source) before
+the destination-chain vault is live. Shares are escrowed on the source
+chain; when the destination vault opens, users move those shares across via
+a LayerZero claim.
+
+What the user is promised:
+
+- During the pre-deposit phase, deposits are accepted on the source chain
+  and the vault issues source-chain shares. Withdrawals on the source
+  chain are disabled — once funds enter the migration path the only way
+  out is on the destination chain.
+- When the destination vault is seeded, a **claim banner** appears for any
+  wallet that holds source-chain shares. Initiating the claim burns the
+  source-chain shares and triggers a LayerZero message that releases
+  pre-minted destination-chain shares to the same address.
+- The claim is per-address. A user must control the same address on the
+  destination chain to receive the shares; contract wallets are not
+  guaranteed to exist on the destination chain and may be unable to claim.
+- After claiming, the destination-chain vault behaves like a normal vault:
+  deposits and withdrawals are enabled on that chain.
+
+The exchange rate is preserved across the migration boundary: one source
+share corresponds to one destination share at the moment of migration.
+
+The banner appears only when the connected wallet's source-chain balance
+is non-zero. Wallets that never deposited see no banner, and a wallet that
+has already claimed sees the banner clear once its source-chain balance
+returns to zero.

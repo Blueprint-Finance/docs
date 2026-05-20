@@ -1,0 +1,204 @@
+---
+id: 'sc-ifeesplitter'
+title: 'IFeeSplitter'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/IFeeSplitter.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'fees'
+---
+
+## ITwoWayFeeSplitter
+
+Interface for a fee splitter that distributes collected fees between a main and a
+        secondary recipient per vault, according to a configurable fee fraction.
+
+### TwoWayFeeSplit
+
+_The fee split configuration for a given vault.
+     The secondary recipient receives the fraction of collected fees defined by
+     `feeFractionOfSecondaryRecipient`; the main recipient receives the remainder.
+     For instance, with a fee fraction of 250 (2.5% in basis points), the secondary
+     recipient gets 2.5% of fees and the main recipient gets 97.5%._
+
+```solidity
+struct TwoWayFeeSplit {
+  uint32 feeFractionOfSecondaryRecipient;
+  address mainRecipient;
+  address secondaryRecipient;
+  bool set;
+}
+```
+
+### TwoWayFeeSplitterStorage
+
+_Storage layout of the fee splitter contract._
+
+```solidity
+struct TwoWayFeeSplitterStorage {
+  uint8 feeType;
+  mapping(address => struct ITwoWayFeeSplitter.TwoWayFeeSplit) feeSplit;
+  mapping(address => uint256) distributedFees;
+}
+```
+
+### InvalidFeeSplit
+
+```solidity
+error InvalidFeeSplit(uint32 feeFractionOfSecondaryRecipient, address mainRecipient, address secondaryRecipient)
+```
+
+_Thrown when an attempted fee split configuration would cause a `collectFees` call to revert
+     (e.g. zero recipient with a non-zero share, or fraction out of bounds)._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| feeFractionOfSecondaryRecipient | uint32 | The offending fee fraction of the secondary recipient. |
+| mainRecipient | address | The offending main recipient address. |
+| secondaryRecipient | address | The offending secondary recipient address. |
+
+### VaultInvalidOrWIthInvalidFeeSplit
+
+```solidity
+error VaultInvalidOrWIthInvalidFeeSplit(address vault)
+```
+
+_Thrown when a fee split lookup is performed for an address with no fee split registered.
+     The identifier name is intentionally preserved despite the casing typo to avoid breaking ABIs._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault address that has no valid fee split. |
+
+### FeeFractionOutOfBounds
+
+```solidity
+error FeeFractionOutOfBounds()
+```
+
+_Thrown when the fee fraction provided is outside the accepted range (0..BASIS_POINTS_MAX)._
+
+### InvalidToken
+
+```solidity
+error InvalidToken(address token)
+```
+
+_Thrown when a token argument is invalid (zero address, or a token that itself has a fee split registered)._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The invalid token address. |
+
+### NeitherOwnerNorVaultManager
+
+```solidity
+error NeitherOwnerNorVaultManager()
+```
+
+_Thrown when the caller of a permissioned function is neither the contract owner nor a vault manager._
+
+### FeesDistributed
+
+```solidity
+event FeesDistributed(address vault, uint256 fee1Amount, uint256 fee2Amount, address recipient1, address recipient2)
+```
+
+Emitted when fees are collected and distributed for a given vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault that the fees are collected for. |
+| fee1Amount | uint256 | The amount of fees credited to the main recipient. |
+| fee2Amount | uint256 | The amount of fees credited to the secondary recipient. |
+| recipient1 | address | The main recipient of the fees. |
+| recipient2 | address | The secondary recipient of the fees. |
+
+### FeeFractionSet
+
+```solidity
+event FeeFractionSet(address vault, uint32 newFeeFraction)
+```
+
+Emitted when the fee fraction is updated for a given vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault that the fee fraction is set for. |
+| newFeeFraction | uint32 | The new fee fraction (in basis points). |
+
+### MainRecipientSet
+
+```solidity
+event MainRecipientSet(address vault, address newMainRecipient)
+```
+
+Emitted when the main recipient is updated for a given vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault that the main recipient is set for. |
+| newMainRecipient | address | The new main recipient address. |
+
+### SecondaryRecipientSet
+
+```solidity
+event SecondaryRecipientSet(address vault, address newSecondaryRecipient)
+```
+
+Emitted when the secondary recipient is updated for a given vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault that the secondary recipient is set for. |
+| newSecondaryRecipient | address | The new secondary recipient address. |
+
+### TokensRescued
+
+```solidity
+event TokensRescued(address token, uint256 amount)
+```
+
+Emitted when tokens accidentally sent to the splitter are rescued by the owner.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The address of the rescued token. |
+| amount | uint256 | The amount of tokens rescued. |
+
+### RegisterNewFeeSplit
+
+```solidity
+event RegisterNewFeeSplit(address vault, uint32 feeFractionOfSecondaryRecipient, address mainRecipient, address secondaryRecipient)
+```
+
+Emitted when a new fee split is registered for a vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault that the new fee split is registered for. |
+| feeFractionOfSecondaryRecipient | uint32 | The fee fraction allocated to the secondary recipient. |
+| mainRecipient | address | The main recipient of the fees. |
+| secondaryRecipient | address | The secondary recipient of the fees. |
+

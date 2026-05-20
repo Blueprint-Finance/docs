@@ -1,0 +1,404 @@
+---
+id: 'sc-swapmoduleuniv4andvaultdeposit'
+title: 'SwapModuleUniV4AndVaultDeposit'
+audience: 'public'
+module: 'periphery'
+scope: 'auxiliary'
+source_refs:
+  - 'src/periphery/auxiliary/SwapModuleUniV4AndVaultDeposit.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'swaps'
+---
+
+## SwapModuleUniV4AndVaultDeposit
+
+Swap module for bidirectional swaps between an ERC-4626 vault share token and its
+        underlying asset. The underlying-to-shares direction is fulfilled by depositing or
+        minting through the vault itself; the shares-to-underlying direction is fulfilled
+        by swapping on a Uniswap V4 pool via UniversalRouter + Permit2.
+Designed for looping strategies that repeatedly deposit underlying assets to receive
+        shares and then swap shares back to underlying to compound returns. The module pulls
+        tokens from `msg.sender`, executes the trade, and forwards the proceeds, holding zero
+        balance after each call as an invariant.
+
+_Architecture summary:
+     - Underlying to shares uses `IERC4626.deposit` (exact-in) or `IERC4626.mint` (exact-out).
+     - Shares to underlying uses the Uniswap V4 `UniversalRouter`; allowance to the router
+       is delegated through Permit2, with max amount and max expiration set at construction.
+     - The shares-to-underlying paths read the borrow balance before and after the swap to
+       exclude any pre-existing donations._
+
+### V4_SWAP
+
+```solidity
+uint8 V4_SWAP
+```
+
+_Top-level UniversalRouter command identifier for Uniswap V4 actions._
+
+### SWAP_EXACT_IN_SINGLE
+
+```solidity
+uint8 SWAP_EXACT_IN_SINGLE
+```
+
+_Uniswap V4 action identifier for a single-pool exact-input swap._
+
+### SWAP_EXACT_OUT_SINGLE
+
+```solidity
+uint8 SWAP_EXACT_OUT_SINGLE
+```
+
+_Uniswap V4 action identifier for a single-pool exact-output swap._
+
+### SETTLE_ALL
+
+```solidity
+uint8 SETTLE_ALL
+```
+
+_Uniswap V4 action identifier instructing the router to settle the input balance._
+
+### TAKE_ALL
+
+```solidity
+uint8 TAKE_ALL
+```
+
+_Uniswap V4 action identifier instructing the router to take the output balance._
+
+### MAX_UINT160
+
+```solidity
+uint160 MAX_UINT160
+```
+
+### MAX_UINT48
+
+```solidity
+uint48 MAX_UINT48
+```
+
+### MAX_UINT256
+
+```solidity
+uint256 MAX_UINT256
+```
+
+### ROUTER
+
+```solidity
+contract IUniversalRouter ROUTER
+```
+
+Uniswap V4 UniversalRouter that executes the swap commands.
+
+### PERMIT2
+
+```solidity
+contract IPermit2 PERMIT2
+```
+
+Permit2 contract used to delegate token approvals to the router.
+
+### COLLATERAL
+
+```solidity
+address COLLATERAL
+```
+
+ERC-4626 vault share token, pinned as `currency0` of the configured pool.
+
+### BORROW
+
+```solidity
+address BORROW
+```
+
+Underlying asset of the vault, pinned as `currency1` of the configured pool.
+
+### FEE
+
+```solidity
+uint24 FEE
+```
+
+Uniswap V4 pool fee tier configured at construction.
+
+### TICK_SPACING
+
+```solidity
+int24 TICK_SPACING
+```
+
+Uniswap V4 pool tick spacing configured at construction.
+
+### HOOKS
+
+```solidity
+address HOOKS
+```
+
+Uniswap V4 hooks address for the pool (`address(0)` when no hooks).
+
+### POOL_ID
+
+```solidity
+bytes32 POOL_ID
+```
+
+Cached pool identifier derived from the configured `PoolKey`.
+
+### ZeroAmount
+
+```solidity
+error ZeroAmount()
+```
+
+_Thrown when a swap is called with `amountIn == 0` or `amountOut == 0`._
+
+### InvalidTokenIn
+
+```solidity
+error InvalidTokenIn()
+```
+
+_Thrown when `tokenIn` is neither `COLLATERAL` nor `BORROW`._
+
+### InvalidTokenOut
+
+```solidity
+error InvalidTokenOut()
+```
+
+_Thrown when `tokenOut` does not pair with `tokenIn` in the configured pool._
+
+### MinAmountOutTooLow
+
+```solidity
+error MinAmountOutTooLow(uint256 received, uint256 minimum)
+```
+
+_Thrown when the ERC-4626 exact-input deposit returns fewer shares than `minAmountOut`._
+
+### MaxAmountInTooLow
+
+```solidity
+error MaxAmountInTooLow(uint256 required, uint256 maximum)
+```
+
+_Thrown when the ERC-4626 exact-output mint preview exceeds `maxAmountIn`._
+
+### RouterCannotBeZero
+
+```solidity
+error RouterCannotBeZero()
+```
+
+_Thrown when the constructor receives a zero router address._
+
+### Permit2CannotBeZero
+
+```solidity
+error Permit2CannotBeZero()
+```
+
+_Thrown when the constructor receives a zero Permit2 address._
+
+### CollateralTokenCannotBeZero
+
+```solidity
+error CollateralTokenCannotBeZero()
+```
+
+_Thrown when the constructor receives a zero collateral token address._
+
+### BorrowTokenCannotBeZero
+
+```solidity
+error BorrowTokenCannotBeZero()
+```
+
+_Thrown when the constructor receives a zero borrow token address._
+
+### CollateralAndBorrowTokensCannotBeEqual
+
+```solidity
+error CollateralAndBorrowTokensCannotBeEqual()
+```
+
+_Thrown when the constructor receives equal collateral and borrow token addresses._
+
+### FeeCannotBeZero
+
+```solidity
+error FeeCannotBeZero()
+```
+
+_Thrown when the constructor receives a zero pool fee._
+
+### InvalidTickSpacing
+
+```solidity
+error InvalidTickSpacing()
+```
+
+_Thrown when the constructor receives a zero tick spacing._
+
+### constructor
+
+```solidity
+constructor(address _router, address _permit2, address _collateralToken, address _borrowToken, uint24 _fee, int24 _tickSpacing, address _hooks) public
+```
+
+Constructs a new SwapModuleUniV4AndVaultDeposit
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _router | address | Uniswap V4 UniversalRouter address |
+| _permit2 | address | Permit2 contract address |
+| _collateralToken | address | ERC4626 vault share token (currency0) |
+| _borrowToken | address | Underlying asset (currency1) |
+| _fee | uint24 | Uniswap V4 pool fee |
+| _tickSpacing | int24 | Uniswap V4 pool tick spacing |
+| _hooks | address | Uniswap V4 hooks address (address(0) for no hooks) |
+
+### swapExactAmountIn
+
+```solidity
+function swapExactAmountIn(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut) external returns (uint256 amountOut)
+```
+
+Swaps an exact amount of input tokens for output tokens
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokenIn | address | Input token (must be COLLATERAL or BORROW) |
+| tokenOut | address | Output token (must be the other token) |
+| amountIn | uint256 | Exact amount of input tokens |
+| minAmountOut | uint256 | Minimum output tokens (slippage protection) |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amountOut | uint256 | Amount of output tokens received |
+
+### swapExactAmountOut
+
+```solidity
+function swapExactAmountOut(address tokenIn, address tokenOut, uint256 maxAmountIn, uint256 amountOut) external returns (uint256 amountIn)
+```
+
+Swaps for an exact amount of output tokens, using up to maxAmountIn input tokens
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokenIn | address | Input token (must be COLLATERAL or BORROW) |
+| tokenOut | address | Output token (must be the other token) |
+| maxAmountIn | uint256 | Maximum input tokens to spend |
+| amountOut | uint256 | Exact output tokens to receive |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amountIn | uint256 | Input tokens actually used |
+
+### POOL_KEY
+
+```solidity
+function POOL_KEY() public view returns (struct PoolKey)
+```
+
+Constructs PoolKey from immutable storage
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct PoolKey | Pool key struct |
+
+### toPoolId
+
+```solidity
+function toPoolId(struct PoolKey key) internal pure returns (bytes32)
+```
+
+Computes pool ID from PoolKey
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| key | struct PoolKey | Pool key struct |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bytes32 | Computed pool ID |
+
+### _zeroForOne
+
+```solidity
+function _zeroForOne(address tokenIn, address tokenOut) internal view returns (bool)
+```
+
+Determines swap direction (zeroForOne)
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokenIn | address | Input token address |
+| tokenOut | address | Output token address |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | true if currency0 -> currency1, false otherwise |
+
+### _v4SwapExactIn
+
+```solidity
+function _v4SwapExactIn(address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut) internal
+```
+
+Executes Uniswap V4 exact-input swap
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokenIn | address | Input token address |
+| tokenOut | address | Output token address |
+| amountIn | uint256 | Exact input amount |
+| minOut | uint256 | Minimum output amount |
+
+### _v4SwapExactOut
+
+```solidity
+function _v4SwapExactOut(address tokenIn, address tokenOut, uint256 maxIn, uint256 amountOut) internal
+```
+
+Executes Uniswap V4 exact-output swap
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokenIn | address | Input token address |
+| tokenOut | address | Output token address |
+| maxIn | uint256 | Maximum input amount |
+| amountOut | uint256 | Exact output amount |
+

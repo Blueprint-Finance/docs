@@ -1,0 +1,229 @@
+---
+id: 'sc-flashmoduleaavev3'
+title: 'FlashModuleAaveV3'
+audience: 'public'
+module: 'periphery'
+scope: 'auxiliary'
+source_refs:
+  - 'src/periphery/auxiliary/FlashModuleAaveV3.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'leverage-looping'
+---
+
+## FlashModuleAaveV3
+
+Flash-loan adapter that routes `IFlashModule` requests through Aave V3's
+        `flashLoanSimple`. Looping primitives call `flash` to borrow a single token
+        for the duration of one transaction; this module forwards the loan, invokes
+        the caller's `executeFlash` hook, and pulls back principal plus premium to
+        repay Aave atomically.
+Pricing helpers (`flashPremiumMaxInWad`, `flashPremiumQuoteInWad`) and
+        liquidity inspection (`depthOfFlashLiquidityExact`) read live values from
+        the resolved Aave V3 pool and data provider.
+
+### PoolAddressesProviderCannotBeZeroAddress
+
+```solidity
+error PoolAddressesProviderCannotBeZeroAddress()
+```
+
+_Thrown when the constructor receives a zero `addressesProvider_`._
+
+### PoolNotSet
+
+```solidity
+error PoolNotSet()
+```
+
+_Thrown when the addresses provider returns the zero address for the pool._
+
+### PoolDataProviderNotSet
+
+```solidity
+error PoolDataProviderNotSet()
+```
+
+_Thrown when the addresses provider returns the zero address for the data provider._
+
+### InvalidCaller
+
+```solidity
+error InvalidCaller(address caller, address expected)
+```
+
+_Thrown when `executeOperation` is invoked by any address other than the cached Aave pool._
+
+### InvalidInitiator
+
+```solidity
+error InvalidInitiator(address initiator, address expected)
+```
+
+_Thrown when the Aave flash-loan initiator does not match this contract._
+
+### constructor
+
+```solidity
+constructor(address addressesProvider_) public
+```
+
+Resolves and caches the Aave V3 pool and data provider from the addresses provider.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| addressesProvider_ | address | Aave V3 `PoolAddressesProvider` to read live addresses from. |
+
+### flash
+
+```solidity
+function flash(address token, uint256 amount, LoopModality loopModality, bytes data) external returns (bool)
+```
+
+Requests a flash loan from Aave V3 on behalf of `msg.sender`.
+
+_Encodes the caller, looping modality, and inner payload into the Aave `params`
+     so that `executeOperation` can dispatch the funds back to the requester._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The ERC-20 token to flash-borrow. |
+| amount | uint256 | The principal amount to borrow. |
+| loopModality | LoopModality | Looping modality forwarded to the requester's `executeFlash`. |
+| data | bytes | Opaque payload forwarded verbatim to the requester's `executeFlash`. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | Always `true` if the flash loan completed; reverts otherwise. |
+
+### executeOperation
+
+```solidity
+function executeOperation(address token, uint256 amountInToken, uint256 premiumInToken, address initiator, bytes params) external returns (bool)
+```
+
+Aave V3 callback executed inside the flash-loan transaction.
+
+_Transfers the borrowed `amountInToken` to the original requester, invokes
+     `ILoopingPrimitive.executeFlash`, then pulls back `amountInToken + premiumInToken`
+     and approves the pool to repay. Only callable by the cached Aave pool with this
+     contract as initiator._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | Token that was flash-borrowed. |
+| amountInToken | uint256 | Principal received from Aave. |
+| premiumInToken | uint256 | Premium owed back to Aave on top of the principal. |
+| initiator | address | Address that initiated the flash loan; must equal this contract. |
+| params | bytes | ABI-encoded `(address requester, LoopModality loopModality, bytes data)`. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | Always `true` on success; reverts otherwise. |
+
+### depthOfFlashLiquidityExact
+
+```solidity
+function depthOfFlashLiquidityExact(address token) public view returns (uint256)
+```
+
+Returns the exact flash-loan liquidity currently available for `token` on Aave V3.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The ERC-20 reserve to inspect. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The token balance of the corresponding aToken, or 0 if flash loans are disabled. |
+
+### flashPremiumMaxInWad
+
+```solidity
+function flashPremiumMaxInWad(address) public view returns (uint64 premiumInWad, bool premiumDependsOnLiquidity)
+```
+
+Returns the maximum flash-loan premium percentage applied by Aave V3.
+
+_The Aave pool premium is a global value, so it does not depend on the requested liquidity._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| premiumInWad | uint64 | Premium percentage scaled to 1e18. |
+| premiumDependsOnLiquidity | bool | Always `false` for Aave V3. |
+
+### flashPremiumQuoteInWad
+
+```solidity
+function flashPremiumQuoteInWad(address, uint256) public view returns (uint64 premiumInWad)
+```
+
+Quotes the flash-loan premium percentage for an arbitrary required liquidity.
+
+_The Aave premium is liquidity-independent; the second parameter is unused._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| premiumInWad | uint64 | Premium percentage scaled to 1e18. |
+
+### ADDRESSES_PROVIDER
+
+```solidity
+function ADDRESSES_PROVIDER() external view returns (contract IPoolAddressesProvider)
+```
+
+Returns the cached Aave V3 `PoolAddressesProvider`.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | contract IPoolAddressesProvider | The addresses provider used to resolve the pool and data provider at construction time. |
+
+### POOL
+
+```solidity
+function POOL() external view returns (contract IPool)
+```
+
+Returns the cached Aave V3 pool that services flash loans for this module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | contract IPool | The Aave V3 pool address resolved at construction time. |
+
+### _flashLoanPremiumInWad
+
+```solidity
+function _flashLoanPremiumInWad() internal view returns (uint256)
+```
+
+_Converts the flash loan premium from basis points to wad. See the Aave V3 pool
+     configurator documentation for the definition of `FLASHLOAN_PREMIUM_TOTAL`._
+
+### _depthOfLiquidityInPool
+
+```solidity
+function _depthOfLiquidityInPool(address token) internal view returns (uint256)
+```
+

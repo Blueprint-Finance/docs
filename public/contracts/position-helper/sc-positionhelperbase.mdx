@@ -1,0 +1,1048 @@
+---
+id: 'sc-positionhelperbase'
+title: 'PositionHelperBase'
+audience: 'public'
+module: 'periphery'
+scope: 'position-helper'
+source_refs:
+  - 'src/periphery/positionhelper/PositionHelperBase.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'lending-integration'
+---
+
+## PositionHelperBase
+
+Abstract operator contract that manages a leveraged lend/borrow
+        position on behalf of a `positionOwner`.
+
+_Clone lifecycle (ERC-1167 with immutable args via wighawag/clones-with-immutable-args):
+  • `positionOwner`, `collateralToken`, `borrowToken`, `collateralDecimals`, and
+    `borrowDecimals` are NOT stored in contract storage.  They are appended to each
+    clone's bytecode at clone time and read back via `_getArgAddress` / `_getArgUint8`.
+    Encoding (62 bytes):
+      [positionOwner (20)][collateralToken (20)][borrowToken (20)]
+      [collateralDecimals (1)][borrowDecimals (1)]
+  • The concrete implementation's constructor must call `_disableInitializers()`
+    so the bare implementation contract cannot be accidentally initialized.
+  • Each clone calls `initialize(...)` exactly once to set per-instance state
+    (roles, modules) and per-clone token approvals.
+
+Cloning pattern:
+  1. Deploy the concrete implementation (sets lender immutables, disables initializers).
+  2. For each position, call `ClonesWithImmutableArgs.clone(implementation,
+        abi.encodePacked(positionOwner, collateralToken, borrowToken,
+                         collateralDecimals, borrowDecimals))`.
+  3. Call `initialize(...)` on the clone.
+
+Zero-balance invariant: this contract MUST NOT hold tokens at rest.
+     Tokens may transit during a transaction, but every balance MUST be zero
+     by the time the outermost call returns._
+
+### POSITION_OPERATOR_ROLE
+
+```solidity
+bytes32 POSITION_OPERATOR_ROLE
+```
+
+Role identifier for accounts authorised to operate the position.
+
+### POSITION_ADMIN_ROLE
+
+```solidity
+bytes32 POSITION_ADMIN_ROLE
+```
+
+Role identifier for accounts authorised to administer the position.
+
+### DEFAULT_MAX_SELF_LIQ_SLIPPAGE_WAD
+
+```solidity
+uint64 DEFAULT_MAX_SELF_LIQ_SLIPPAGE_WAD
+```
+
+_Default maximum acceptable slippage for self-liquidation swaps (WAD).
+     10% = 0.10e18._
+
+### REPAY_RAY_ROUNDING_BUFFER
+
+```solidity
+uint256 REPAY_RAY_ROUNDING_BUFFER
+```
+
+_A tiny repayment buffer used to cover lender-side rounding dust._
+
+### onlyFlashModule
+
+```solidity
+modifier onlyFlashModule()
+```
+
+_Reverts if the caller of `executeFlash` is not the registered flash module._
+
+### onlyFlashRequester
+
+```solidity
+modifier onlyFlashRequester(address requester_)
+```
+
+_Reverts if the flash requester is not this contract.
+     Prevents a rogue flash module from replaying a callback against an unrelated position._
+
+### canLiquidate
+
+```solidity
+modifier canLiquidate()
+```
+
+### POSITION_OWNER_OFFSET
+
+```solidity
+uint256 POSITION_OWNER_OFFSET
+```
+
+### COLLATERAL_TOKEN_OFFSET
+
+```solidity
+uint256 COLLATERAL_TOKEN_OFFSET
+```
+
+### BORROW_TOKEN_OFFSET
+
+```solidity
+uint256 BORROW_TOKEN_OFFSET
+```
+
+### COLLATERAL_DECIMALS_OFFSET
+
+```solidity
+uint256 COLLATERAL_DECIMALS_OFFSET
+```
+
+### BORROW_DECIMALS_OFFSET
+
+```solidity
+uint256 BORROW_DECIMALS_OFFSET
+```
+
+### POSITION_OWNER
+
+```solidity
+function POSITION_OWNER() public pure returns (address)
+```
+
+Account on whose behalf operations are executed.
+        Read from clone immutable args at byte offset `POSITION_OWNER_OFFSET`.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The position owner address. |
+
+### COLLATERAL_TOKEN
+
+```solidity
+function COLLATERAL_TOKEN() public pure returns (address)
+```
+
+ERC20 token supplied as collateral to the lender.
+        Read from clone immutable args at byte offset `COLLATERAL_TOKEN_OFFSET`.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The collateral token address. |
+
+### BORROW_TOKEN
+
+```solidity
+function BORROW_TOKEN() public pure returns (address)
+```
+
+ERC20 token borrowed from the lender and deployed into `target`.
+        Read from clone immutable args at byte offset `BORROW_TOKEN_OFFSET`.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The borrow token address. |
+
+### COLLATERAL_DECIMALS
+
+```solidity
+function COLLATERAL_DECIMALS() public pure returns (uint8)
+```
+
+Decimals of the collateral token, encoded at clone time.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint8 | The collateral token decimals. |
+
+### BORROW_DECIMALS
+
+```solidity
+function BORROW_DECIMALS() public pure returns (uint8)
+```
+
+Decimals of the borrow token, encoded at clone time.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint8 | The borrow token decimals. |
+
+### __PositionHelperBase_init
+
+```solidity
+function __PositionHelperBase_init(address admin_, address operator_, address yieldVault_, address flashModule_, address swapModule_, uint64 healthyLtvInWad_, uint64 healthyLtvDeviationInWad_, uint64 selfLiqThrBufferInWad_) internal
+```
+
+_Called once from the concrete contract's `initialize(...)`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| admin_ | address | Address granted `POSITION_ADMIN_ROLE`. |
+| operator_ | address | Address granted `POSITION_OPERATOR_ROLE`. |
+| yieldVault_ | address | Async ERC4626 vault where borrowed funds are deployed.                                  Must satisfy: `yieldVault_.asset() == BORROW_TOKEN()`. |
+| flashModule_ | address | Flash loan module (IFlashModule). |
+| swapModule_ | address | Swap module (ISwapModule). |
+| healthyLtvInWad_ | uint64 | Centre of the desired healthy LTV band, in WAD.                                  e.g. 0.6e18 = 60% LTV is the operating target. |
+| healthyLtvDeviationInWad_ | uint64 | Half-width of the healthy band, in WAD.                                  LTVs in [healthyLtv − deviation, healthyLtv + deviation]                                  are classified as Healthy.  Must be > 0. |
+| selfLiqThrBufferInWad_ | uint64 | WAD buffer below the lender liquidation threshold                                  that triggers self-liquidation.  Must be > 0. |
+
+### constructor
+
+```solidity
+constructor() internal
+```
+
+### ID
+
+```solidity
+function ID() public pure virtual returns (uint64)
+```
+
+Returns the encoded contract identifier for the implementation.
+
+_Overridden by each concrete lender subclass._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Packed contractType/flavour/version identifier. |
+
+### yieldVault
+
+```solidity
+function yieldVault() public view returns (address)
+```
+
+Async ERC4626 vault where borrowed funds are deployed.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | Address of the configured yield vault. |
+
+### flashModule
+
+```solidity
+function flashModule() public view virtual returns (address)
+```
+
+Flash loan module used by self-liquidation flows.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | Address of the configured flash module. |
+
+### swapModule
+
+```solidity
+function swapModule() public view virtual returns (address)
+```
+
+Swap module used to convert collateral to borrow tokens during self-liquidation.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | Address of the configured swap module. |
+
+### maxSelfLiquidationSlippageInWad
+
+```solidity
+function maxSelfLiquidationSlippageInWad() public view returns (uint64)
+```
+
+Max allowed swap slippage for self-liquidation calls, in WAD (1e18 = 100%).
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Maximum slippage in WAD. |
+
+### setMaxSelfLiquidationSlippageInWad
+
+```solidity
+function setMaxSelfLiquidationSlippageInWad(uint64 newMaxSlippageInWad) external
+```
+
+Updates the max allowed self-liquidation slippage (WAD).
+
+_Only callable by `POSITION_ADMIN_ROLE`. Reverts if the new value is zero or >= WAD._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newMaxSlippageInWad | uint64 | New maximum slippage value in WAD. |
+
+### getPosition
+
+```solidity
+function getPosition() public view virtual returns (uint256 collateralAmount, uint256 debtAmount)
+```
+
+Current collateral and debt balances at the lender, in native token units.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 | Collateral balance in collateral token units. |
+| debtAmount | uint256 | Outstanding debt in borrow token units. |
+
+### getCollateralAmount
+
+```solidity
+function getCollateralAmount() public view virtual returns (uint256)
+```
+
+Current collateral balance at the lender, in collateral token units.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | Collateral balance in collateral token units. |
+
+### getDebtAmount
+
+```solidity
+function getDebtAmount() public view virtual returns (uint256)
+```
+
+Current outstanding debt at the lender, in borrow token units.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | Debt balance in borrow token units. |
+
+### getCurrentLtvInWad
+
+```solidity
+function getCurrentLtvInWad() public view virtual returns (uint64)
+```
+
+Current LTV of the position, in WAD (1e18 = 100%).
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Current LTV in WAD. |
+
+### getMaxLtvInWad
+
+```solidity
+function getMaxLtvInWad() public view virtual returns (uint64)
+```
+
+Maximum LTV permitted by the lender for this collateral, in WAD.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Maximum LTV in WAD. |
+
+### getBorrowRateInWad
+
+```solidity
+function getBorrowRateInWad() public view virtual returns (uint64)
+```
+
+Variable borrow rate on the borrowed asset, in WAD (1e18 = 100% APY).
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Borrow rate in WAD. |
+
+### getSupplyRateInWad
+
+```solidity
+function getSupplyRateInWad() public view virtual returns (uint64)
+```
+
+Supply/liquidity rate on the collateral asset, in WAD (1e18 = 100% APY).
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Supply rate in WAD. |
+
+### collateralPriceInBorrowTokensInRay
+
+```solidity
+function collateralPriceInBorrowTokensInRay() public view virtual returns (uint256)
+```
+
+Price of one collateral token expressed in borrow tokens, in RAY (1e27 = 1.0).
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | Collateral price in borrow tokens, in RAY. |
+
+### getAvailablePoolLiquidity
+
+```solidity
+function getAvailablePoolLiquidity() public view virtual returns (uint256)
+```
+
+Amount of borrow tokens currently available to borrow from the lending pool.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | Available borrow-token liquidity, in borrow token units. |
+
+### getLiquidationThresholdInWad
+
+```solidity
+function getLiquidationThresholdInWad() public view virtual returns (uint64)
+```
+
+Current liquidation threshold in WAD (from the lender's config).
+        Positions at or above this LTV are eligible for external liquidation.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Liquidation threshold in WAD. |
+
+### getFullPosition
+
+```solidity
+function getFullPosition() external view returns (uint256 collateralAmount, uint256 debtAmount, uint64 currentLtvInWad, uint256 collateralPriceInRay)
+```
+
+Snapshot of the full position state in a single call.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 | Collateral at the lender, in collateral token units. |
+| debtAmount | uint256 | Outstanding debt at the lender, in borrow token units. |
+| currentLtvInWad | uint64 | Current LTV, in WAD (1e18 = 100%). |
+| collateralPriceInRay | uint256 | Collateral price in borrow tokens, in RAY (1e27 = 1.0). |
+
+### getTokenPair
+
+```solidity
+function getTokenPair() external pure returns (struct TokenPair)
+```
+
+Returns the (collateralToken, borrowToken) pair for this position.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct TokenPair | The struct holding the collateral and borrow token addresses. |
+
+### checkApprovals
+
+```solidity
+function checkApprovals() external view returns (struct PositionApprovals)
+```
+
+Returns the complete approval and role status for this clone in a single call.
+        All fields must be `true` before invoking the corresponding operations.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct PositionApprovals | Struct describing per-operation approval status for this clone. |
+
+### supply
+
+```solidity
+function supply(uint256 amount) external
+```
+
+Supply `amount` of collateralToken on behalf of positionOwner.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Collateral amount to pull from positionOwner and supply. |
+
+### withdraw
+
+```solidity
+function withdraw(uint256 amount) external
+```
+
+Withdraw `amount` of collateral from the lender and return to positionOwner.
+
+_WARNING (Aave V3): pulling aTokens from positionOwner triggers Aave's health-factor
+     check at that moment.  If the position is near-liquidation, this call will revert
+     even though repaying first would have made room.  Use `retract` (repay-first)
+     for leveraged positions; standalone `withdraw` is safe only when debt is low._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Collateral amount to withdraw and return to positionOwner. |
+
+### borrow
+
+```solidity
+function borrow(uint256 amount) external
+```
+
+Borrow `amount` of borrowToken via credit delegation and send to positionOwner.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Borrow amount, in borrow token units. |
+
+### repay
+
+```solidity
+function repay(uint256 amount) external
+```
+
+Repay `amount` of borrowToken debt for positionOwner.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Borrow tokens to pull from positionOwner and repay. |
+
+### depositOnTarget
+
+```solidity
+function depositOnTarget(uint256 amount) external virtual returns (uint256 sharesReceived)
+```
+
+Deposit `amount` of borrowToken into the target vault.
+        Shares are minted directly to positionOwner.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Borrow tokens to pull from positionOwner and deposit. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sharesReceived | uint256 | Vault shares minted to positionOwner. |
+
+### requestRedemptionFromTarget
+
+```solidity
+function requestRedemptionFromTarget(uint256 shares) external virtual returns (uint256 amountReceived)
+```
+
+Submit a queued redemption request for `shares` of the target vault.
+        Returns `instantAmount > 0` if the vault processed the redemption atomically.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 | Vault shares to redeem. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amountReceived | uint256 | Borrow tokens delivered to positionOwner if synchronously fulfilled. |
+
+### updateRedemptionRequestFromTarget
+
+```solidity
+function updateRedemptionRequestFromTarget(uint256 requestIdToCancel, uint256 newSharesAmount) external virtual returns (uint256 amountReceived)
+```
+
+Cancel an outstanding redemption request and submit a new request in one call.
+
+_`requestIdToCancel` is the epoch ID for `ConcreteAsyncVaultImpl`.
+     Returns `instantAmount > 0` if the vault processed the redemption atomically._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| requestIdToCancel | uint256 | Epoch ID of the request to cancel. |
+| newSharesAmount | uint256 | Vault shares to redeem in the new request. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amountReceived | uint256 | Borrow tokens delivered to positionOwner if synchronously fulfilled. |
+
+### cancelRedemptionRequestFromTarget
+
+```solidity
+function cancelRedemptionRequestFromTarget(uint256 requestId) external
+```
+
+Cancel an outstanding redemption request.
+        Requires this contract to hold the `WITHDRAWAL_MANAGER_ROLE` on the vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| requestId | uint256 | Epoch ID of the redemption request to cancel. |
+
+### claimRedemptionFromTarget
+
+```solidity
+function claimRedemptionFromTarget(uint256[] requestIds) external returns (uint256 amount)
+```
+
+Claim one or more fulfilled redemption requests and return assets to positionOwner.
+        Requires this contract to hold the `WITHDRAWAL_MANAGER_ROLE` on the vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| requestIds | uint256[] | Epoch IDs of fulfilled requests to claim. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Total borrow tokens transferred to positionOwner. |
+
+### requestPriorityRedemptionFromTarget
+
+```solidity
+function requestPriorityRedemptionFromTarget(uint256 requestId) public virtual
+```
+
+Escalate the outstanding redemption request to priority status.
+        Emits an event for off-chain processing by default.
+        Override in a subcontract when the vault supports on-chain priority queuing.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| requestId | uint256 | Epoch ID of the request to escalate. |
+
+### revokePriorityRedemptionFromTarget
+
+```solidity
+function revokePriorityRedemptionFromTarget(uint256 requestId) public virtual
+```
+
+Revoke the priority escalation on the outstanding redemption request.
+        Override in a subcontract when the vault supports on-chain priority queuing.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| requestId | uint256 | Epoch ID of the request to revoke priority on. |
+
+### deploy
+
+```solidity
+function deploy(uint256 collateralAmount, uint64 targetLtvInWad) external
+```
+
+Deploy capital: supply collateral, borrow to `targetLtvInWad`, deposit into target.
+
+_Flow:
+  1. Pull `collateralAmount` from positionOwner and supply to the lender (aTokens → owner).
+  2. Post-supply LTV = d / ((c + x) · p).  If targetLtv ≤ post-supply LTV, skip borrow.
+  3. Borrow the delta to reach targetLtv and deposit into target vault (shares → owner)._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 | Collateral to pull from positionOwner and supply (may be 0). |
+| targetLtvInWad | uint64 | Target post-deploy LTV in WAD (1e18 = 100%). |
+
+### retract
+
+```solidity
+function retract(uint256 repayAmount, uint256 withdrawalAmount, uint64 maxPermissibleLtv) external
+```
+
+Pull `repayAmount` borrow tokens from positionOwner, repay debt, then withdraw
+        `withdrawalAmount` collateral.  LTV after withdrawal must not exceed
+        `maxPermissibleLtv`.  Either amount may be zero.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| repayAmount | uint256 | Borrow tokens to pull from positionOwner and repay (0 to skip). |
+| withdrawalAmount | uint256 | Collateral to withdraw to positionOwner (0 to skip). |
+| maxPermissibleLtv | uint64 | Post-operation LTV ceiling in WAD. |
+
+### claimAndRetract
+
+```solidity
+function claimAndRetract(uint256[] requestIds, uint256 withdrawalAmount, uint64 maxPermissibleLtv) external
+```
+
+Claim fulfilled redemptions then call retract (claimed amount used as repayAmount).
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| requestIds | uint256[] | Epoch IDs of fulfilled redemption requests to claim. |
+| withdrawalAmount | uint256 | Collateral to withdraw to positionOwner (0 to skip). |
+| maxPermissibleLtv | uint64 | Post-operation LTV ceiling in WAD. |
+
+### redeemAndRetract
+
+```solidity
+function redeemAndRetract(uint256 shares, uint256 withdrawalAmount, uint64 maxPermissibleLtv) external
+```
+
+Redeem yield vault shares (synchronous path) and call retract (redeemed amount used as repayAmount).
+
+_Only works when the yield vault is enabled for atomic withdrawals._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 | Vault shares to redeem. |
+| withdrawalAmount | uint256 | Collateral to withdraw to positionOwner (0 to skip). |
+| maxPermissibleLtv | uint64 | Post-operation LTV ceiling in WAD. |
+
+### selfLiquidate
+
+```solidity
+function selfLiquidate(uint256 debtAmount, uint64 maxSlippageInWad) external
+```
+
+Flash-loan-assisted self-liquidation for a specified debt amount.
+
+_Computes worst-case collateral to withdraw via `PMHLib.flashWithdrawAmount`,
+     then initiates the flash.  All execution continues in `executeFlash`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| debtAmount | uint256 | Borrow-token units to repay.                         Pass `type(uint256).max` to liquidate the entire current debt. |
+| maxSlippageInWad | uint64 | Maximum acceptable swap slippage, in WAD (1e18 = 100%). |
+
+### selfLiquidateToLtv
+
+```solidity
+function selfLiquidateToLtv(uint64 targetLtvInWad, uint64 maxSlippageInWad) external
+```
+
+Partial self-liquidation reducing position LTV to `targetLtvInWad`.
+
+_Computes the collateral to withdraw and the flash amount simultaneously via
+     `PMHLib.flashWithdrawAmountFromTargetLtv`, then initiates the same flash callback
+     as `selfLiquidate`.
+
+     The flash premium is quoted on `getDebtAmount()` (conservative upper bound);
+     for typical implementations the premium rate is amount-independent._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| targetLtvInWad | uint64 | Desired post-liquidation LTV, in WAD (1e18 = 100%). |
+| maxSlippageInWad | uint64 | Maximum acceptable swap slippage, in WAD (1e18 = 100%). |
+
+### rescueFunds
+
+```solidity
+function rescueFunds(address token, uint256 amount) external
+```
+
+Rescue ERC-20 tokens accidentally sent to this contract.
+        Only callable by `POSITION_ADMIN_ROLE`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | ERC-20 token address to transfer out. |
+| amount | uint256 | Amount of `token` to send to the caller. |
+
+### executeFlash
+
+```solidity
+function executeFlash(address, uint256 amountInToken, uint256 premiumInToken, address requester, LoopModality, bytes data) external returns (bool)
+```
+
+Called by the flash module after it has transferred `amountInToken`
+        of borrowToken to this contract.
+
+_Self-liquidation flow (LoopWithdrawAndDeallocate):
+  1. Repay positionOwner's `amountInToken` debt at the lender (tokens already here).
+  2. Withdraw `collateralToWithdraw` from the lender (aTokens pulled from positionOwner;
+     repay in step 1 already lowered the health-factor check).
+  3. Swap exact-out: collateral → borrowToken for exactly `totalOwed` (flash + premium).
+     `maxAmountIn` = all withdrawn collateral; the swap uses only what is needed.
+  4. Re-supply surplus collateral (already in this contract) to the lender.
+  5. Approve flash module to pull back flash amount + premium.
+  6. Emit SelfLiquidated._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+| amountInToken | uint256 | Flash-borrowed borrow tokens, already in this contract. |
+| premiumInToken | uint256 | Flash premium owed on top of `amountInToken`. |
+| requester | address | Must equal `address(this)` — enforced by `onlyFlashRequester`. |
+|  | LoopModality |  |
+| data | bytes | ABI-encoded `(uint256 collateralToWithdraw)` set by the caller. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | Always true on success; reverts otherwise. |
+
+### _retract
+
+```solidity
+function _retract(uint256 repayAmount, uint256 withdrawalAmount, uint64 maxPermissibleLtv) internal
+```
+
+_Core unwind primitive.
+     Assumes that the borrow tokens are already in this contract.
+     Execution order (repay-first for Aave V3 health-factor compliance):
+       a. Validate `maxPermissibleLtv` ≤ lender protocol max LTV.
+       b. If `repayAmount` > 0: assert sufficient contract balance, then repay.
+       c. If `withdrawalAmount` > 0: assert withdrawal stays within `maxPermissibleLtv`,
+          then withdraw collateral to positionOwner.
+
+     Either `repayAmount` or `withdrawalAmount` (or both) may be zero._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| repayAmount | uint256 | Borrow tokens already in this contract to repay. |
+| withdrawalAmount | uint256 | Collateral to return to positionOwner, in collateral token units. |
+| maxPermissibleLtv | uint64 | Post-operation LTV ceiling, in WAD. |
+
+### _repay
+
+```solidity
+function _repay(uint256 borrowAmount, bool transferFromOwner) internal
+```
+
+_Repay `borrowAmount` of debt at the lender._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| borrowAmount | uint256 |  |
+| transferFromOwner | bool | If true, pull borrowToken from positionOwner first. |
+
+### _selfLiquidate
+
+```solidity
+function _selfLiquidate(enum _SelfLiqMode mode, uint256 debtAmount, uint64 targetLtvInWad, uint64 maxSlippageInWad) internal virtual
+```
+
+### calculateTargetRepayAmount
+
+```solidity
+function calculateTargetRepayAmount(uint256 requiredPrincipalAmount, uint64 targetLtvInWad) public view returns (uint256)
+```
+
+Computes the borrow-token repay amount needed to reach `targetLtvInWad`,
+        given a hypothetical post-operation principal balance.
+
+_Formula: repay = max(0, d - (c - R)*p*targetLtv)
+     Returns 0 when the position is already at or below targetLtv after the withdrawal,
+     i.e. no repayment is needed.
+     Returns the full debt when `requiredPrincipalAmount >= collateral`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| requiredPrincipalAmount | uint256 | Hypothetical principal balance after the operation. |
+| targetLtvInWad | uint64 | Target LTV in WAD (1e18 = 100%). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | Repay amount in borrow token units. |
+
+### _depositOnTarget
+
+```solidity
+function _depositOnTarget(uint256 assetAmount, bool transferFromOwner, bool transferToOwner) internal virtual returns (uint256)
+```
+
+_Deposits `assetAmount` of borrowToken into the target vault._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assetAmount | uint256 |  |
+| transferFromOwner | bool | If true, pull borrowToken from positionOwner first. |
+| transferToOwner | bool | If true, forward minted shares to positionOwner. |
+
+### _requestRedemptionFromTarget
+
+```solidity
+function _requestRedemptionFromTarget(uint256 shares) internal virtual returns (uint256 amountReceived)
+```
+
+_Requests withdrawal from the target vault (yield vault)_
+
+### _cancelRedemptionRequestFromTarget
+
+```solidity
+function _cancelRedemptionRequestFromTarget(uint256 requestId) internal virtual
+```
+
+_Cancels an outstanding redemption request on the target vault.
+     Requires this contract to hold the `WITHDRAWAL_MANAGER_ROLE` on the vault._
+
+### _claimRedemptionFromTarget
+
+```solidity
+function _claimRedemptionFromTarget(uint256[] requestIds) internal virtual returns (uint256 withdrawnAmount)
+```
+
+_Claims assets from one or more fulfilled redemption requests.
+     Requires this contract to hold the `WITHDRAWAL_MANAGER_ROLE` on the vault._
+
+### _supply
+
+```solidity
+function _supply(uint256 collateralAmount, bool transferFromOwner, bool transferToOwner) internal virtual
+```
+
+_Supply `collateralAmount` of collateralToken to the lender._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 |  |
+| transferFromOwner | bool | If true, pull collateralToken from positionOwner first. |
+| transferToOwner | bool | If true, mint lender position tokens (e.g. aTokens) to                          positionOwner.  If false, keep them in this contract.                          In almost all cases this should be true. |
+
+### _withdraw
+
+```solidity
+function _withdraw(uint256 collateralAmount, bool transferFromOwner, bool transferToOwner) internal virtual
+```
+
+_Withdraw `collateralAmount` from the lender._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 |  |
+| transferFromOwner | bool | If true, pull lender position tokens (e.g. aTokens) from                          positionOwner before calling pool.withdraw.                          NOTE (Aave V3): the aToken.transferFrom triggers Aave's                          health-factor check on positionOwner at that moment.                          For flash-loan self-liquidation, aTokens will already                          be in this contract — use transferFromOwner=false in that case. |
+| transferToOwner | bool | If true, return underlying collateral to positionOwner. |
+
+### _borrow
+
+```solidity
+function _borrow(uint256 borrowAmount, bool transferToOwner) internal virtual
+```
+
+_Borrow `borrowAmount` from the lender via credit delegation._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| borrowAmount | uint256 |  |
+| transferToOwner | bool | If true, send borrowed tokens to positionOwner. |
+
+### _repayLender
+
+```solidity
+function _repayLender(uint256 borrowAmount, bool transferFromOwner) internal virtual
+```
+
+_Lender-specific repay implementation invoked by `_repay`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| borrowAmount | uint256 |  |
+| transferFromOwner | bool | If true, pull borrowToken from positionOwner first. |
+
+### _getLenderApprovals
+
+```solidity
+function _getLenderApprovals() internal view virtual returns (bool lenderCollateralApproved, bool lenderDebtDelegated)
+```
+
+_Returns lender-specific approval booleans for positionOwner → this contract.
+     `lenderCollateralApproved` — approval on the lender's collateral position token
+                                  (e.g. aToken for Aave V3).
+     `lenderDebtDelegated`      — delegation to borrow on behalf of positionOwner._
+

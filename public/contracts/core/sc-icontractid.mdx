@@ -1,0 +1,34 @@
+---
+id: 'sc-icontractid'
+title: 'IContractId'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IContractId.sol'
+last_reviewed: '2026-01-21'
+mechanics:
+  - 'contract-discovery'
+---
+
+## IContractId
+
+Interface for contracts that have a contract ID identifier.
+
+_This interface is separated from IUpgradeableVault to simplify override clauses
+     in implementation contracts that inherit from multiple interfaces._
+
+### ID
+
+```solidity
+function ID() external view returns (uint64)
+```
+
+Get the contract's ID.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | ID of the contract |
+

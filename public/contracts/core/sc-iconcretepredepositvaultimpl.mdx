@@ -1,0 +1,242 @@
+---
+id: 'sc-iconcretepredepositvaultimpl'
+title: 'IConcretePredepositVaultImpl'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IConcretePredepositVaultImpl.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'predeposit'
+  - 'vault-core'
+---
+
+## IConcretePredepositVaultImpl
+
+Predeposit vault used to collect deposits on a source chain ahead of cross-chain vault
+        migration, then claim the corresponding shares on the target chain.
+
+_Extends the standard vault with self/batched claim flows that burn the user's L1 shares,
+     send a LayerZero message to the target chain reporting the eligible share amount, and
+     gate participation behind a self-claims toggle and an OApp messaging endpoint._
+
+### SharesClaimedOnTargetChain
+
+```solidity
+event SharesClaimedOnTargetChain(address user, uint256 shares)
+```
+
+Emitted when an L1 claim is routed to the target chain via LayerZero.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The user whose shares are being claimed on the target chain. |
+| shares | uint256 | The amount of L1 shares being burned and migrated. |
+
+### SelfClaimsEnabledUpdated
+
+```solidity
+event SelfClaimsEnabledUpdated(bool enabled)
+```
+
+Emitted when the self-claims toggle is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| enabled | bool | True if self claims have been enabled, false otherwise. |
+
+### NoSharesToClaim
+
+```solidity
+error NoSharesToClaim()
+```
+
+_Thrown when the caller has no shares available to claim._
+
+### DepositsNotLocked
+
+```solidity
+error DepositsNotLocked()
+```
+
+_Thrown when deposits are not locked, which is required for cross-chain claims._
+
+### BadAddressArrayLength
+
+```solidity
+error BadAddressArrayLength(uint256 length)
+```
+
+_Thrown when the supplied addresses batch is empty or exceeds the maximum (must be > 0 and <= 150)._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| length | uint256 | The actual length of the addresses array that triggered the revert. |
+
+### InvalidUserAddress
+
+```solidity
+error InvalidUserAddress()
+```
+
+_Thrown when a user address argument is invalid (e.g. address(0))._
+
+### NoSharesInBatch
+
+```solidity
+error NoSharesInBatch()
+```
+
+_Thrown when a batch resolves to zero claimable shares across all entries._
+
+### SelfClaimsDisabled
+
+```solidity
+error SelfClaimsDisabled()
+```
+
+_Thrown when a self-claim is attempted while self claims are disabled._
+
+### OAppNotSet
+
+```solidity
+error OAppNotSet()
+```
+
+_Thrown when a cross-chain claim is attempted while no OApp endpoint has been configured._
+
+### WithdrawalsNotLocked
+
+```solidity
+error WithdrawalsNotLocked()
+```
+
+_Thrown when withdrawals are not locked, which is required for cross-chain claims._
+
+### claimOnTargetChain
+
+```solidity
+function claimOnTargetChain(bytes options) external payable
+```
+
+Burn `msg.sender`'s locked L1 shares and route the claim to the target chain via LayerZero.
+
+_Sends a single LayerZero message reporting the caller and their eligible share amount,
+     burning the L1 shares in the same call. Accrues yield first to sync strategy state;
+     strategies are expected to report no yield once claims have opened. Gated by
+     `selfClaimsEnabled` so individual users can only call this when self claims are enabled._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| options | bytes | LayerZero messaging options (gas/fee parameters). |
+
+### batchClaimOnTargetChain
+
+```solidity
+function batchClaimOnTargetChain(bytes addressesData, bytes options) external payable
+```
+
+Burn locked L1 shares for a batch of users and route the claim to the target chain.
+
+_Only callable by accounts with the VAULT_MANAGER role. Aggregates the supplied
+     addresses, sends a single LayerZero message, and silently skips addresses that have
+     zero claimable shares (including users who have already claimed). Accrues yield first
+     so strategy accounting is synced; strategies are expected to report no yield once
+     claims have opened._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| addressesData | bytes | ABI-encoded array of addresses to claim for. |
+| options | bytes | LayerZero messaging options (gas/fee parameters). |
+
+### getLockedShares
+
+```solidity
+function getLockedShares(address user) external view returns (uint256)
+```
+
+Returns the amount of locked (unclaimed) shares held for `user` on this chain.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The user whose locked share balance is being queried. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The amount of locked shares attributable to `user`. |
+
+### setSelfClaimsEnabled
+
+```solidity
+function setSelfClaimsEnabled(bool enabled) external
+```
+
+Enable or disable user self-initiated claims on the target chain.
+
+_Only callable by accounts with the VAULT_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| enabled | bool | True to enable self claims, false to disable. |
+
+### getSelfClaimsEnabled
+
+```solidity
+function getSelfClaimsEnabled() external view returns (bool)
+```
+
+Returns whether user self-initiated claims are currently enabled.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if self claims are enabled, false otherwise. |
+
+### setOApp
+
+```solidity
+function setOApp(address oappAddress) external
+```
+
+Set the LayerZero OApp contract address used for cross-chain claim messaging.
+
+_Only callable by accounts with the VAULT_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| oappAddress | address | The address of the OApp contract. |
+
+### getOApp
+
+```solidity
+function getOApp() external view returns (address)
+```
+
+Returns the LayerZero OApp contract address used for cross-chain claim messaging.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The address of the OApp contract, or address(0) if not set. |
+

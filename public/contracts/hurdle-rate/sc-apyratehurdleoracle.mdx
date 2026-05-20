@@ -1,0 +1,171 @@
+---
+id: 'sc-apyratehurdleoracle'
+title: 'APYRateHurdleOracle'
+audience: 'public'
+module: 'oracle'
+scope: 'hurdle-rate'
+source_refs:
+  - 'src/oracle/APYRateHurdleOracle.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'hurdle-rate'
+---
+
+## APYRateHurdleOracle
+
+On-chain hurdle-rate oracle that tracks a configured APY by using the
+        `exp(ln(1+apy) * t)` identity, so the rate hits exactly the configured APY after one year:
+
+        rate(t) = hurdleFloor x exp( ln(1 + targetAPY) x dt / SECONDS_PER_YEAR )
+
+        Vaults reference this oracle to determine whether realised performance has cleared the
+        hurdle before performance fees accrue.
+
+_All rates use 18-decimal (UD60x18) precision. `targetAPY` is expressed as a fractional
+     rate: 5% -> 0.05e18._
+
+### hurdleFloor
+
+```solidity
+uint256 hurdleFloor
+```
+
+Baseline exchange rate in UD60x18 from which growth is computed.
+
+### targetAPY
+
+```solidity
+uint256 targetAPY
+```
+
+Annualized compound rate in UD60x18 (e.g. 0.05e18 = 5% APY).
+
+### startTimestamp
+
+```solidity
+uint40 startTimestamp
+```
+
+Unix timestamp from which compounding begins.
+
+### cachedLnFactor
+
+```solidity
+UD60x18 cachedLnFactor
+```
+
+_Cached `ln(1 + targetAPY)` recomputed on every configure to save gas in `getHurdleRate`._
+
+### Configured
+
+```solidity
+event Configured(uint256 hurdleFloor, uint256 targetAPY, uint40 startTimestamp)
+```
+
+Emitted whenever `configure` updates the hurdle parameters.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hurdleFloor | uint256 | The new baseline exchange rate. |
+| targetAPY | uint256 | The new annualized compound rate. |
+| startTimestamp | uint40 | The new Unix timestamp from which compounding begins. |
+
+### ZeroHurdleFloor
+
+```solidity
+error ZeroHurdleFloor()
+```
+
+_Reverts when `configure` is called with a zero `hurdleFloor_`._
+
+### HurdleFloorTooHigh
+
+```solidity
+error HurdleFloorTooHigh(uint256 hurdleFloor, uint256 max)
+```
+
+_Reverts when `configure` is called with a `hurdleFloor_` greater than `MAX_HURDLE_FLOOR`._
+
+### TargetRateOutOfRange
+
+```solidity
+error TargetRateOutOfRange(uint256 targetRate, uint256 min, uint256 max)
+```
+
+_Reverts when `configure` is called with a `targetAPY_` outside [`MIN_TARGET_RATE`, `MAX_TARGET_RATE`]._
+
+### ZeroTimestamp
+
+```solidity
+error ZeroTimestamp()
+```
+
+_Reverts when `configure` is called with a zero `startTimestamp_`._
+
+### constructor
+
+```solidity
+constructor(address owner_) public
+```
+
+Deploys the oracle with `owner_` as the configuration admin. Parameters must be set
+        via `configure` before `getHurdleRate` returns a non-zero value.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| owner_ | address | Address that becomes the oracle owner and may call `configure`. |
+
+### configure
+
+```solidity
+function configure(uint256 hurdleFloor_, uint256 targetAPY_, uint40 startTimestamp_) external
+```
+
+Configure (or reconfigure) the hurdle-rate parameters.
+
+_Owner-only. Recomputes the cached `ln(1 + targetAPY)` factor. Reverts on the validation
+     errors documented above._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hurdleFloor_ | uint256 | Baseline exchange rate in UD60x18 (e.g. 1e18 = 1.0). |
+| targetAPY_ | uint256 | Annualized compound rate in UD60x18 (e.g. 0.05e18 = 5%). |
+| startTimestamp_ | uint40 | Unix timestamp from which compounding begins. |
+
+### precision
+
+```solidity
+function precision() external pure returns (uint256)
+```
+
+Returns the scaling factor used to encode the hurdle exchange rate.
+
+_The vault divides by this value when converting the hurdle exchange rate
+     to asset amounts: `hurdleAssets = hurdleRate * totalSupply / precision()`._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The scaling factor applied to `getHurdleRate()` (e.g. `1e18`). |
+
+### getHurdleRate
+
+```solidity
+function getHurdleRate() external view returns (uint256)
+```
+
+Returns the current hurdle rate at the current block timestamp.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 |  |
+

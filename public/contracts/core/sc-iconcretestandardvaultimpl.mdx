@@ -1,0 +1,958 @@
+---
+id: 'sc-iconcretestandardvaultimpl'
+title: 'IConcreteStandardVaultImpl'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IConcreteStandardVaultImpl.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'deposit-limits'
+  - 'strategy-allocation'
+  - 'vault-core'
+  - 'withdrawal-caps'
+---
+
+## IConcreteStandardVaultImpl
+
+Standard ERC-4626 vault implementation that manages a set of pluggable strategies,
+        each of which deploys capital into an external yield-generating protocol.
+
+_Extends the upgradeable-vault, ERC-4626, and access-control surfaces with strategy
+     management (add/remove/halt), batched allocation, yield accrual, fee configuration,
+     deposit/withdraw limits, hook configuration, hurdle-rate gating, and deallocation ordering.
+     Strategies must implement `IStrategyTemplate` and share the vault's underlying asset._
+
+### InvalidReceiver
+
+```solidity
+error InvalidReceiver()
+```
+
+_Thrown when attempting to withdraw to the zero address._
+
+### InvalidStrategyAsset
+
+```solidity
+error InvalidStrategyAsset()
+```
+
+_Thrown when attempting to add a strategy that uses a different asset than the vault._
+
+### InvalidStrategyVault
+
+```solidity
+error InvalidStrategyVault()
+```
+
+_Thrown when attempting to add a strategy that is bound to a different vault._
+
+### StrategyAlreadyAdded
+
+```solidity
+error StrategyAlreadyAdded()
+```
+
+_Thrown when attempting to add a strategy that has already been added to the vault._
+
+### StrategyDoesNotExist
+
+```solidity
+error StrategyDoesNotExist()
+```
+
+_Thrown when attempting to operate on a strategy that doesn't exist in the vault._
+
+### StrategyIsHalted
+
+```solidity
+error StrategyIsHalted()
+```
+
+_Thrown when attempting to interact with a strategy that is halted._
+
+### StrategyAlreadyHalted
+
+```solidity
+error StrategyAlreadyHalted()
+```
+
+_Thrown when attempting to halt a strategy that is already halted._
+
+### CannotToggleInactiveStrategy
+
+```solidity
+error CannotToggleInactiveStrategy()
+```
+
+_Thrown when attempting to toggle the status of an inactive strategy._
+
+### FeeRecipientNotSet
+
+```solidity
+error FeeRecipientNotSet()
+```
+
+_Thrown when attempting to set a management fee without setting a recipient first._
+
+### ManagementFeeExceedsMaximum
+
+```solidity
+error ManagementFeeExceedsMaximum()
+```
+
+_Thrown when attempting to set a management fee that exceeds the maximum allowed._
+
+### PerformanceFeeExceedsMaximum
+
+```solidity
+error PerformanceFeeExceedsMaximum()
+```
+
+_Thrown when attempting to set a performance fee that exceeds the maximum allowed._
+
+### InvalidFeeRecipient
+
+```solidity
+error InvalidFeeRecipient()
+```
+
+_Thrown when attempting to set an invalid fee recipient address (address(0))._
+
+### InvalidAllocateModule
+
+```solidity
+error InvalidAllocateModule()
+```
+
+_Thrown when the allocate module is invalid._
+
+### InvalidAsset
+
+```solidity
+error InvalidAsset()
+```
+
+_Thrown when the asset is invalid._
+
+### InvalidInitialVaultManager
+
+```solidity
+error InvalidInitialVaultManager()
+```
+
+_Thrown when the initial vault manager is invalid._
+
+### InvalidName
+
+```solidity
+error InvalidName()
+```
+
+_Thrown when the name is invalid._
+
+### InvalidSymbol
+
+```solidity
+error InvalidSymbol()
+```
+
+_Thrown when the symbol is invalid._
+
+### InvalidDepositLimits
+
+```solidity
+error InvalidDepositLimits()
+```
+
+_Thrown when the deposit limits are invalid._
+
+### InvalidWithdrawLimits
+
+```solidity
+error InvalidWithdrawLimits()
+```
+
+_Thrown when the withdraw limits are invalid._
+
+### MinimumDepositAmountNotMet
+
+```solidity
+error MinimumDepositAmountNotMet(address sender, uint256 assets, uint256 minTxDepositAmount)
+```
+
+_Thrown when a deposit/mint falls below the configured per-transaction minimum._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller that attempted the deposit. |
+| assets | uint256 | The asset amount that was attempted. |
+| minTxDepositAmount | uint256 | The configured minimum per-transaction deposit amount. |
+
+### MinimumWithdrawAmountNotMet
+
+```solidity
+error MinimumWithdrawAmountNotMet(address sender, uint256 assets, uint256 minTxWithdrawAmount)
+```
+
+_Thrown when a withdrawal/redeem falls below the configured per-transaction minimum._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller that attempted the withdrawal. |
+| assets | uint256 | The asset amount that was attempted. |
+| minTxWithdrawAmount | uint256 | The configured minimum per-transaction withdrawal amount. |
+
+### StrategyHasAllocation
+
+```solidity
+error StrategyHasAllocation()
+```
+
+_Thrown when attempting to remove a strategy that has allocation or is in the deallocation order._
+
+### StaleDeallocationOrder
+
+```solidity
+error StaleDeallocationOrder(address strategy)
+```
+
+_Thrown when a deallocation order references a strategy that is no longer registered with the vault._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | The stale strategy address that triggered the revert. |
+
+### InsufficientBalance
+
+```solidity
+error InsufficientBalance()
+```
+
+_Thrown when the vault has insufficient balance to process the epoch._
+
+### InsufficientWithdrawableAssets
+
+```solidity
+error InsufficientWithdrawableAssets(uint256 requested, uint256 available)
+```
+
+_Thrown when there are insufficient withdrawable assets available across all strategies._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| requested | uint256 | The amount of assets requested for withdrawal. |
+| available | uint256 | The total amount of assets available for withdrawal (idle + withdrawable from strategies). |
+
+### InsufficientShares
+
+```solidity
+error InsufficientShares()
+```
+
+_Thrown when calculated shares are zero._
+
+### InsufficientAssets
+
+```solidity
+error InsufficientAssets()
+```
+
+_Thrown when calculated assets are zero._
+
+### StrategyAdded
+
+```solidity
+event StrategyAdded(address strategy)
+```
+
+Emitted when a new strategy is registered with the vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | The strategy contract that was added. |
+
+### StrategyRemoved
+
+```solidity
+event StrategyRemoved(address strategy)
+```
+
+Emitted when a strategy is removed from the vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | The strategy contract that was removed. |
+
+### StrategyHalted
+
+```solidity
+event StrategyHalted(address strategy)
+```
+
+Emitted when a strategy is transitioned into the Halted status.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | The strategy contract that was halted. |
+
+### StrategyStatusToggled
+
+```solidity
+event StrategyStatusToggled(address strategy)
+```
+
+Emitted when a strategy's status is toggled between Active and Halted.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | The strategy contract whose status was toggled. |
+
+### YieldAccrued
+
+```solidity
+event YieldAccrued(uint256 totalPositiveYield, uint256 totalNegativeYield)
+```
+
+Emitted at the end of a yield accrual sweep across all strategies.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| totalPositiveYield | uint256 | The total positive yield realised across all strategies. |
+| totalNegativeYield | uint256 | The total losses absorbed across all strategies. |
+
+### ManagementFeeAccrued
+
+```solidity
+event ManagementFeeAccrued(address recipient, uint256 shares, uint256 feeAmount)
+```
+
+Emitted when management-fee shares are minted to the recipient.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipient | address | The address that received the management-fee shares. |
+| shares | uint256 | The number of shares minted as management fee. |
+| feeAmount | uint256 | The asset-denominated value of the management fee. |
+
+### PerformanceFeeAccrued
+
+```solidity
+event PerformanceFeeAccrued(address recipient, uint256 shares, uint256 feeAmount)
+```
+
+Emitted when performance-fee shares are minted to the recipient.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipient | address | The address that received the performance-fee shares. |
+| shares | uint256 | The number of shares minted as performance fee. |
+| feeAmount | uint256 | The asset-denominated value of the performance fee. |
+
+### ManagementFeeUpdated
+
+```solidity
+event ManagementFeeUpdated(uint16 managementFee)
+```
+
+Emitted when the management fee rate is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| managementFee | uint16 | The new management fee rate in basis points. |
+
+### ManagementFeeRecipientUpdated
+
+```solidity
+event ManagementFeeRecipientUpdated(address managementFeeRecipient)
+```
+
+Emitted when the management fee recipient is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| managementFeeRecipient | address | The new management fee recipient address. |
+
+### PerformanceFeeUpdated
+
+```solidity
+event PerformanceFeeUpdated(uint16 performanceFee)
+```
+
+Emitted when the performance fee rate is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| performanceFee | uint16 | The new performance fee rate in basis points. |
+
+### PerformanceFeeRecipientUpdated
+
+```solidity
+event PerformanceFeeRecipientUpdated(address performanceFeeRecipient)
+```
+
+Emitted when the performance fee recipient is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| performanceFeeRecipient | address | The new performance fee recipient address. |
+
+### HurdleRateOracleUpdated
+
+```solidity
+event HurdleRateOracleUpdated(address oracle)
+```
+
+Emitted when the hurdle rate oracle is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| oracle | address | The new hurdle rate oracle address; `address(0)` disables hurdle gating. |
+
+### DepositLimitsUpdated
+
+```solidity
+event DepositLimitsUpdated(uint256 maxGlobalDepositAmount, uint256 minTxDepositAmount)
+```
+
+Emitted when deposit limits are updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxGlobalDepositAmount | uint256 | The new global deposit cap (total assets across all users). |
+| minTxDepositAmount | uint256 | The new minimum per-transaction deposit amount. |
+
+### WithdrawLimitsUpdated
+
+```solidity
+event WithdrawLimitsUpdated(uint256 maxTxWithdrawAmount, uint256 minTxWithdrawAmount)
+```
+
+Emitted when withdraw limits are updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxTxWithdrawAmount | uint256 | The new maximum per-transaction withdraw amount. |
+| minTxWithdrawAmount | uint256 | The new minimum per-transaction withdraw amount. |
+
+### DeallocationOrderUpdated
+
+```solidity
+event DeallocationOrderUpdated()
+```
+
+Emitted when the deallocation order is replaced.
+
+### StrategyYieldAccrued
+
+```solidity
+event StrategyYieldAccrued(address strategy, uint256 currentTotalAllocatedValue, uint256 yield, uint256 loss)
+```
+
+Emitted once per strategy during a yield accrual sweep.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | The strategy whose yield was accrued. |
+| currentTotalAllocatedValue | uint256 | The total allocated value the strategy reported at accrual time. |
+| yield | uint256 | The positive yield generated by this strategy since the last accrual. |
+| loss | uint256 | The loss incurred by this strategy since the last accrual. |
+
+### StrategyStatus
+
+_Possible operational statuses of a strategy within the vault.
+     `Inactive` — unregistered/unknown to the vault.
+     `Active` — eligible for allocations, yield accrual, and withdrawals.
+     `Halted` — skipped during yield accrual and withdrawals; may be removed even if
+     it still has allocated funds (intended for emergency isolation)._
+
+```solidity
+enum StrategyStatus {
+  Inactive,
+  Active,
+  Halted
+}
+```
+
+### StrategyData
+
+_Per-strategy metadata tracked by the vault: current operational `status` and the
+     total vault assets allocated to the strategy, denominated in the vault's underlying asset._
+
+```solidity
+struct StrategyData {
+  enum IConcreteStandardVaultImpl.StrategyStatus status;
+  uint120 allocated;
+}
+```
+
+### addStrategy
+
+```solidity
+function addStrategy(address strategy) external
+```
+
+Register a new strategy with the vault.
+
+_The strategy must implement `IStrategyTemplate` and report the same underlying
+     asset as the vault. Only callable by accounts with the STRATEGY_MANAGER role.
+     Emits `StrategyAdded` on success; reverts with `InvalidStrategyAsset` if the
+     assets do not match or `StrategyAlreadyAdded` if the strategy is already registered._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | Address of the strategy contract to add. |
+
+### removeStrategy
+
+```solidity
+function removeStrategy(address strategy) external
+```
+
+Remove a previously registered strategy from the vault.
+
+_The strategy must have zero allocated funds, unless it is currently `Halted`,
+     in which case it may be removed even with outstanding allocation. Only callable
+     by accounts with the STRATEGY_MANAGER role. Emits `StrategyRemoved` on success;
+     reverts with `StrategyDoesNotExist` if the strategy is unknown._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | Address of the strategy contract to remove. |
+
+### toggleStrategyStatus
+
+```solidity
+function toggleStrategyStatus(address strategy) external
+```
+
+Toggle a strategy's status between `Active` and `Halted`.
+
+_Halted strategies are skipped during yield accrual and withdrawals; the toggle
+     is the primary mechanism for isolating problematic strategies and reactivating
+     them later. Only callable by accounts with the STRATEGY_MANAGER role. `Inactive`
+     strategies cannot be toggled. Emits `StrategyStatusToggled` on success and
+     reverts with `StrategyDoesNotExist` if the strategy is unknown._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | Address of the strategy contract to toggle. |
+
+### allocate
+
+```solidity
+function allocate(bytes data) external
+```
+
+Execute a batch of allocation and deallocation operations across vault strategies.
+
+_Triggers a yield accrual before executing the batch so accounting is current.
+     Operations are dispatched via delegatecall into the allocate module to preserve
+     storage context and access control. Only callable by accounts with the ALLOCATOR role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | ABI-encoded `AllocateParams[]` describing each allocation/deallocation leg. |
+
+### accrueYield
+
+```solidity
+function accrueYield() external
+```
+
+Accrue yield and absorb losses across all active strategies, updating internal accounting.
+
+_Permissionless — anyone may call. The accrual reads each strategy's reported
+     allocated value, computes the net delta versus tracked allocation, and updates
+     cached totals. No funds are moved; only accounting state changes._
+
+### updateManagementFee
+
+```solidity
+function updateManagementFee(uint16 managementFee) external
+```
+
+Update the management fee rate charged by the vault.
+
+_Only callable by accounts with the VAULT_MANAGER role. The new fee must not
+     exceed `MAX_MANAGEMENT_FEE`. If `managementFee > 0` the recipient must already be set._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| managementFee | uint16 | The new management fee in basis points. |
+
+### updateManagementFeeRecipient
+
+```solidity
+function updateManagementFeeRecipient(address recipient) external
+```
+
+Update the management-fee recipient.
+
+_Only callable by accounts with the VAULT_MANAGER role. `recipient` cannot be `address(0)`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipient | address | The new management fee recipient address. |
+
+### updatePerformanceFee
+
+```solidity
+function updatePerformanceFee(uint16 performanceFee) external
+```
+
+Update the performance fee rate charged by the vault.
+
+_Only callable by accounts with the VAULT_MANAGER role. The new fee must not
+     exceed `MAX_PERFORMANCE_FEE`. If `performanceFee > 0` the recipient must already be set._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| performanceFee | uint16 | The new performance fee in basis points. |
+
+### updatePerformanceFeeRecipient
+
+```solidity
+function updatePerformanceFeeRecipient(address recipient) external
+```
+
+Update the performance-fee recipient.
+
+_Only callable by accounts with the VAULT_MANAGER role. `recipient` cannot be `address(0)`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipient | address | The new performance fee recipient address. |
+
+### getFeeConfig
+
+```solidity
+function getFeeConfig() external view returns (uint16 currentManagementFee, address currentManagementFeeRecipient, uint32 currentLastManagementFeeAccrual, uint16 currentPerformanceFee, address currentPerformanceFeeRecipient)
+```
+
+Returns the current fee configuration for the vault.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| currentManagementFee | uint16 | The current management fee rate in basis points. |
+| currentManagementFeeRecipient | address | The current management fee recipient address. |
+| currentLastManagementFeeAccrual | uint32 | The unix timestamp of the last management fee accrual. |
+| currentPerformanceFee | uint16 | The current performance fee rate in basis points. |
+| currentPerformanceFeeRecipient | address | The current performance fee recipient address. |
+
+### setHooks
+
+```solidity
+function setHooks(struct Hooks hooks) external
+```
+
+Set the vault's pre/post action hooks.
+
+_Only callable by accounts with the HOOK_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hooks | struct Hooks | The `Hooks` struct containing the target address and flag bitfield. |
+
+### getHooks
+
+```solidity
+function getHooks() external view returns (struct Hooks)
+```
+
+Returns the current hooks configuration for the vault.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct Hooks | The `Hooks` struct containing the target address and flag bitfield. |
+
+### previewAccrueYield
+
+```solidity
+function previewAccrueYield() external view returns (uint256, uint256)
+```
+
+Simulate a yield accrual and return the resulting totals.
+
+_View-only — does not mutate state, move funds, or interact with strategies.
+     Returns what the vault's totals would be if `accrueYield` were executed at the
+     current block (lastTotalAssets + positive yield - losses, and totalSupply +
+     management fee shares that would be minted)._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The asset total that would be reported after accrual, in the underlying asset. |
+| [1] | uint256 | The share total that would be reported after accrual (`totalSupply` + management fee shares). |
+
+### getStrategyData
+
+```solidity
+function getStrategyData(address strategy) external view returns (struct IConcreteStandardVaultImpl.StrategyData)
+```
+
+Returns the current metadata recorded by the vault for a strategy.
+
+_Returns default values (`Inactive` status, zero allocated) for unknown strategies;
+     does not revert for invalid strategy addresses._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | The strategy address to query. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct IConcreteStandardVaultImpl.StrategyData | The `StrategyData` struct containing the strategy's current status and allocated amount. |
+
+### getStrategies
+
+```solidity
+function getStrategies() external view returns (address[])
+```
+
+Returns the addresses of every strategy currently registered with the vault.
+
+_The result includes strategies in any status (Active, Inactive, Halted) and the
+     ordering is unspecified. Returns an empty array if no strategies have been added._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address[] | An array of every registered strategy address. |
+
+### allocateModule
+
+```solidity
+function allocateModule() external view returns (address)
+```
+
+Returns the address of the allocate module used by the vault.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The allocate module address. |
+
+### setDepositLimits
+
+```solidity
+function setDepositLimits(uint256 minTxDepositAmount, uint256 maxGlobalDepositAmount) external
+```
+
+Configure per-transaction and global deposit limits.
+
+_Only callable by accounts with the VAULT_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| minTxDepositAmount | uint256 | Minimum deposit amount enforced per transaction. |
+| maxGlobalDepositAmount | uint256 | Maximum total assets the vault is allowed to hold across all users. |
+
+### setWithdrawLimits
+
+```solidity
+function setWithdrawLimits(uint256 minTxWithdrawAmount, uint256 maxTxWithdrawAmount) external
+```
+
+Configure per-transaction withdrawal limits.
+
+_Only callable by accounts with the VAULT_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| minTxWithdrawAmount | uint256 | Minimum withdraw amount enforced per transaction. |
+| maxTxWithdrawAmount | uint256 | Maximum withdraw amount enforced per transaction. |
+
+### getDepositLimits
+
+```solidity
+function getDepositLimits() external view returns (uint256 maxGlobalDepositAmount, uint256 minTxDepositAmount)
+```
+
+Returns the configured deposit limits.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxGlobalDepositAmount | uint256 | The maximum total assets the vault may hold across all users. |
+| minTxDepositAmount | uint256 | The minimum deposit amount enforced per transaction. |
+
+### getWithdrawLimits
+
+```solidity
+function getWithdrawLimits() external view returns (uint256 maxTxWithdrawAmount, uint256 minTxWithdrawAmount)
+```
+
+Returns the configured withdraw limits.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxTxWithdrawAmount | uint256 | The maximum withdraw amount enforced per transaction. |
+| minTxWithdrawAmount | uint256 | The minimum withdraw amount enforced per transaction. |
+
+### getTotalAllocated
+
+```solidity
+function getTotalAllocated() external view returns (uint256)
+```
+
+Returns the total assets currently tracked as allocated to all strategies.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The total allocated asset amount across every strategy. |
+
+### cachedTotalAssets
+
+```solidity
+function cachedTotalAssets() external view returns (uint256)
+```
+
+Returns the most recently cached `totalAssets()` value.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The cached total assets recorded at the last accrual. |
+
+### getDeallocationOrder
+
+```solidity
+function getDeallocationOrder() external view returns (address[] order)
+```
+
+Returns the configured deallocation order used to satisfy withdrawals.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| order | address[] | The strategy addresses in the order they should be deallocated. |
+
+### setDeallocationOrder
+
+```solidity
+function setDeallocationOrder(address[] order) external
+```
+
+Replace the deallocation order used to source funds for withdrawals.
+
+_Only callable by accounts with the ALLOCATOR role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| order | address[] | The new ordered list of strategy addresses. |
+
+### setHurdleRateOracle
+
+```solidity
+function setHurdleRateOracle(contract IHurdleRateOracle oracle) external
+```
+
+Set the hurdle rate oracle used to gate performance fees.
+
+_When non-zero, performance fees are only charged on yield that exceeds the
+     oracle's reported exchange rate. Pass `address(0)` to disable hurdle gating
+     and revert to flat performance fees. Only callable by accounts with the
+     VAULT_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| oracle | contract IHurdleRateOracle | The address of the hurdle-rate oracle contract. |
+
+### getHurdleRateOracle
+
+```solidity
+function getHurdleRateOracle() external view returns (contract IHurdleRateOracle)
+```
+
+Returns the currently configured hurdle-rate oracle.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | contract IHurdleRateOracle | The hurdle-rate oracle contract, or `address(0)` if hurdle gating is disabled. |
+

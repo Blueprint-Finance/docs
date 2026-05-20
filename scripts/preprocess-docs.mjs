@@ -13,7 +13,7 @@
 //   2. Fetch the `earn` story from Storyblok (mirrors the FE getStory
 //      contract in Concrete-app/src/core/utils/storyblok.ts).
 //   3. Fetch per-vault config from BE earn-apy /vault:performance.
-//   4. Per vault, per theme: expand <IfGate>/<IfVersion>, fill {{ vault.* }},
+//   4. Per vault, per theme: expand <IfGate>/<IfVersion>/<IfRc>, fill {{ }},
 //      drop empty rules, compose the survivors into one themed page.
 //   5. Copy FE sdk/, BE public/, SC public/ verbatim (all file types).
 //   6. Assemble docs.json (class A nav + Vaults tab); copy _meta artifacts.
@@ -23,6 +23,8 @@
 //   (group_hidden, …) are dead and unused; they resolve to their default.
 // Version axis: <IfVersion is="v2"> / <IfVersion not="v2"> resolves against
 //   the vault's vaultVersion.
+// Presence axis: <IfRc> keeps its body only when BE returned a non-empty
+//   withdrawals_config_rc (a pending release-candidate schedule) for the vault.
 // Live vault set = Storyblok vaults ∩ FE _meta/earn-whitelist.json.
 
 import fs from 'node:fs/promises';
@@ -59,6 +61,11 @@ const IF_GATE_RE =
 // <IfVersion is="v2">…</IfVersion> / <IfVersion not="v2">…</IfVersion>
 const IF_VERSION_RE =
   /<IfVersion\s+(is|not)=(?:"([^"]+)"|'([^']+)')\s*>([\s\S]*?)<\/IfVersion>/g;
+
+// <IfRc>…</IfRc> — presence conditional: body kept only when the vault has a
+// non-empty BE withdrawals_config_rc (a pending release-candidate schedule).
+// Attribute-less by design; no inverse modifier.
+const IF_RC_RE = /<IfRc\s*>([\s\S]*?)<\/IfRc>/g;
 
 async function main() {
   const gates = await loadGates();
@@ -487,10 +494,11 @@ async function collectMdx(roots) {
   return out;
 }
 
-// Innermost <IfGate>/<IfVersion> whose body contains no nested conditional —
-// matched repeatedly (inside-out) so arbitrarily nested conditionals resolve.
+// Innermost <IfGate>/<IfVersion>/<IfRc> whose body contains no nested
+// conditional — matched repeatedly (inside-out) so arbitrarily nested
+// conditionals resolve. <IfRc> is attribute-less; the others carry attrs.
 const INNERMOST_COND_RE =
-  /<(IfGate|IfVersion)\s+([^>]*?)>((?:(?!<\/?If(?:Gate|Version)\b)[\s\S])*?)<\/\1>/;
+  /<(IfGate|IfVersion|IfRc)\b([^>]*?)>((?:(?!<\/?If(?:Gate|Version|Rc)\b)[\s\S])*?)<\/\1>/;
 
 function readAttr(attrs, name) {
   const m = new RegExp(`\\b${name}=(?:"([^"]*)"|'([^']*)')`).exec(attrs);
@@ -508,7 +516,13 @@ function expandConditionals(src, vault, gates, referencedGates, file) {
     if (!m) return out;
     const [whole, tag, attrs, body] = m;
     let show;
-    if (tag === 'IfGate') {
+    if (tag === 'IfRc') {
+      // Presence conditional — keep the body only when BE returned a non-empty
+      // withdrawals_config_rc for this vault (most vaults have {}).
+      const rc = vault.performance?.withdrawals_config_rc;
+      show =
+        rc != null && typeof rc === 'object' && Object.keys(rc).length > 0;
+    } else if (tag === 'IfGate') {
       const flag = readAttr(attrs, 'flag');
       referencedGates.add(flag);
       if (!gates.has(flag)) {
@@ -591,8 +605,8 @@ function extractH1(src) {
       const m = /^#\s+(.+?)\s*$/.exec(line);
       if (m) return m[1];
     }
-    depth += (line.match(/<If(?:Gate|Version)\b/g) || []).length;
-    depth -= (line.match(/<\/If(?:Gate|Version)>/g) || []).length;
+    depth += (line.match(/<If(?:Gate|Version|Rc)\b/g) || []).length;
+    depth -= (line.match(/<\/If(?:Gate|Version|Rc)>/g) || []).length;
     if (depth < 0) depth = 0;
   }
   return null;
@@ -702,11 +716,13 @@ async function copyMdxOnce(file, srcRoot, dstRoot) {
   await fs.writeFile(dest, src);
 }
 
-// <IfGate>/<IfVersion> are FE-earn-only — BE/SC/FE-sdk content must not use them.
+// <IfGate>/<IfVersion>/<IfRc> are FE-earn-only — BE/SC/FE-sdk content must not
+// use them.
 function assertNoConditionals(src, file) {
   for (const [re, tag] of [
     [IF_GATE_RE, '<IfGate>'],
     [IF_VERSION_RE, '<IfVersion>'],
+    [IF_RC_RE, '<IfRc>'],
   ]) {
     re.lastIndex = 0;
     const hit = re.test(src);
@@ -760,37 +776,55 @@ async function copyMetaArtifacts() {
 
 // --- docs.json assembly ------------------------------------------------------
 
+// Tabs the worker regenerates from FE/BE/SC sources on every run. They are
+// stripped from the base nav before being re-added below, so a previous run's
+// output left in `docs.json` (e.g. when main carries the last aggregated tree
+// under the single-branch publish model) does not produce duplicate tabs.
+const CLASS_B_TABS = new Set(['Vaults', 'SDK', 'Backend API', 'Smart Contracts']);
+
 async function emitDocsJson(vaults, composedByVault, sdkPages) {
   const base = JSON.parse(await fs.readFile(BASE_DOCS_JSON, 'utf8'));
 
   // Class A — preserve the base repo's conceptual navigation verbatim,
-  // dropping only stray empty groups (e.g. an unfilled placeholder).
-  const tabs = (base.navigation?.tabs ?? []).map((tab) => ({
-    ...tab,
-    groups: (tab.groups ?? []).filter(
-      (g) => !Array.isArray(g.pages) || g.pages.length > 0,
-    ),
-  }));
+  // dropping any class-B tab (regenerated below) and stray empty groups.
+  const tabs = (base.navigation?.tabs ?? [])
+    .filter((tab) => !CLASS_B_TABS.has(tab.tab))
+    .map((tab) => ({
+      ...tab,
+      groups: (tab.groups ?? []).filter(
+        (g) => !Array.isArray(g.pages) || g.pages.length > 0,
+      ),
+    }));
 
-  // Class B — "Vaults" tab: a top-level group per Storyblok vault-group, each
-  // vault a nested collapsed group (expanded:false) of its theme pages.
-  // (Mintlify only collapses nested groups; top-level groups always expand.)
-  const byGroup = new Map();
+  // Class B — "Vaults" tab. Active vaults keep their Storyblok-group → vault
+  // hierarchy (each vault a collapsed nested group of its theme pages; Mintlify
+  // only collapses nested groups, top-level always expand). Deprecated vaults
+  // are pulled out into a single flat "Deprecated vaults" group at the tail —
+  // they matter much less and the burial-ground stays visually compact.
+  const activeByGroup = new Map();
+  const deprecatedVaultGroups = [];
   for (const vault of vaults) {
     const pages = composedByVault.get(vault.slug) ?? [];
     if (pages.length === 0) continue;
+    const entry = { group: vault.name, expanded: false, pages };
+    if (vault.deprecated) {
+      deprecatedVaultGroups.push(entry);
+      continue;
+    }
     const gname = vault.group || 'Vaults';
-    if (!byGroup.has(gname)) byGroup.set(gname, []);
-    byGroup.get(gname).push({ group: vault.name, expanded: false, pages });
+    if (!activeByGroup.has(gname)) activeByGroup.set(gname, []);
+    activeByGroup.get(gname).push(entry);
   }
-  if (byGroup.size > 0) {
-    tabs.push({
-      tab: 'Vaults',
-      groups: [...byGroup].map(([gname, vaultGroups]) => ({
-        group: gname,
-        pages: vaultGroups,
-      })),
-    });
+  const vaultsTabGroups = [...activeByGroup].map(([gname, vgs]) => ({
+    group: gname,
+    pages: vgs,
+  }));
+  if (deprecatedVaultGroups.length > 0) {
+    deprecatedVaultGroups.sort((a, b) => a.group.localeCompare(b.group));
+    vaultsTabGroups.push({ group: 'Deprecated vaults', pages: deprecatedVaultGroups });
+  }
+  if (vaultsTabGroups.length > 0) {
+    tabs.push({ tab: 'Vaults', groups: vaultsTabGroups });
   }
 
   // FE SDK.

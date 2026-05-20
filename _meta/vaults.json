@@ -1,0 +1,346 @@
+[
+  {
+    "slug": "morpho/btc",
+    "name": "Morpho Bitcoin",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "morpho/eth",
+    "name": "Morpho Ethereum",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "morpho/usd",
+    "name": "Morpho USD",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "katana/ausd",
+    "name": "Katana AUSD",
+    "version": "v1",
+    "network": "Katana",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "corn/btc",
+    "name": "Corn Bitcoin",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "corn/usdt",
+    "name": "Corn Stables",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "movement/btc",
+    "name": "Movement Bitcoin",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "movement/eth",
+    "name": "Movement Ethereum",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "movement/stables",
+    "name": "Movement Stables",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "movement/frax",
+    "name": "Frax Movement Withdrawals",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "morph/bgb",
+    "name": "Morph BGB",
+    "version": "v1",
+    "network": "Morph",
+    "implementation": null,
+    "deprecated": true
+  },
+  {
+    "slug": "morph/ausd",
+    "name": "Morph AUSD",
+    "version": "v1",
+    "network": "Morph",
+    "implementation": null,
+    "deprecated": true
+  },
+  {
+    "slug": "morph/ethena",
+    "name": "Morph Ethena",
+    "version": "v1",
+    "network": "Morph",
+    "implementation": null,
+    "deprecated": true
+  },
+  {
+    "slug": "morph/majors",
+    "name": "Morph Majors",
+    "version": "v1",
+    "network": "Morph",
+    "implementation": null,
+    "deprecated": true
+  },
+  {
+    "slug": "morph/weeth",
+    "name": "Morph weETH",
+    "version": "v1",
+    "network": "Morph",
+    "implementation": null,
+    "deprecated": true
+  },
+  {
+    "slug": "berachain/stables",
+    "name": "Berachain Stables",
+    "version": "v1",
+    "network": "Berachain",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "berachain/ethereum",
+    "name": "Berachain Ethereum",
+    "version": "v1",
+    "network": "Berachain",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "berachain/bitcoin",
+    "name": "Berachain Bitcoin",
+    "version": "v1",
+    "network": "Berachain",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "berachain/bera",
+    "name": "Berachain BERA",
+    "version": "v1",
+    "network": "Berachain",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "berachain/lombard",
+    "name": "Bitcoin Bera",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "berachain/ethena",
+    "name": "Ethena Bera",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "berachain/dinero",
+    "name": "Dinero Bera",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "berachain/boyco",
+    "name": "Boyco Withdrawals ",
+    "version": "v1",
+    "network": "Berachain",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "berabaddies/earn",
+    "name": "Berabaddies Earn",
+    "version": "v1",
+    "network": "Berachain",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "tac/withdrawals",
+    "name": "TAC Withdrawals",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": false
+  },
+  {
+    "slug": "usdai/susdai-hidden-o7810bf18729nmhiw'jdew",
+    "name": "USDai DEX & MM",
+    "version": "v1",
+    "network": "Arbitrum",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "isolated/isolated-arbitrum",
+    "name": "Arbitrum Drip Vault",
+    "version": "v1",
+    "network": "Arbitrum",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "isolated/isolated-wbtc",
+    "name": "WBTC Vault",
+    "version": "v2",
+    "network": "",
+    "implementation": 6,
+    "deprecated": false
+  },
+  {
+    "slug": "isolated/isolated-stable",
+    "name": "Stable Pre-Deposit",
+    "version": "v2",
+    "network": "",
+    "implementation": 3,
+    "deprecated": true
+  },
+  {
+    "slug": "concrete/defi-finance-usdt",
+    "name": "Concrete DeFi USDT",
+    "version": "v2",
+    "network": "",
+    "implementation": 6,
+    "deprecated": false
+  },
+  {
+    "slug": "stable/usdt",
+    "name": "Stable",
+    "version": "v2",
+    "network": "Stable",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "concrete/delta-weeth",
+    "name": "WeETH Vault",
+    "version": "v2",
+    "network": "",
+    "implementation": 5,
+    "deprecated": false
+  },
+  {
+    "slug": "waymont/royco-usdc",
+    "name": "Royco USDC",
+    "version": "v2",
+    "network": "",
+    "implementation": 4,
+    "deprecated": false
+  },
+  {
+    "slug": "theo/theo-usdc",
+    "name": "Theo USDC",
+    "version": "v2",
+    "network": "",
+    "implementation": 4,
+    "deprecated": true
+  },
+  {
+    "slug": "theo/theo-usdc-arbitrum",
+    "name": "Theo USDC Arbitrum",
+    "version": "v2",
+    "network": "Arbitrum",
+    "implementation": 4,
+    "deprecated": true
+  },
+  {
+    "slug": "theo/theo-thbill-arbitrum",
+    "name": "Theo thBILL Arbitrum",
+    "version": "v2",
+    "network": "Arbitrum",
+    "implementation": 4,
+    "deprecated": true
+  },
+  {
+    "slug": "theo/theo-thbill-stable",
+    "name": "Theo thBILL Stable",
+    "version": "v2",
+    "network": "Stable",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "isolated/isolated-wbtc-balance-placeholder",
+    "name": "WBTC Vault",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": false
+  },
+  {
+    "slug": "seigen/seigen-vault",
+    "name": "sEIGEN",
+    "version": "v1",
+    "network": "",
+    "implementation": 1,
+    "deprecated": true
+  },
+  {
+    "slug": "demo/arbitrum",
+    "name": "Earn V2 Demo",
+    "version": "v2",
+    "network": "Arbitrum",
+    "implementation": 4,
+    "deprecated": false
+  },
+  {
+    "slug": "concrete/concrete-decentralized-finance-usdt-isolated-apy",
+    "name": "Concrete DeFi USDT",
+    "version": "v2",
+    "network": "",
+    "implementation": 6,
+    "deprecated": false
+  },
+  {
+    "slug": "test/usdc-yield",
+    "name": "USDC Yield",
+    "version": "v1",
+    "network": "",
+    "implementation": null,
+    "deprecated": false
+  },
+  {
+    "slug": "frax/frxusd",
+    "name": "frxUSD+",
+    "version": "v2",
+    "network": "",
+    "implementation": null,
+    "deprecated": false
+  }
+]

@@ -1,0 +1,525 @@
+---
+id: 'sc-multisigstrategy'
+title: 'MultisigStrategy'
+audience: 'public'
+module: 'periphery'
+scope: 'strategies'
+source_refs:
+  - 'src/periphery/strategies/MultisigStrategy.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'strategies'
+---
+
+## MultisigStrategy
+
+Async strategy that forwards deposited assets to a designated multi-signature
+        wallet and pulls them back on withdrawal. Used when the underlying position is
+        managed off-chain by a multisig that periodically reports accounting changes.
+        Does not generate yield on its own; off-chain managers credit/debit the
+        strategy through `adjustTotalAssets`.
+
+_Uses EIP-7201 storage layout for upgradeability. Implements `IAsyncAccounting`
+     so the vault and an operator can reconcile the strategy's reported value with
+     the off-chain position._
+
+### MultiSigSet
+
+```solidity
+event MultiSigSet(address multiSig, address newMultiSig)
+```
+
+Emitted when the multi-sig wallet address is set or rotated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| multiSig | address | The previous multi-sig wallet address. |
+| newMultiSig | address | The new multi-sig wallet address. |
+
+### AssetsForwarded
+
+```solidity
+event AssetsForwarded(address multiSig, address asset, uint256 amount)
+```
+
+Emitted when assets are forwarded from the strategy to the multi-sig.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| multiSig | address | The address of the multi-sig wallet that received the funds. |
+| asset | address | The address of the asset that was forwarded. |
+| amount | uint256 | The amount of assets forwarded. |
+
+### AssetsRetrieved
+
+```solidity
+event AssetsRetrieved(address multiSig, address asset, uint256 amount)
+```
+
+Emitted when assets are pulled back from the multi-sig into the strategy.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| multiSig | address | The address of the multi-sig wallet the assets were retrieved from. |
+| asset | address | The address of the asset that was retrieved. |
+| amount | uint256 | The amount of assets retrieved. |
+
+### AdjustTotalAssets
+
+```solidity
+event AdjustTotalAssets(uint256 accountingNonce, uint256 totalAssets, int256 diff)
+```
+
+Emitted when the reported total assets are adjusted by an off-chain accounting update.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| accountingNonce | uint256 | The accounting nonce after the adjustment. |
+| totalAssets | uint256 | The new tracked total assets after applying `diff`. |
+| diff | int256 | The signed amount of underlying assets applied to total assets. |
+
+### InvalidMultiSigAddress
+
+```solidity
+error InvalidMultiSigAddress()
+```
+
+_Thrown when a zero address is supplied for the multi-sig wallet._
+
+### InsufficientUnderlyingBalance
+
+```solidity
+error InsufficientUnderlyingBalance()
+```
+
+_Thrown when attempting to retrieve more than the recorded vault-deposited
+     amount, or when an adjustment would drive that amount below zero._
+
+### NotAdminOrOperator
+
+```solidity
+error NotAdminOrOperator()
+```
+
+_Thrown when the caller has neither the `STRATEGY_ADMIN` nor `OPERATOR_ROLE` role._
+
+### onlyAdminOrOperator
+
+```solidity
+modifier onlyAdminOrOperator()
+```
+
+_Restricts function access to accounts with `STRATEGY_ADMIN` or `OPERATOR_ROLE`._
+
+### ID
+
+```solidity
+function ID() public pure virtual returns (uint64)
+```
+
+Returns the unique contract identifier encoding type, flavour, and version.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The encoded contract id (contractType=2 strategy, flavour=2 multisig-strategy, version=1.1.0). |
+
+### constructor
+
+```solidity
+constructor() public
+```
+
+Constructor that disables initializers on the implementation contract.
+
+### initialize
+
+```solidity
+function initialize(address admin, address vault_, address multiSig_, uint64 maxAccountingChangeThreshold_, uint64 accountingValidityPeriod_, uint64 cooldownPeriod_) external
+```
+
+Initializes the strategy with admin, vault, multi-sig, and accounting parameters.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| admin | address | The address that will receive admin roles. |
+| vault_ | address | The address of the authorized vault. |
+| multiSig_ | address | The address of the multi-signature wallet that will custody deposited assets. |
+| maxAccountingChangeThreshold_ | uint64 | The maximum permitted accounting change per        adjustment, in basis points (10_000 = 100%). |
+| accountingValidityPeriod_ | uint64 | The duration in seconds after which the strategy's        accounting is considered stale and `_previewPosition()` reverts. |
+| cooldownPeriod_ | uint64 | The minimum time in seconds between successive        operator-initiated adjustments. Must be strictly less than `accountingValidityPeriod_`. |
+
+### __MultisigStrategy_init
+
+```solidity
+function __MultisigStrategy_init(address admin, address vault_, address multiSig_, uint64 maxAccountingChangeThreshold_, uint64 accountingValidityPeriod_, uint64 cooldownPeriod_) internal
+```
+
+### getMultiSig
+
+```solidity
+function getMultiSig() external view returns (address)
+```
+
+Returns the address of the multi-signature wallet
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The address of the multi-signature wallet |
+
+### getNextAccountingNonce
+
+```solidity
+function getNextAccountingNonce() public view returns (uint256)
+```
+
+Returns the next accounting nonce
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The next accounting nonce |
+
+### isOperator
+
+```solidity
+function isOperator(address account) external view returns (bool)
+```
+
+Returns whether an address has the operator role
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| account | address | The address to check |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if the address has the operator role |
+
+### getLastUpdatedTimestamp
+
+```solidity
+function getLastUpdatedTimestamp() external view returns (uint64)
+```
+
+Returns the last updated timestamp
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The last updated timestamp |
+
+### getMaxAccountingChangeThreshold
+
+```solidity
+function getMaxAccountingChangeThreshold() external view returns (uint64)
+```
+
+Returns the max accounting change threshold
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The max accounting change threshold |
+
+### getAccountingValidityPeriod
+
+```solidity
+function getAccountingValidityPeriod() external view returns (uint64)
+```
+
+Returns the accounting validity period
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The accounting validity period |
+
+### getCooldownPeriod
+
+```solidity
+function getCooldownPeriod() external view returns (uint64)
+```
+
+Returns the update cooldown period
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The update cooldown period |
+
+### strategyType
+
+```solidity
+function strategyType() external pure returns (enum StrategyType)
+```
+
+Returns the strategy type for `MultisigStrategy`.
+
+_Off-chain managed positions report value asynchronously through `adjustTotalAssets`._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | enum StrategyType | The `ASYNC` strategy type. |
+
+### setMultiSig
+
+```solidity
+function setMultiSig(address multiSig_) external
+```
+
+Sets the address of the multi-signature wallet.
+
+_The new multi-sig must approve this contract on the strategy's asset before
+     `_retrieveAssetsFromMultisig` can pull funds for withdrawals or deallocations.
+     Callable only by `STRATEGY_ADMIN`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| multiSig_ | address | The new multi-signature wallet address. |
+
+### setMaxAccountingChangeThreshold
+
+```solidity
+function setMaxAccountingChangeThreshold(uint64 maxAccountingChangeThreshold_) external
+```
+
+Sets the maximum permitted accounting change per operator-initiated adjustment.
+
+_Callable only by `STRATEGY_ADMIN`. Expressed in basis points
+     (10_000 = 100%, 100 = 1%). Used by `PositionAccountingLib.isValidAccountingChange`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxAccountingChangeThreshold_ | uint64 | The new threshold in basis points. |
+
+### setAccountingValidityPeriod
+
+```solidity
+function setAccountingValidityPeriod(uint64 accountingValidityPeriod_) external
+```
+
+Sets the validity window for accounting data.
+
+_Callable only by `STRATEGY_ADMIN`. If no adjustment is made within this period,
+     `_previewPosition()` will revert as stale._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| accountingValidityPeriod_ | uint64 | The new validity period in seconds. |
+
+### setCooldownPeriod
+
+```solidity
+function setCooldownPeriod(uint64 cooldownPeriod_) external
+```
+
+Sets the minimum cooldown between successive operator-initiated adjustments.
+
+_Callable only by `STRATEGY_ADMIN`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| cooldownPeriod_ | uint64 | The new cooldown period in seconds. |
+
+### unpauseAndAdjustTotalAssets
+
+```solidity
+function unpauseAndAdjustTotalAssets(int256 diff) external
+```
+
+Unpauses the strategy and applies an accounting adjustment in one transaction.
+
+_Callable only by `STRATEGY_ADMIN`. Bypasses nonce, threshold, and cooldown
+     validation; intended as the admin recovery path after the strategy auto-pauses
+     on a rejected operator adjustment._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| diff | int256 | The signed amount of underlying assets to apply to total assets. |
+
+### adjustTotalAssets
+
+```solidity
+function adjustTotalAssets(int256 diff, uint256 accountingNonce_) external
+```
+
+Operator-initiated accounting adjustment with nonce, threshold, and cooldown validation.
+
+_Callable only by `STRATEGY_ADMIN` or `OPERATOR_ROLE` while the strategy is not paused.
+     If the change fails validation the strategy auto-pauses and returns without
+     reverting; recovery must go through `unpauseAndAdjustTotalAssets`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| diff | int256 | The signed amount of underlying assets to apply to total assets. |
+| accountingNonce_ | uint256 | The expected next accounting nonce, used to prevent replay        and out-of-order updates. |
+
+### adjustTotalAssets
+
+```solidity
+function adjustTotalAssets(int256 diff) external
+```
+
+Vault-initiated accounting adjustment (e.g. recording an unwind cost).
+
+_Callable only by the bound vault. Bypasses nonce / threshold / cooldown
+     checks because the vault is a trusted caller._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| diff | int256 | Signed delta applied to the strategy's vaultDepositedAmount. |
+
+### _previewPosition
+
+```solidity
+function _previewPosition() internal view returns (uint256)
+```
+
+_Returns the strategy's reported position value (the tracked vault-deposited amount).
+     Reverts if the off-chain accounting is stale beyond `accountingValidityPeriod`._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The current tracked vault-deposited amount. |
+
+### _allocateToPosition
+
+```solidity
+function _allocateToPosition(bytes data) internal returns (uint256)
+```
+
+_Allocates funds by forwarding them to the bound multi-sig wallet and increasing
+     the tracked deposited amount. Reverts if accounting is stale._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | Encoded payload whose first word is the amount to allocate. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount allocated. |
+
+### _retrieveAssetsFromMultisig
+
+```solidity
+function _retrieveAssetsFromMultisig(uint256 amount) internal returns (uint256)
+```
+
+_Retrieves assets from the bound multi-sig by pulling via `safeTransferFrom`,
+     requiring a prior approval from the multi-sig. Decrements the tracked
+     deposited amount and reverts if it would go negative or if accounting is stale._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of assets to retrieve. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount retrieved. |
+
+### _deallocateFromPosition
+
+```solidity
+function _deallocateFromPosition(bytes data) internal returns (uint256)
+```
+
+_Deallocates funds by retrieving them from the multi-sig wallet._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | Encoded payload whose first word is the amount to deallocate. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount deallocated. |
+
+### _withdrawFromPosition
+
+```solidity
+function _withdrawFromPosition(uint256 assets) internal returns (uint256)
+```
+
+_Services a user withdrawal by retrieving assets from the multi-sig wallet._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | uint256 | The amount of assets to withdraw. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount withdrawn. |
+
+### _adjustTotalAssets
+
+```solidity
+function _adjustTotalAssets(int256 diff) internal
+```
+
+_Applies a signed accounting delta to the tracked vault-deposited amount,
+     bumps the nonce and timestamp, and emits `AdjustTotalAssets`.
+     Reverts via `InsufficientUnderlyingBalance` if a negative delta would
+     drive the tracked amount below zero._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| diff | int256 | The signed amount of underlying assets to apply to total assets. |
+

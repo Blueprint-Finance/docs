@@ -1,0 +1,724 @@
+---
+id: 'sc-peripheryfactory'
+title: 'PeripheryFactory'
+audience: 'public'
+module: 'periphery'
+scope: 'factory'
+source_refs:
+  - 'src/periphery/factory/PeripheryFactory.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'strategies'
+---
+
+## PeripheryFactory
+
+Deploys and tracks periphery strategies and position-management-helper (PMH)
+        clones. Approves and blocks strategy and PMH implementations, records migration
+        paths, and performs batch strategy upgrades.
+
+_UUPS-upgradeable and owned by the protocol; integrators query it to resolve
+     registered strategies and their implementations._
+
+### ZeroAddress
+
+```solidity
+error ZeroAddress()
+```
+
+_Thrown when a required address argument is the zero address._
+
+### ZeroImplId
+
+```solidity
+error ZeroImplId()
+```
+
+_Thrown when an implementation reports an ID of zero from `IContractId.ID()`._
+
+### ImplAlreadyApproved
+
+```solidity
+error ImplAlreadyApproved()
+```
+
+_Thrown when an implementation ID is already registered for the same family (strategy or PMH)._
+
+### ImplNotFound
+
+```solidity
+error ImplNotFound()
+```
+
+_Thrown when the requested implementation ID has not been approved._
+
+### ImplBlocked
+
+```solidity
+error ImplBlocked()
+```
+
+_Thrown when the requested implementation ID has been blocked._
+
+### AlreadyBlocked
+
+```solidity
+error AlreadyBlocked()
+```
+
+_Thrown when blocking an implementation ID that is already blocked._
+
+### NotRegistered
+
+```solidity
+error NotRegistered()
+```
+
+_Thrown when operating on a strategy proxy that is not registered._
+
+### AlreadyRegistered
+
+```solidity
+error AlreadyRegistered()
+```
+
+_Thrown when registering a strategy proxy that is already registered._
+
+### SameImpl
+
+```solidity
+error SameImpl()
+```
+
+_Thrown when attempting to set a migration from/to identical implementation IDs._
+
+### CanNotMigrate
+
+```solidity
+error CanNotMigrate()
+```
+
+_Thrown when an upgrade is attempted between two IDs that are not marked migratable._
+
+### InvalidDataLength
+
+```solidity
+error InvalidDataLength()
+```
+
+_Thrown when batch upgrade input arrays have mismatched lengths._
+
+### NoProxyAdmin
+
+```solidity
+error NoProxyAdmin()
+```
+
+_Thrown when an upgrade is attempted on a proxy with no recorded ProxyAdmin._
+
+### NotStrategyUpgrader
+
+```solidity
+error NotStrategyUpgrader()
+```
+
+_Thrown when an upgrade caller lacks both `STRATEGY_ADMIN` and `STRATEGY_UPGRADER` on the proxy._
+
+### Unauthorized
+
+```solidity
+error Unauthorized()
+```
+
+_Thrown when a caller lacks both factory ownership and `STRATEGY_ADMIN` on the proxy._
+
+### InvalidProxyAdmin
+
+```solidity
+error InvalidProxyAdmin()
+```
+
+_Reserved for future ProxyAdmin sanity checks._
+
+### InvalidInitData
+
+```solidity
+error InvalidInitData()
+```
+
+_Thrown when `deployStrategy` or `clonePMH` is called with empty `initData`._
+
+### StrategyImplApproved
+
+```solidity
+event StrategyImplApproved(uint64 implId, address implementation)
+```
+
+Emitted when a strategy implementation is approved and registered by its `ID()`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | Implementation ID reported by the implementation contract. |
+| implementation | address | Address of the approved strategy implementation. |
+
+### StrategyImplBlocked
+
+```solidity
+event StrategyImplBlocked(uint64 implId)
+```
+
+Emitted when a previously approved strategy implementation ID is blocked.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | The implementation ID that was blocked. |
+
+### StrategyMigratableSet
+
+```solidity
+event StrategyMigratableSet(uint64 fromImplId, uint64 toImplId)
+```
+
+Emitted when a migration from one strategy implementation ID to another is enabled.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fromImplId | uint64 | Source implementation ID. |
+| toImplId | uint64 | Target implementation ID. |
+
+### StrategyDeployed
+
+```solidity
+event StrategyDeployed(address proxy, uint64 implId, address proxyAdmin)
+```
+
+Emitted when a new strategy proxy is deployed by this factory.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxy | address | Address of the deployed strategy proxy. |
+| implId | uint64 | Implementation ID used for the deployment. |
+| proxyAdmin | address | Address of the ProxyAdmin owned by this factory. |
+
+### StrategyRegistered
+
+```solidity
+event StrategyRegistered(address proxy, address proxyAdmin)
+```
+
+Emitted when an externally deployed strategy proxy is brought under factory management.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxy | address | Address of the registered strategy proxy. |
+| proxyAdmin | address | Recorded ProxyAdmin address (may be `address(0)` for non-upgradeable strategies). |
+
+### StrategyUpgraded
+
+```solidity
+event StrategyUpgraded(address proxy, uint64 newImplId)
+```
+
+Emitted when a strategy proxy is upgraded to a new implementation.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxy | address | The strategy proxy that was upgraded. |
+| newImplId | uint64 | The implementation ID the proxy now points to. |
+
+### StrategyDeregistered
+
+```solidity
+event StrategyDeregistered(address proxy, address newProxyAdminOwner)
+```
+
+Emitted when a strategy is deregistered from the factory and its ProxyAdmin (if any) is transferred.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxy | address | The strategy proxy that was deregistered. |
+| newProxyAdminOwner | address | Address that received ownership of the ProxyAdmin. |
+
+### PMHImplApproved
+
+```solidity
+event PMHImplApproved(uint64 implId, address implementation)
+```
+
+Emitted when a position-management-helper implementation is approved.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | Implementation ID reported by the implementation contract. |
+| implementation | address | Address of the approved PMH implementation. |
+
+### PMHImplBlocked
+
+```solidity
+event PMHImplBlocked(uint64 implId)
+```
+
+Emitted when a previously approved PMH implementation ID is blocked.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | The PMH implementation ID that was blocked. |
+
+### PMHCloned
+
+```solidity
+event PMHCloned(address clone, uint64 implId, address positionOwner)
+```
+
+Emitted when a new PMH clone is deployed by this factory.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| clone | address | Address of the deployed clone. |
+| implId | uint64 | Implementation ID used for the deployment. |
+| positionOwner | address | Address that the clone operates on behalf of. |
+
+### constructor
+
+```solidity
+constructor() public
+```
+
+Disables initializers on the implementation so only proxies can be initialized.
+
+### initialize
+
+```solidity
+function initialize(address owner_) external
+```
+
+Initializes the factory proxy with an owner and the UUPS upgrade machinery.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| owner_ | address | Account granted ownership of the factory. |
+
+### approveStrategyImpl
+
+```solidity
+function approveStrategyImpl(address implementation) external
+```
+
+Approve a strategy implementation. The implementation's `ID()` is used as the key.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implementation | address | Address of the deployed strategy implementation. |
+
+### blockStrategyImpl
+
+```solidity
+function blockStrategyImpl(uint64 implId) external
+```
+
+Block a strategy implementation by ID so it can no longer be deployed or migrated to.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | Strategy implementation ID to block. |
+
+### setStrategyMigratable
+
+```solidity
+function setStrategyMigratable(uint64 fromImplId, uint64 toImplId) external
+```
+
+Allow a strategy to be upgraded from `fromImplId` to `toImplId`.
+
+_`fromImplId` must differ from `toImplId`. Both must be approved._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fromImplId | uint64 | Source implementation ID (must be approved). |
+| toImplId | uint64 | Target implementation ID (must be approved). |
+
+### deployStrategy
+
+```solidity
+function deployStrategy(uint64 implId, bytes initData) external returns (address proxy)
+```
+
+Deploy a strategy as a TransparentUpgradeableProxy.
+
+_The factory is passed as `initialOwner` of the ProxyAdmin, which means
+     the factory holds exclusive upgrade authority over the deployed proxy.
+     The ProxyAdmin address is deterministically computed from the proxy's
+     address (CREATE1 with nonce = 1) and stored for later use by `upgradeStrategy`
+     and `deregisterStrategy`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | The registered strategy implementation ID. |
+| initData | bytes | ABI-encoded `initialize(...)` call forwarded to the implementation. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxy | address | Address of the deployed strategy proxy. |
+
+### registerStrategy
+
+```solidity
+function registerStrategy(address proxy, address proxyAdmin) external
+```
+
+Register a strategy proxy that was not deployed by this factory.
+
+_Use this to bring externally-deployed TransparentUpgradeableProxy strategies
+     under factory management.  Pass `address(0)` for `proxyAdmin` if the strategy
+     is non-upgradeable or upgrade management is not needed.
+
+WARNING: If `proxyAdmin` is non-zero, the factory must already be the owner of
+     that ProxyAdmin before calling this function.  If ownership has not been
+     transferred, `upgradeStrategy` and `deregisterStrategy` (ProxyAdmin transfer)
+     will revert because `ProxyAdmin.upgradeAndCall` / `ProxyAdmin.transferOwnership`
+     are guarded by `onlyOwner`.  Transfer ownership with:
+         `ProxyAdmin(proxyAdmin).transferOwnership(address(factory))`
+     before registering, or pass `address(0)` and update via a subsequent
+     `registerStrategy` call once ownership has been accepted._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxy | address | Address of the existing strategy proxy. |
+| proxyAdmin | address | Address of the ProxyAdmin that controls `proxy`, or address(0). |
+
+### upgradeStrategy
+
+```solidity
+function upgradeStrategy(address proxy, uint64 newImplId, bytes data) external
+```
+
+Upgrade a factory-registered strategy proxy to a new implementation.
+
+_Caller must hold `STRATEGY_ADMIN` or `STRATEGY_UPGRADER` on the strategy proxy._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxy | address | Address of the registered strategy proxy. |
+| newImplId | uint64 | Target implementation ID (must be approved, unblocked, and migration-allowed). |
+| data | bytes | Calldata forwarded to `upgradeAndCall` (e.g. a reinitializer call). |
+
+### batchUpgradeStrategies
+
+```solidity
+function batchUpgradeStrategies(address[] proxies, uint64 newImplId, bytes[] data) external
+```
+
+Batch-upgrade multiple strategies to the same new implementation.
+
+_Caller must hold `STRATEGY_ADMIN` or `STRATEGY_UPGRADER` on each strategy proxy._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxies | address[] | Strategy proxy addresses to upgrade. |
+| newImplId | uint64 | Target implementation ID for every proxy in `proxies`. |
+| data | bytes[] | Per-proxy calldata forwarded to `upgradeAndCall` (must match `proxies` length). |
+
+### deregisterStrategy
+
+```solidity
+function deregisterStrategy(address proxy, address newOwner) external
+```
+
+Deregister a strategy and transfer its ProxyAdmin ownership to `newOwner`.
+
+_After this call the strategy is no longer managed by the factory.
+     If no ProxyAdmin was recorded (non-upgradeable strategy), the ownership
+     transfer is skipped.
+
+     Callable by the factory owner OR any account holding `STRATEGY_ADMIN` on
+     the proxy, giving strategy administrators the ability to reclaim their own
+     ProxyAdmin without requiring factory-owner intervention._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxy | address | Address of the registered strategy proxy. |
+| newOwner | address | Address that will receive ownership of the ProxyAdmin. |
+
+### getStrategyImpl
+
+```solidity
+function getStrategyImpl(uint64 implId) external view returns (address)
+```
+
+Returns the strategy implementation address registered for a given ID.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | Strategy implementation ID. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The implementation address, or `address(0)` if not registered. |
+
+### isStrategyImplBlocked
+
+```solidity
+function isStrategyImplBlocked(uint64 implId) external view returns (bool)
+```
+
+Returns whether a strategy implementation ID has been blocked.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | Strategy implementation ID. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if the ID is blocked from new deployments and migrations. |
+
+### isStrategyMigratable
+
+```solidity
+function isStrategyMigratable(uint64 fromImplId, uint64 toImplId) external view returns (bool)
+```
+
+Returns whether a migration is permitted between two strategy implementation IDs.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fromImplId | uint64 | Source implementation ID. |
+| toImplId | uint64 | Target implementation ID. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if migration from `fromImplId` to `toImplId` has been enabled. |
+
+### isRegisteredStrategy
+
+```solidity
+function isRegisteredStrategy(address proxy) external view returns (bool)
+```
+
+Returns whether a strategy proxy is currently registered with this factory.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxy | address | Address of the strategy proxy. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if `proxy` is tracked by the factory. |
+
+### getStrategyProxyAdmin
+
+```solidity
+function getStrategyProxyAdmin(address proxy) external view returns (address)
+```
+
+Returns the ProxyAdmin recorded for a registered strategy proxy.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| proxy | address | Address of the strategy proxy. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | ProxyAdmin address, or `address(0)` for non-upgradeable strategies. |
+
+### approvePMHImpl
+
+```solidity
+function approvePMHImpl(address implementation) external
+```
+
+Approve a position-management-helper implementation. The implementation's `ID()` is used as the key.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implementation | address | Address of the deployed PMH implementation (e.g. PositionHelperAaveV3). |
+
+### blockPMHImpl
+
+```solidity
+function blockPMHImpl(uint64 implId) external
+```
+
+Block a PMH implementation by ID so it can no longer be cloned.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | Identifier of the PMH implementation to block. |
+
+### clonePMH
+
+```solidity
+function clonePMH(uint64 implId, address positionOwner, address collateralToken, address borrowToken, bytes initData) external returns (address clone_)
+```
+
+Clone a registered PMH implementation with the standard 62-byte immutable arg encoding.
+
+_Immutable arg encoding (62 bytes):
+     [positionOwner (20)][collateralToken (20)][borrowToken (20)]
+     [collateralDecimals (1)][borrowDecimals (1)]
+     Decimals are read on-chain from the tokens via IERC20Metadata._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | Registered PMH implementation ID. |
+| positionOwner | address | Account on whose behalf the helper operates. |
+| collateralToken | address | ERC-20 collateral token address. |
+| borrowToken | address | ERC-20 borrow token address. |
+| initData | bytes | ABI-encoded calldata forwarded to `clone.initialize(...)`. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| clone_ | address | Address of the deployed clone. |
+
+### getPMHImpl
+
+```solidity
+function getPMHImpl(uint64 implId) external view returns (address)
+```
+
+Returns the PMH implementation address registered for a given ID.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | PMH implementation ID. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The implementation address, or `address(0)` if not registered. |
+
+### isPMHImplBlocked
+
+```solidity
+function isPMHImplBlocked(uint64 implId) external view returns (bool)
+```
+
+Returns whether a PMH implementation ID has been blocked.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implId | uint64 | PMH implementation ID. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if the ID is blocked from new clones. |
+
+### isRegisteredPMHClone
+
+```solidity
+function isRegisteredPMHClone(address clone_) external view returns (bool)
+```
+
+Returns whether a PMH clone was deployed by this factory.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| clone_ | address | Address of the clone to check. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if `clone_` is tracked by the factory. |
+
+### _upgradeStrategy
+
+```solidity
+function _upgradeStrategy(address proxy, uint64 newImplId, bytes data) internal
+```
+
+### _computeProxyAdmin
+
+```solidity
+function _computeProxyAdmin(address proxy) internal pure returns (address)
+```
+
+_Computes the ProxyAdmin address for a freshly-deployed TransparentUpgradeableProxy.
+     OZ v5 TransparentUpgradeableProxy deploys ProxyAdmin as its first outgoing CREATE
+     (contract nonce = 1), making the address deterministic via the standard RLP formula:
+     keccak256(rlp([proxy_address, nonce=1]))[12:]_
+
+### _authorizeUpgrade
+
+```solidity
+function _authorizeUpgrade(address newImplementation) internal
+```
+
+_UUPS upgrade authorization: restricted to the factory owner._
+

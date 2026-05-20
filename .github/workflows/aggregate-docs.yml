@@ -3,6 +3,14 @@ name: Aggregate Concrete Docs
 on:
   push:
     branches: [main]
+    # The worker's own commit only touches paths in `paths-ignore`, so its push
+    # cannot re-trigger this workflow. (The default GITHUB_TOKEN we push with
+    # also doesn't trigger workflow runs by GitHub policy — this is the
+    # belt-and-suspenders half of the loop guard.)
+    paths-ignore:
+      - 'docs.json'
+      - 'public/**'
+      - '_meta/**'
   schedule:
     - cron: '0 */6 * * *'
   # Source repos (FE/BE/SC) dispatch this event on a docs change. The
@@ -31,7 +39,6 @@ concurrency:
 env:
   STAGING_DIR: ${{ github.workspace }}/.staging
   OUTPUT_DIR: ${{ github.workspace }}/.output
-  PUBLISH_BRANCH: docs-production
 
 jobs:
   aggregate:
@@ -132,29 +139,52 @@ jobs:
           path: ${{ env.OUTPUT_DIR }}
           retention-days: 7
 
-      - name: Publish to ${{ env.PUBLISH_BRANCH }}
-        working-directory: ${{ env.OUTPUT_DIR }}
+      - name: Publish aggregated tree to main
         run: |
           set -euo pipefail
-          git init -q -b "$PUBLISH_BRANCH"
-          git config user.name 'concrete-docs-bot'
+          # Worker-owned paths — everything else on main is class-A content or
+          # tooling and must not be overwritten by an aggregation run.
+          OWNED=(public _meta docs.json)
+
+          # Sync the local checkout to the latest main so the commit applies on
+          # the current tip. Discards any local edits the workflow may have
+          # made outside OWNED (there shouldn't be any).
+          git fetch --quiet origin main
+          git reset --hard origin/main
+
+          # Re-merge docs.json against the just-reset main. The preprocessor
+          # read its BASE_DOCS_JSON once at job start; anything landed on main
+          # during this run (Mintlify editor pushes are paths-ignored on
+          # docs.json so they don't re-trigger the worker) would otherwise be
+          # clobbered by the stale class-A nav in the worker's output. This
+          # rewrites OUTPUT_DIR/docs.json with class-A from fresh main + class-B
+          # from the worker, before the rsync overlay copies it over.
+          node scripts/merge-docs-json.mjs
+
+          # Overlay the owned paths from the preprocessor output. --delete on
+          # directory targets so removed vaults or themes don't leave stale
+          # files behind in the published tree.
+          for path in "${OWNED[@]}"; do
+            src="$OUTPUT_DIR/$path"
+            if [ -d "$src" ]; then
+              mkdir -p "./$path"
+              rsync -a --delete "$src/" "./$path/"
+            elif [ -f "$src" ]; then
+              cp "$src" "./$path"
+            fi
+          done
+
+          git config user.name  'concrete-docs-bot'
           git config user.email 'docs-bot@concrete.xyz'
-          # Dedicated publish token — needs contents:write on THIS repo only.
-          # Kept separate from DOCS_AGGREGATION_PAT (read-only on FE/BE/SC) so
-          # no single token has write access across every source repo.
-          git remote add origin \
-            "https://x-access-token:${{ secrets.DOCS_PUBLISH_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git"
-          # Fetch the prior tip so --force-with-lease has a real ref to compare
-          # against; if the branch does not exist yet, the lease check is skipped.
-          if git fetch --depth=1 origin "$PUBLISH_BRANCH" 2>/dev/null; then
-            LEASE_FLAG="--force-with-lease=$PUBLISH_BRANCH:$(git rev-parse FETCH_HEAD)"
-          else
-            LEASE_FLAG="--force"
-          fi
-          git add -A
+          git add -- "${OWNED[@]}"
           if git diff --cached --quiet; then
-            echo "No documentation changes to publish."
+            echo "No aggregated changes to publish."
             exit 0
           fi
+          # actions/checkout cached the default GITHUB_TOKEN as the origin
+          # credential — that token is contents:write (see job permissions)
+          # and, by GitHub policy, its pushes do not trigger workflow runs.
+          # Together with paths-ignore on this workflow's on:push, that closes
+          # the worker→worker loop.
           git commit -q -m "docs: aggregate + preprocess @ ${GITHUB_SHA::7}"
-          git push $LEASE_FLAG origin "HEAD:$PUBLISH_BRANCH"
+          git push origin HEAD:main

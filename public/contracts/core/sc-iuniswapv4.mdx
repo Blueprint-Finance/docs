@@ -1,0 +1,114 @@
+---
+id: 'sc-iuniswapv4'
+title: 'IUniswapV4'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/IUniswapV4.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'swaps'
+---
+
+## Currency
+
+## PoolKey
+
+_Pool key used by the V4 pool manager; carries token addresses directly._
+
+```solidity
+struct PoolKey {
+  address currency0;
+  address currency1;
+  uint24 fee;
+  int24 tickSpacing;
+  address hooks;
+}
+```
+
+## RouterPoolKey
+
+_Pool key variant used by the Universal Router; carries `Currency`-typed tokens._
+
+```solidity
+struct RouterPoolKey {
+  Currency currency0;
+  Currency currency1;
+  uint24 fee;
+  int24 tickSpacing;
+  address hooks;
+}
+```
+
+## IPermit2
+
+Minimal Permit2 interface used by the swap module to grant a router an allowance
+        on the position helper's behalf without per-token ERC-20 approvals.
+
+### approve
+
+```solidity
+function approve(address token, address spender, uint160 amount, uint48 expiration) external
+```
+
+Approve `spender` to pull up to `amount` of `token` until `expiration`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The ERC-20 token being approved. |
+| spender | address | The address authorised to pull tokens. |
+| amount | uint160 | The maximum approved amount. |
+| expiration | uint48 | The unix timestamp after which the approval expires. |
+
+## IUniversalRouter
+
+Minimal Universal Router interface plus the V4 swap params structs used by the
+        swap module to encode exact-input and exact-output single-hop swaps.
+
+### execute
+
+```solidity
+function execute(bytes commands, bytes[] inputs, uint256 deadline) external payable
+```
+
+Execute a sequence of router commands.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| commands | bytes | Encoded sequence of command bytes. |
+| inputs | bytes[] | Inputs corresponding to each command in `commands`. |
+| deadline | uint256 | Unix timestamp after which the call reverts. |
+
+### ExactInputSingleParams
+
+_Parameters for an exact-input single-hop V4 swap._
+
+```solidity
+struct ExactInputSingleParams {
+  struct RouterPoolKey poolKey;
+  bool zeroForOne;
+  uint128 amountIn;
+  uint128 amountOutMinimum;
+  bytes hookData;
+}
+```
+
+### ExactOutputSingleParams
+
+_Parameters for an exact-output single-hop V4 swap._
+
+```solidity
+struct ExactOutputSingleParams {
+  struct RouterPoolKey poolKey;
+  bool zeroForOne;
+  uint128 amountOut;
+  uint128 amountInMaximum;
+  bytes hookData;
+}
+```
+

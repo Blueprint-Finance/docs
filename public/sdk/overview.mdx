@@ -1,0 +1,48 @@
+---
+id: sdk.overview
+title: SDK overview
+audience: public
+module: sdk
+scope: overview
+gates: []
+related:
+  - sdk.versioning
+  - sdk.integrations
+source_refs:
+  - sdk/README.md
+  - docs/08-sdk-build-and-publish.md
+last_reviewed: 2026-05-14
+---
+
+# SDK overview
+
+The **@concrete-xyz/sdk** package gives integrators a typed interface to
+the same vault contracts the Concrete app uses. The SDK is published on
+npm and ships with three entry points:
+
+- **Core** — framework-agnostic vault accessors usable from any
+  JavaScript or TypeScript environment with an `ethers`-compatible provider.
+- **React** — hooks layered over the core entry point for use in React
+  applications that already manage their own web3 provider.
+- **Wagmi** — hooks tailored to applications using `wagmi`. The wagmi
+  entry composes with wagmi's connector and query layer rather than
+  introducing a parallel provider.
+
+What the SDK is for:
+
+- Reading vault state (balances, share price, withdrawal queue, APY) from
+  a third-party application.
+- Submitting deposit, withdraw, and claim transactions against vault
+  contracts.
+- Quoting cross-chain claim fees (LayerZero) for pre-deposit vaults.
+
+What it is not:
+
+- A replacement for the Concrete app UI. The SDK exposes building blocks;
+  rendering and UX are the integrator's responsibility.
+- A trust boundary. The SDK runs in the integrator's environment and uses
+  the user's wallet — there is no Concrete server-side authority on
+  transaction outcomes.
+
+See [sdk/README.md](../../../../sdk/README.md) for installation, code
+samples, and the per-entry-point API.
