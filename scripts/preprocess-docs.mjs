@@ -788,25 +788,35 @@ async function emitDocsJson(vaults, composedByVault, sdkPages) {
     ),
   }));
 
-  // Class B — "Vaults" tab: a top-level group per Storyblok vault-group, each
-  // vault a nested collapsed group (expanded:false) of its theme pages.
-  // (Mintlify only collapses nested groups; top-level groups always expand.)
-  const byGroup = new Map();
+  // Class B — "Vaults" tab. Active vaults keep their Storyblok-group → vault
+  // hierarchy (each vault a collapsed nested group of its theme pages; Mintlify
+  // only collapses nested groups, top-level always expand). Deprecated vaults
+  // are pulled out into a single flat "Deprecated vaults" group at the tail —
+  // they matter much less and the burial-ground stays visually compact.
+  const activeByGroup = new Map();
+  const deprecatedVaultGroups = [];
   for (const vault of vaults) {
     const pages = composedByVault.get(vault.slug) ?? [];
     if (pages.length === 0) continue;
+    const entry = { group: vault.name, expanded: false, pages };
+    if (vault.deprecated) {
+      deprecatedVaultGroups.push(entry);
+      continue;
+    }
     const gname = vault.group || 'Vaults';
-    if (!byGroup.has(gname)) byGroup.set(gname, []);
-    byGroup.get(gname).push({ group: vault.name, expanded: false, pages });
+    if (!activeByGroup.has(gname)) activeByGroup.set(gname, []);
+    activeByGroup.get(gname).push(entry);
   }
-  if (byGroup.size > 0) {
-    tabs.push({
-      tab: 'Vaults',
-      groups: [...byGroup].map(([gname, vaultGroups]) => ({
-        group: gname,
-        pages: vaultGroups,
-      })),
-    });
+  const vaultsTabGroups = [...activeByGroup].map(([gname, vgs]) => ({
+    group: gname,
+    pages: vgs,
+  }));
+  if (deprecatedVaultGroups.length > 0) {
+    deprecatedVaultGroups.sort((a, b) => a.group.localeCompare(b.group));
+    vaultsTabGroups.push({ group: 'Deprecated vaults', pages: deprecatedVaultGroups });
+  }
+  if (vaultsTabGroups.length > 0) {
+    tabs.push({ tab: 'Vaults', groups: vaultsTabGroups });
   }
 
   // FE SDK.
