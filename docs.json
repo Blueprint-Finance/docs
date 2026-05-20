@@ -70,6 +70,38 @@
               "enterprise/assetcx",
               "enterprise/vault-setup"
             ]
+          },
+          {
+            "group": "Earn concepts",
+            "pages": [
+              {
+                "group": "Overview",
+                "pages": [
+                  "concepts/earn/vaults/address-whitelist",
+                  "concepts/earn/vaults/multi-address"
+                ]
+              },
+              {
+                "group": "Withdrawing",
+                "pages": [
+                  "concepts/earn/withdrawals/cancellation"
+                ]
+              },
+              {
+                "group": "Rewards",
+                "pages": [
+                  "concepts/earn/rewards/display"
+                ]
+              },
+              {
+                "group": "Cross-chain",
+                "pages": [
+                  "concepts/earn/cross-chain/bridge-eta",
+                  "concepts/earn/cross-chain/layerzero-messaging",
+                  "concepts/earn/cross-chain/pre-deposit-claim"
+                ]
+              }
+            ]
           }
         ]
       },
@@ -116,9 +148,7 @@
                 "pages": [
                   "public/tac/withdrawals/overview",
                   "public/tac/withdrawals/depositing",
-                  "public/tac/withdrawals/withdrawing",
-                  "public/tac/withdrawals/rewards",
-                  "public/tac/withdrawals/cross-chain"
+                  "public/tac/withdrawals/withdrawing"
                 ]
               }
             ]
@@ -132,9 +162,7 @@
                 "pages": [
                   "public/isolated/isolated-wbtc/overview",
                   "public/isolated/isolated-wbtc/depositing",
-                  "public/isolated/isolated-wbtc/withdrawing",
-                  "public/isolated/isolated-wbtc/rewards",
-                  "public/isolated/isolated-wbtc/cross-chain"
+                  "public/isolated/isolated-wbtc/withdrawing"
                 ]
               },
               {
@@ -143,9 +171,7 @@
                 "pages": [
                   "public/concrete/defi-finance-usdt/overview",
                   "public/concrete/defi-finance-usdt/depositing",
-                  "public/concrete/defi-finance-usdt/withdrawing",
-                  "public/concrete/defi-finance-usdt/rewards",
-                  "public/concrete/defi-finance-usdt/cross-chain"
+                  "public/concrete/defi-finance-usdt/withdrawing"
                 ]
               },
               {
@@ -154,9 +180,7 @@
                 "pages": [
                   "public/concrete/delta-weeth/overview",
                   "public/concrete/delta-weeth/depositing",
-                  "public/concrete/delta-weeth/withdrawing",
-                  "public/concrete/delta-weeth/rewards",
-                  "public/concrete/delta-weeth/cross-chain"
+                  "public/concrete/delta-weeth/withdrawing"
                 ]
               },
               {
@@ -165,9 +189,7 @@
                 "pages": [
                   "public/waymont/royco-usdc/overview",
                   "public/waymont/royco-usdc/depositing",
-                  "public/waymont/royco-usdc/withdrawing",
-                  "public/waymont/royco-usdc/rewards",
-                  "public/waymont/royco-usdc/cross-chain"
+                  "public/waymont/royco-usdc/withdrawing"
                 ]
               },
               {
@@ -176,9 +198,7 @@
                 "pages": [
                   "public/isolated/isolated-wbtc-balance-placeholder/overview",
                   "public/isolated/isolated-wbtc-balance-placeholder/depositing",
-                  "public/isolated/isolated-wbtc-balance-placeholder/withdrawing",
-                  "public/isolated/isolated-wbtc-balance-placeholder/rewards",
-                  "public/isolated/isolated-wbtc-balance-placeholder/cross-chain"
+                  "public/isolated/isolated-wbtc-balance-placeholder/withdrawing"
                 ]
               }
             ]
@@ -192,9 +212,7 @@
                 "pages": [
                   "public/demo/arbitrum/overview",
                   "public/demo/arbitrum/depositing",
-                  "public/demo/arbitrum/withdrawing",
-                  "public/demo/arbitrum/rewards",
-                  "public/demo/arbitrum/cross-chain"
+                  "public/demo/arbitrum/withdrawing"
                 ]
               },
               {
@@ -203,9 +221,7 @@
                 "pages": [
                   "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/overview",
                   "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/depositing",
-                  "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/withdrawing",
-                  "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/rewards",
-                  "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/cross-chain"
+                  "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/withdrawing"
                 ]
               },
               {
@@ -214,9 +230,7 @@
                 "pages": [
                   "public/test/usdc-yield/overview",
                   "public/test/usdc-yield/depositing",
-                  "public/test/usdc-yield/withdrawing",
-                  "public/test/usdc-yield/rewards",
-                  "public/test/usdc-yield/cross-chain"
+                  "public/test/usdc-yield/withdrawing"
                 ]
               }
             ]
@@ -230,9 +244,7 @@
                 "pages": [
                   "public/frax/frxusd/overview",
                   "public/frax/frxusd/depositing",
-                  "public/frax/frxusd/withdrawing",
-                  "public/frax/frxusd/rewards",
-                  "public/frax/frxusd/cross-chain"
+                  "public/frax/frxusd/withdrawing"
                 ]
               }
             ]
@@ -246,9 +258,7 @@
                 "pages": [
                   "public/isolated/isolated-arbitrum/overview",
                   "public/isolated/isolated-arbitrum/depositing",
-                  "public/isolated/isolated-arbitrum/withdrawing",
-                  "public/isolated/isolated-arbitrum/rewards",
-                  "public/isolated/isolated-arbitrum/cross-chain"
+                  "public/isolated/isolated-arbitrum/withdrawing"
                 ]
               },
               {
@@ -257,9 +267,7 @@
                 "pages": [
                   "public/berabaddies/earn/overview",
                   "public/berabaddies/earn/depositing",
-                  "public/berabaddies/earn/withdrawing",
-                  "public/berabaddies/earn/rewards",
-                  "public/berabaddies/earn/cross-chain"
+                  "public/berabaddies/earn/withdrawing"
                 ]
               },
               {
@@ -268,9 +276,7 @@
                 "pages": [
                   "public/berachain/bera/overview",
                   "public/berachain/bera/depositing",
-                  "public/berachain/bera/withdrawing",
-                  "public/berachain/bera/rewards",
-                  "public/berachain/bera/cross-chain"
+                  "public/berachain/bera/withdrawing"
                 ]
               },
               {
@@ -279,9 +285,7 @@
                 "pages": [
                   "public/berachain/bitcoin/overview",
                   "public/berachain/bitcoin/depositing",
-                  "public/berachain/bitcoin/withdrawing",
-                  "public/berachain/bitcoin/rewards",
-                  "public/berachain/bitcoin/cross-chain"
+                  "public/berachain/bitcoin/withdrawing"
                 ]
               },
               {
@@ -290,9 +294,7 @@
                 "pages": [
                   "public/berachain/ethereum/overview",
                   "public/berachain/ethereum/depositing",
-                  "public/berachain/ethereum/withdrawing",
-                  "public/berachain/ethereum/rewards",
-                  "public/berachain/ethereum/cross-chain"
+                  "public/berachain/ethereum/withdrawing"
                 ]
               },
               {
@@ -301,9 +303,7 @@
                 "pages": [
                   "public/berachain/stables/overview",
                   "public/berachain/stables/depositing",
-                  "public/berachain/stables/withdrawing",
-                  "public/berachain/stables/rewards",
-                  "public/berachain/stables/cross-chain"
+                  "public/berachain/stables/withdrawing"
                 ]
               },
               {
@@ -312,9 +312,7 @@
                 "pages": [
                   "public/berachain/lombard/overview",
                   "public/berachain/lombard/depositing",
-                  "public/berachain/lombard/withdrawing",
-                  "public/berachain/lombard/rewards",
-                  "public/berachain/lombard/cross-chain"
+                  "public/berachain/lombard/withdrawing"
                 ]
               },
               {
@@ -323,9 +321,7 @@
                 "pages": [
                   "public/berachain/boyco/overview",
                   "public/berachain/boyco/depositing",
-                  "public/berachain/boyco/withdrawing",
-                  "public/berachain/boyco/rewards",
-                  "public/berachain/boyco/cross-chain"
+                  "public/berachain/boyco/withdrawing"
                 ]
               },
               {
@@ -334,9 +330,7 @@
                 "pages": [
                   "public/corn/btc/overview",
                   "public/corn/btc/depositing",
-                  "public/corn/btc/withdrawing",
-                  "public/corn/btc/rewards",
-                  "public/corn/btc/cross-chain"
+                  "public/corn/btc/withdrawing"
                 ]
               },
               {
@@ -345,9 +339,7 @@
                 "pages": [
                   "public/corn/usdt/overview",
                   "public/corn/usdt/depositing",
-                  "public/corn/usdt/withdrawing",
-                  "public/corn/usdt/rewards",
-                  "public/corn/usdt/cross-chain"
+                  "public/corn/usdt/withdrawing"
                 ]
               },
               {
@@ -356,9 +348,7 @@
                 "pages": [
                   "public/berachain/dinero/overview",
                   "public/berachain/dinero/depositing",
-                  "public/berachain/dinero/withdrawing",
-                  "public/berachain/dinero/rewards",
-                  "public/berachain/dinero/cross-chain"
+                  "public/berachain/dinero/withdrawing"
                 ]
               },
               {
@@ -367,9 +357,7 @@
                 "pages": [
                   "public/berachain/ethena/overview",
                   "public/berachain/ethena/depositing",
-                  "public/berachain/ethena/withdrawing",
-                  "public/berachain/ethena/rewards",
-                  "public/berachain/ethena/cross-chain"
+                  "public/berachain/ethena/withdrawing"
                 ]
               },
               {
@@ -378,9 +366,7 @@
                 "pages": [
                   "public/movement/frax/overview",
                   "public/movement/frax/depositing",
-                  "public/movement/frax/withdrawing",
-                  "public/movement/frax/rewards",
-                  "public/movement/frax/cross-chain"
+                  "public/movement/frax/withdrawing"
                 ]
               },
               {
@@ -389,9 +375,7 @@
                 "pages": [
                   "public/katana/ausd/overview",
                   "public/katana/ausd/depositing",
-                  "public/katana/ausd/withdrawing",
-                  "public/katana/ausd/rewards",
-                  "public/katana/ausd/cross-chain"
+                  "public/katana/ausd/withdrawing"
                 ]
               },
               {
@@ -400,9 +384,7 @@
                 "pages": [
                   "public/morph/ausd/overview",
                   "public/morph/ausd/depositing",
-                  "public/morph/ausd/withdrawing",
-                  "public/morph/ausd/rewards",
-                  "public/morph/ausd/cross-chain"
+                  "public/morph/ausd/withdrawing"
                 ]
               },
               {
@@ -411,9 +393,7 @@
                 "pages": [
                   "public/morph/bgb/overview",
                   "public/morph/bgb/depositing",
-                  "public/morph/bgb/withdrawing",
-                  "public/morph/bgb/rewards",
-                  "public/morph/bgb/cross-chain"
+                  "public/morph/bgb/withdrawing"
                 ]
               },
               {
@@ -422,9 +402,7 @@
                 "pages": [
                   "public/morph/ethena/overview",
                   "public/morph/ethena/depositing",
-                  "public/morph/ethena/withdrawing",
-                  "public/morph/ethena/rewards",
-                  "public/morph/ethena/cross-chain"
+                  "public/morph/ethena/withdrawing"
                 ]
               },
               {
@@ -433,9 +411,7 @@
                 "pages": [
                   "public/morph/majors/overview",
                   "public/morph/majors/depositing",
-                  "public/morph/majors/withdrawing",
-                  "public/morph/majors/rewards",
-                  "public/morph/majors/cross-chain"
+                  "public/morph/majors/withdrawing"
                 ]
               },
               {
@@ -444,9 +420,7 @@
                 "pages": [
                   "public/morph/weeth/overview",
                   "public/morph/weeth/depositing",
-                  "public/morph/weeth/withdrawing",
-                  "public/morph/weeth/rewards",
-                  "public/morph/weeth/cross-chain"
+                  "public/morph/weeth/withdrawing"
                 ]
               },
               {
@@ -455,9 +429,7 @@
                 "pages": [
                   "public/morpho/btc/overview",
                   "public/morpho/btc/depositing",
-                  "public/morpho/btc/withdrawing",
-                  "public/morpho/btc/rewards",
-                  "public/morpho/btc/cross-chain"
+                  "public/morpho/btc/withdrawing"
                 ]
               },
               {
@@ -466,9 +438,7 @@
                 "pages": [
                   "public/morpho/eth/overview",
                   "public/morpho/eth/depositing",
-                  "public/morpho/eth/withdrawing",
-                  "public/morpho/eth/rewards",
-                  "public/morpho/eth/cross-chain"
+                  "public/morpho/eth/withdrawing"
                 ]
               },
               {
@@ -477,9 +447,7 @@
                 "pages": [
                   "public/morpho/usd/overview",
                   "public/morpho/usd/depositing",
-                  "public/morpho/usd/withdrawing",
-                  "public/morpho/usd/rewards",
-                  "public/morpho/usd/cross-chain"
+                  "public/morpho/usd/withdrawing"
                 ]
               },
               {
@@ -488,9 +456,7 @@
                 "pages": [
                   "public/movement/btc/overview",
                   "public/movement/btc/depositing",
-                  "public/movement/btc/withdrawing",
-                  "public/movement/btc/rewards",
-                  "public/movement/btc/cross-chain"
+                  "public/movement/btc/withdrawing"
                 ]
               },
               {
@@ -499,9 +465,7 @@
                 "pages": [
                   "public/movement/eth/overview",
                   "public/movement/eth/depositing",
-                  "public/movement/eth/withdrawing",
-                  "public/movement/eth/rewards",
-                  "public/movement/eth/cross-chain"
+                  "public/movement/eth/withdrawing"
                 ]
               },
               {
@@ -510,9 +474,7 @@
                 "pages": [
                   "public/movement/stables/overview",
                   "public/movement/stables/depositing",
-                  "public/movement/stables/withdrawing",
-                  "public/movement/stables/rewards",
-                  "public/movement/stables/cross-chain"
+                  "public/movement/stables/withdrawing"
                 ]
               },
               {
@@ -521,9 +483,7 @@
                 "pages": [
                   "public/seigen/seigen-vault/overview",
                   "public/seigen/seigen-vault/depositing",
-                  "public/seigen/seigen-vault/withdrawing",
-                  "public/seigen/seigen-vault/rewards",
-                  "public/seigen/seigen-vault/cross-chain"
+                  "public/seigen/seigen-vault/withdrawing"
                 ]
               },
               {
@@ -532,9 +492,7 @@
                 "pages": [
                   "public/stable/usdt/overview",
                   "public/stable/usdt/depositing",
-                  "public/stable/usdt/withdrawing",
-                  "public/stable/usdt/rewards",
-                  "public/stable/usdt/cross-chain"
+                  "public/stable/usdt/withdrawing"
                 ]
               },
               {
@@ -543,9 +501,7 @@
                 "pages": [
                   "public/isolated/isolated-stable/overview",
                   "public/isolated/isolated-stable/depositing",
-                  "public/isolated/isolated-stable/withdrawing",
-                  "public/isolated/isolated-stable/rewards",
-                  "public/isolated/isolated-stable/cross-chain"
+                  "public/isolated/isolated-stable/withdrawing"
                 ]
               },
               {
@@ -554,9 +510,7 @@
                 "pages": [
                   "public/theo/theo-thbill-arbitrum/overview",
                   "public/theo/theo-thbill-arbitrum/depositing",
-                  "public/theo/theo-thbill-arbitrum/withdrawing",
-                  "public/theo/theo-thbill-arbitrum/rewards",
-                  "public/theo/theo-thbill-arbitrum/cross-chain"
+                  "public/theo/theo-thbill-arbitrum/withdrawing"
                 ]
               },
               {
@@ -565,9 +519,7 @@
                 "pages": [
                   "public/theo/theo-thbill-stable/overview",
                   "public/theo/theo-thbill-stable/depositing",
-                  "public/theo/theo-thbill-stable/withdrawing",
-                  "public/theo/theo-thbill-stable/rewards",
-                  "public/theo/theo-thbill-stable/cross-chain"
+                  "public/theo/theo-thbill-stable/withdrawing"
                 ]
               },
               {
@@ -576,9 +528,7 @@
                 "pages": [
                   "public/theo/theo-usdc/overview",
                   "public/theo/theo-usdc/depositing",
-                  "public/theo/theo-usdc/withdrawing",
-                  "public/theo/theo-usdc/rewards",
-                  "public/theo/theo-usdc/cross-chain"
+                  "public/theo/theo-usdc/withdrawing"
                 ]
               },
               {
@@ -587,9 +537,7 @@
                 "pages": [
                   "public/theo/theo-usdc-arbitrum/overview",
                   "public/theo/theo-usdc-arbitrum/depositing",
-                  "public/theo/theo-usdc-arbitrum/withdrawing",
-                  "public/theo/theo-usdc-arbitrum/rewards",
-                  "public/theo/theo-usdc-arbitrum/cross-chain"
+                  "public/theo/theo-usdc-arbitrum/withdrawing"
                 ]
               },
               {
@@ -598,9 +546,7 @@
                 "pages": [
                   "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/overview",
                   "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/depositing",
-                  "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/withdrawing",
-                  "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/rewards",
-                  "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/cross-chain"
+                  "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/withdrawing"
                 ]
               }
             ]

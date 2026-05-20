@@ -1,0 +1,56 @@
+---
+id: earn.cross-chain.layerzero-messaging
+title: Cross-chain messaging (LayerZero)
+audience: public
+module: earn
+scope: cross-chain
+gates: []
+related:
+  - earn.cross-chain.pre-deposit-claim
+  - earn.cross-chain.bridge-eta
+source_refs:
+  - .claude/skills/layerzero-oapp-and-messaging/SKILL.md
+  - .claude/skills/layerzero-options-and-api/SKILL.md
+  - .claude/skills/v2-predeposit-vaults/SKILL.md
+emit: once
+last_reviewed: 2026-05-20
+---
+
+# Cross-chain messaging (LayerZero)
+
+Some Concrete vaults span multiple chains: a user interacts with the
+vault on a source chain, but the underlying strategy or share balance
+lives on a destination chain. The bridge between the two is built on
+**LayerZero**, a generic cross-chain messaging protocol.
+
+What the user is promised:
+
+- A cross-chain action (e.g. claiming pre-deposit shares, cross-chain
+  withdrawal) emits a message from the source-chain contract. LayerZero
+  carries the message to the destination chain, where the receiving
+  contract executes the corresponding action.
+- Cross-chain actions are **payable**: the user pays an additional fee
+  on the source chain to cover destination-chain execution and
+  LayerZero verifier costs. The UI quotes this fee before the user
+  signs and applies a small safety buffer so transient gas-price
+  movement does not cause the transaction to revert.
+- Delivery is asynchronous. After the source-chain transaction
+  confirms, there is a delay (typically minutes, occasionally longer
+  under network congestion) before the destination-chain state
+  updates. The UI surfaces this delay rather than implying instant
+  settlement.
+- Funds are not at risk during the in-flight period in the sense of
+  custody — the source-chain action has already burned/locked the
+  user's position before the message is sent — but the user cannot act
+  on the destination-chain side until the message is delivered.
+
+LayerZero is used today for **pre-deposit share claims** (see
+[Pre-deposit claim](./pre-deposit-claim)) and for **cross-chain
+withdrawals** on vaults whose underlying strategy executes on a
+different chain than the user deposits from. Additional flows may use
+the same primitive in the future; the user-facing pattern (quote → sign
+on source → wait for delivery → use on destination) is shared across
+them.
+
+For protocol-level detail on options, executor settings, and fee
+estimation, see the smart-contract repository's LayerZero documentation.

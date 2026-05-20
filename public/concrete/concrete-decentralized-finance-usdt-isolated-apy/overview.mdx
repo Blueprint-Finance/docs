@@ -3,39 +3,6 @@ title: "Concrete DeFi USDT — Overview"
 sidebarTitle: "Overview"
 ---
 
-## Vault address whitelist
-
-The Earn app does not blindly trust the CMS. Before any vault is rendered
-to users in production, every contract address attached to it must pass a
-**maintained allowlist** of vaults known to the team.
-
-What this means in practice:
-
-- Adding a vault story in the CMS is not, on its own, enough to expose the
-  vault to users. Until the vault's addresses are on the allowlist, the
-  vault is silently excluded from the production Earn surface.
-- The allowlist is reviewed and updated as part of the vault release
-  process. It is intended as a safety floor against accidental or
-  malicious CMS changes, not as the primary access-control mechanism.
-- Non-production environments and draft mode bypass the allowlist so the
-  team can preview new vaults end-to-end before promoting them.
-
-Users do not interact with the allowlist directly. Its only observable
-effect is that a vault becomes available on the Earn surface once it has
-been reviewed.
-
-## Simple balance display
-
-
-
-
-Vaults render the full balance breakdown including underlying, queued, and
-share-token components.
-
-
-The flag is a presentation choice, not a behavioural one — the underlying
-positions and on-chain state are identical either way.
-
 ## Vault deprecation
 
 A deprecated vault remains visible and operational for existing holders but
@@ -60,25 +27,6 @@ data.
 The headline APY is the value pinned in the CMS (`aprTarget`). It is stable
 between CMS updates and does not reflect short-term yield fluctuations.
 
-## Multi-address vaults
-
-A single vault product can represent **multiple contract deployments** — for
-example, the same strategy on several chains, or several deployments of the
-same strategy on one chain. Each deployment is identified by its contract
-address.
-
-What the user sees:
-
-- One vault entry on the Earn landing.
-- One vault page, with an address selector when more than one deployment is
-  available.
-- Per-address state for balance, deposit, and withdraw flows — switching
-  the selector switches the on-chain target.
-
-Deployments share the CMS content (overview, auditors, owner, rewards,
-images) but each has its own on-chain state. APY, balance, and TVL are
-computed per address.
-
 ## Permissioned vault access
 
 
@@ -90,17 +38,6 @@ The vault is open to any wallet. No allowlist applies.
 Permissioning is a property of the deployed contract; the CMS flag exists so
 the UI can render the correct affordances without round-tripping a
 permission check for every visitor.
-
-## TVL exclusion
-
-
-
-
-The vault contributes to the aggregate TVL shown on the Earn landing.
-
-
-Typical use: test deployments, duplicate listings of the same strategy
-across chains, or vaults whose holdings should not be double-counted.
 
 ## Vault versions (v1 and v2)
 
@@ -136,15 +73,3 @@ appears on the Earn surface in production.
 Visibility is layered with the address whitelist: even a card-visible vault
 will be dropped if none of its contract addresses are whitelisted in
 production. See `src/modules/earn/content/index.tsx` for the whitelist.
-
-## Yield tab
-
-
-
-
-The vault page does not expose a Yield tab; the overview tab is the only
-content surface.
-
-
-Whether to enable a Yield tab is a per-vault editorial decision and is
-independent of whether APY is statically or dynamically sourced.

@@ -3,31 +3,6 @@ title: "Royco USDC — Withdrawing"
 sidebarTitle: "Withdrawing"
 ---
 
-## Cancelling a queued withdrawal
-
-
-A queued withdrawal can be **cancelled by the requester at any time
-before it is paid out**. Cancellation is a single on-chain action; once
-confirmed, the request is removed from the queue and the user's share
-balance is restored.
-
-What the user is promised:
-
-- Cancellation is available as long as the request is in the queue —
-  whether it sits in the open epoch, in a closed-pending epoch, or
-  split across multiple epochs as overflow slices.
-- Cancelling a request removes **all of its slices** at once. A user
-  cannot cancel just the overflow portion and keep the in-cap portion.
-- Once cancelled, the underlying shares are immediately spendable: the
-  user can leave them in the vault to keep earning yield or submit a
-  fresh withdraw request to re-enter the queue at the current tail.
-- A request that has already been settled (paid out on-chain) cannot be
-  cancelled. From the user's side this is observable as the request
-  having moved to a claimable or claimed state.
-
-Cancellation does not impose a cooldown or fee at the protocol level.
-Each cancel is a normal on-chain transaction with its own gas cost.
-
 ## Withdrawal disable
 
 
