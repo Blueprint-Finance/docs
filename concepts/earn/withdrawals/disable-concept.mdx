@@ -1,0 +1,43 @@
+---
+id: earn.withdrawals.disable-concept
+title: Withdrawal disable
+audience: public
+module: earn
+scope: withdrawals
+emit: once
+source_refs:
+  - src/core/utils/storyblok.ts
+last_reviewed: 2026-05-20
+---
+
+# Withdrawal disable
+
+A vault may disable withdrawals in the UI. The withdraw form is hidden
+or rendered in a disabled state, but existing positions remain on-chain
+and are unaffected by the UI state.
+
+When withdrawals are not disabled, the vault processes them through its
+standard flow:
+
+- On an Earn V1 vault, calling withdraw returns the underlying asset
+  synchronously in the same transaction, provided the vault holds
+  enough liquidity. There is no queue and no epoch.
+- On an Earn V2 vault, calling withdraw queues the request into the
+  next applicable epoch, and the request settles at that epoch's
+  payout. See [Withdrawal queue and delay](./queue-and-delay).
+
+Reasons a vault may disable withdrawals:
+
+- Pre-deposit vaults: deposits are accepted on a source chain before
+  the destination vault is live. Withdrawals stay disabled until the
+  LayerZero claim window opens on the destination chain. See
+  [Pre-deposit claim](../cross-chain/pre-deposit-claim).
+- Migrations: the operator pauses withdrawals while moving strategy or
+  contracts.
+- Contract-level limit changes that would make withdrawals
+  non-functional, for example a liquidity threshold that no longer
+  holds.
+
+Deposit disable and withdrawal disable are independent. A vault
+commonly has deposits disabled while withdrawals remain enabled. That
+is the wind-down state used during soft-close or deprecation.

@@ -1,0 +1,52 @@
+---
+id: earn.withdrawals.overflow-concept
+title: Withdrawal overflow
+audience: public
+module: earn
+scope: withdrawals
+emit: once
+source_refs:
+  - .claude/rules/withdrawal-overflow.mdc
+  - src/modules/earn/api/withdrawal-overflow.ts
+  - src/modules/earn/hooks/useEarnUserOverflowSlices.ts
+last_reviewed: 2026-05-20
+---
+
+# Withdrawal overflow
+
+Withdrawal overflow is how a capped Earn V2 Vault settles queued requests
+when demand for an epoch exceeds that epoch's cap. Every queued request
+still settles in finite time: the surplus pays in the next epoch, and the
+next one after that if needed. See [Withdrawal caps](./caps-concept) for
+how a cap is set and recomputed.
+
+When the sum of queued withdraw requests for an epoch exceeds the cap,
+the surplus overflows into the next epoch. A single withdraw request
+whose share amount is larger than the remaining cap is sliced across as
+many epochs as needed to fit under each epoch's cap. Per-epoch slices
+settle FIFO within their epoch: the oldest request in a given epoch is
+paid first.
+
+Each epoch's cap recomputes at the start of that epoch from the vault's
+TVL net of amounts already paid out. If the prior epoch paid its full
+cap, the next epoch's cap shrinks against the remaining TVL. If the
+prior epoch under-used its cap, the next epoch's cap is correspondingly
+larger. The amount of headroom available to absorb overflow therefore
+changes between epochs.
+
+A sliced request reconstructs to its original size: you see one request
+in the UI, while the underlying record is one parent request plus one
+slice per epoch the request occupies. The total of the slices equals the
+shares you submitted.
+
+The Withdrawal Queue card and the withdrawal history list render
+per-epoch slices, each with its own payout date. Until a slice is paid,
+it remains cancellable as part of the original parent request.
+Cancelling cancels every slice of that request at once. See
+[Withdrawal cancellation](./cancellation) for the cancellation flow and
+[Queue position](./queue-position-concept) for how each slice is numbered
+within its epoch.
+
+When a vault has no cap configured, overflow does not apply. Queued
+requests settle on the vault's normal payout schedule without a
+per-epoch ceiling.

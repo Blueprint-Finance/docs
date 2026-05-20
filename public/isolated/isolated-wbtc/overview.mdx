@@ -3,73 +3,20 @@ title: "WBTC Vault — Overview"
 sidebarTitle: "Overview"
 ---
 
-## Vault deprecation
-
-A deprecated vault remains visible and operational for existing holders but
-is no longer promoted as a destination for new capital.
+## Dynamic APY calculation
 
 
 
 
 
-Deprecation is a CMS-controlled product decision, not a contract state. A
-vault that is deprecated in the UI may still be fully functional on-chain.
+### Institutional APY
 
-## Dynamic APY display
+This vault uses an institutional APY. The strategy or the allocated
+assets are operated by Partners, so the headline cannot be assessed
+dynamically the same way as a Concrete-run strategy. Instead the headline
+shows the pinned target rate (`aprTarget` in the CMS).
 
-The vault's headline APY can be sourced either from a static CMS-pinned
-target (`aprTarget`) or computed dynamically from on-chain and subgraph
-data.
-
-
-
-
-The headline APY is the value pinned in the CMS (`aprTarget`). It is stable
-between CMS updates and does not reflect short-term yield fluctuations.
-
-## Permissioned vault access
-
-
-
-
-The vault is open to any wallet. No allowlist applies.
-
-
-Permissioning is a property of the deployed contract; the CMS flag exists so
-the UI can render the correct affordances without round-tripping a
-permission check for every visitor.
-
-## Vault versions (v1 and v2)
-
-Vaults exist in two contract generations. The CMS field `vaultVersion`
-selects which generation a vault belongs to, and the UI adapts accordingly.
-
-
-This vault is **v2**, the current generation. v2 vaults are
-**asynchronous**: a withdraw transaction submits a *request* that is settled
-at the end of a future epoch (see
-[Epoch lifecycle](withdrawing#epoch-lifecycle)). v2 introduces the concepts of
-epochs, queues, caps, and overflow described elsewhere in this section. All
-new vaults launch on v2.
-
-
-
-
-Users typically do not need to think about the version — the UI surfaces the
-correct deposit and withdraw affordances per vault.
-
-For deeper detail on the contract architecture, see the smart-contract
-repository's documentation in Mintlify.
-
-## Vault and group visibility
-
-Two independent CMS flags control whether a vault or its parent group
-appears on the Earn surface in production.
-
-
-
-
-
-Visibility is layered with the address whitelist: even a card-visible vault
-will be dropped if none of its contract addresses are whitelisted in
-production. See `src/modules/earn/content/index.tsx` for the whitelist.
+The displayed APY is stable between CMS updates and changes only when
+Concrete updates the target value. It is intended to represent the rate
+the Partner has communicated for the strategy, not a live measurement of
+recent on-chain performance.

@@ -1,0 +1,46 @@
+---
+id: earn.vaults.deprecation-concept
+title: Vault deprecation
+audience: public
+module: earn
+scope: vaults
+emit: once
+source_refs:
+  - src/core/utils/storyblok.ts
+last_reviewed: 2026-05-20
+---
+
+# Vault deprecation
+
+A deprecated vault is no longer being maintained. Concrete marks the vault
+as deprecated to signal that it is being wound down, so you can make an
+informed decision about your position.
+
+## What deprecation means in practice
+
+Deprecation is a business signal Concrete sets in the CMS. When a vault is
+deprecated:
+
+- A visible deprecation indicator renders next to the vault on the Earn
+  landing and on the per-vault page.
+- Deposits are typically disabled (see
+  [Deposit disable](../deposits/disable-concept)).
+- The vault is not promoted to new users and stops appearing in feature
+  placements.
+- Existing holders can still withdraw their shares as long as the underlying
+  contract permits withdrawals. The deposit-disable gate is independent of
+  the withdrawal-disable gate (see
+  [Withdrawal disable](../withdrawals/disable-concept)).
+
+## Group-level deprecation
+
+When a vault group is marked deprecated, deprecation propagates to every
+vault inside that group. Each vault in the group behaves as if deprecated
+even if its own flag is not set.
+
+## Relationship to on-chain state
+
+Deprecation is a product signal, not a contract state. Whether the vault
+remains operational at the contract level depends on on-chain state,
+including whether deposits and withdrawals are explicitly disabled. The
+product surface and the on-chain surface are independent layers.

@@ -1,0 +1,52 @@
+---
+id: earn.withdrawals.epoch-cycle-concept
+title: Withdrawal epoch lifecycle
+audience: public
+module: earn
+scope: withdrawals
+emit: once
+source_refs:
+  - .claude/rules/withdrawal-epoch-cycles.mdc
+last_reviewed: 2026-05-20
+---
+
+# Withdrawal epoch lifecycle
+
+An epoch is the repeating settlement window an Earn V2 Vault uses to
+batch withdraw requests into a single payout. Epochs give every queued
+request a predictable cadence: requests submitted into the same epoch
+settle together at that epoch's payout point.
+
+Each epoch moves through the same sequence of states.
+
+**Start.** The previous epoch's payout point is also the start of the
+next epoch. The new epoch opens for withdraw requests.
+
+**Cutoff.** The cutoff time is defined by the vault's `cutoffCron`
+schedule. After cutoff the epoch closes to new requests, and every
+request already in the epoch is locked in for the upcoming payout.
+
+**Closed-pending interval.** Between cutoff and payout the epoch is
+closed-pending. Requests already in the epoch cannot be added to or
+removed from, with the exception of cancellation. See
+[Withdrawal cancellation](./cancellation) for the cancellation flow.
+
+**Payout.** The payout time is defined by the vault's `payoutCron`
+schedule. At payout the epoch settles on-chain, claims become available,
+and the next epoch starts.
+
+The Withdrawal Queue card and the per-request rows display the estimated
+cutoff and payout dates for each epoch. These dates compute from the
+current epoch's on-chain `startBlockTimestamp` plus the cron schedule,
+not from wall-clock time. They align with how the chain advances, so the
+displayed timestamp may shift slightly between visits as the chain
+settles.
+
+At any moment exactly one epoch is open. Zero or more closed-pending
+epochs may sit between cutoff and payout when the schedule produces a
+multi-day gap between the two.
+
+Vaults with a configured cap can split a single request across multiple
+epochs. Each slice follows its own epoch's lifecycle independently and
+shows the cutoff and payout dates of the epoch that will settle it. See
+[Withdrawal overflow](./overflow-concept) for how slicing is rendered.

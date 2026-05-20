@@ -1,0 +1,54 @@
+---
+id: earn.withdrawals.caps-concept
+title: Withdrawal caps
+audience: public
+module: earn
+scope: withdrawals
+emit: once
+source_refs:
+  - .claude/rules/withdrawal-overflow.mdc
+  - src/modules/earn/api/withdrawal-overflow.ts
+  - src/modules/earn/hooks/useEarnUserOverflowSlices.ts
+last_reviewed: 2026-05-20
+---
+
+# Withdrawal caps
+
+A withdrawal cap is the maximum amount an Earn V2 Vault will pay out in a
+single epoch. The cap exists so each epoch's payout size is predictable,
+and so a single epoch cannot be drained beyond a safe fraction of the
+vault's holdings.
+
+The cap is set as a percentage of the vault's TVL net of amounts already
+paid out, and it is recomputed at the start of each epoch. If the prior
+epoch paid out its full cap, the next epoch's cap shrinks proportionally
+against the remaining TVL. If the prior epoch under-used its cap, the
+next epoch's cap is correspondingly larger.
+
+When the queued withdraw requests for an epoch fit within that epoch's
+cap, every request settles in its own epoch on the normal schedule. When
+the queued demand for an epoch exceeds the cap, the surplus is paid in
+the next epoch instead. A single request whose share amount is larger
+than the remaining cap is sliced across consecutive epochs. See
+[Withdrawal overflow](./overflow-concept) for how slicing is rendered.
+
+Not every vault has a cap. A cap applies when the vault's on-chain
+contract has a `withdrawalQueueThreshold` configured. The value, in basis
+points, is read from the contract and surfaced to the frontend through
+the Subgraph. Vaults without a configured threshold pay queued
+withdrawals without a per-epoch ceiling.
+
+When the cap is configured, the per-vault Withdrawal tab shows the cap
+in two places. The queue card shows a cap progress bar for the open
+epoch: how much of the current cap is already committed and how much
+remains. The withdraw form projects, before you submit, which epoch each
+portion of your request will settle in.
+
+If your request fits within the open epoch's remaining cap, the form
+shows a single settlement date. If your request exceeds the remaining
+cap, the form shows one date per slice, mapped to the epoch that will
+actually pay each portion. The total across slices reconstructs your
+original request.
+
+The cap and the cap-aware UI are tied to the vault. A cap on one vault
+does not affect any other vault.

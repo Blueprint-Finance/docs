@@ -1,0 +1,37 @@
+---
+id: earn.withdrawals.rc-config-concept
+title: Withdrawal schedule transitions
+audience: public
+module: earn
+scope: withdrawals
+emit: once
+source_refs:
+  - .claude/rules/withdrawal-epoch-cycles.mdc
+last_reviewed: 2026-05-20
+---
+
+# Withdrawal schedule transitions
+
+A vault's withdrawal cron schedule can change over time, for example
+moving from weekly to bi-weekly payouts. The release-candidate (RC)
+config makes those transitions predictable so existing requests are not
+silently re-paced.
+
+Every Earn V2 Vault may carry an optional release-candidate withdrawal
+config alongside its active config. The RC config has a `startingFrom`
+timestamp that marks the boundary at which the new schedule takes over.
+Epochs whose `startBlockTimestamp` is before `startingFrom` follow the
+previous schedule end-to-end: both their cutoff and their payout compute
+from the previous cron. Epochs whose `startBlockTimestamp` is at or
+after `startingFrom` follow the new schedule end-to-end. The schedule
+never changes mid-epoch. The transition boundary is always the start of
+an epoch.
+
+When the RC config is active or imminent, the Withdrawal Queue card may
+surface a "Learn more" link, set in the CMS as
+`withdrawalRcLearnMoreLink`, pointing to the operator's explainer for
+the specific change.
+
+Vaults without an RC config behave normally: the active config governs
+every epoch. See [Withdrawal epoch lifecycle](./epoch-cycle-concept) for
+how each epoch progresses under a single schedule.

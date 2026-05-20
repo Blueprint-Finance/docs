@@ -78,13 +78,30 @@
                 "group": "Overview",
                 "pages": [
                   "concepts/earn/vaults/address-whitelist",
-                  "concepts/earn/vaults/multi-address"
+                  "concepts/earn/vaults/deprecation-concept",
+                  "concepts/earn/vaults/dynamic-apy-concept",
+                  "concepts/earn/vaults/multi-address",
+                  "concepts/earn/vaults/permissioned-access-concept",
+                  "concepts/earn/vaults/versions"
+                ]
+              },
+              {
+                "group": "Depositing",
+                "pages": [
+                  "concepts/earn/deposits/disable-concept"
                 ]
               },
               {
                 "group": "Withdrawing",
                 "pages": [
-                  "concepts/earn/withdrawals/cancellation"
+                  "concepts/earn/withdrawals/cancellation",
+                  "concepts/earn/withdrawals/caps-concept",
+                  "concepts/earn/withdrawals/disable-concept",
+                  "concepts/earn/withdrawals/epoch-cycle-concept",
+                  "concepts/earn/withdrawals/overflow-concept",
+                  "concepts/earn/withdrawals/queue-and-delay",
+                  "concepts/earn/withdrawals/queue-position-concept",
+                  "concepts/earn/withdrawals/rc-config-concept"
                 ]
               },
               {
@@ -147,8 +164,7 @@
                 "expanded": false,
                 "pages": [
                   "public/tac/withdrawals/overview",
-                  "public/tac/withdrawals/depositing",
-                  "public/tac/withdrawals/withdrawing"
+                  "public/tac/withdrawals/depositing"
                 ]
               }
             ]
@@ -161,7 +177,6 @@
                 "expanded": false,
                 "pages": [
                   "public/isolated/isolated-wbtc/overview",
-                  "public/isolated/isolated-wbtc/depositing",
                   "public/isolated/isolated-wbtc/withdrawing"
                 ]
               },
@@ -170,7 +185,6 @@
                 "expanded": false,
                 "pages": [
                   "public/concrete/defi-finance-usdt/overview",
-                  "public/concrete/defi-finance-usdt/depositing",
                   "public/concrete/defi-finance-usdt/withdrawing"
                 ]
               },
@@ -179,7 +193,6 @@
                 "expanded": false,
                 "pages": [
                   "public/concrete/delta-weeth/overview",
-                  "public/concrete/delta-weeth/depositing",
                   "public/concrete/delta-weeth/withdrawing"
                 ]
               },
@@ -188,7 +201,6 @@
                 "expanded": false,
                 "pages": [
                   "public/waymont/royco-usdc/overview",
-                  "public/waymont/royco-usdc/depositing",
                   "public/waymont/royco-usdc/withdrawing"
                 ]
               },
@@ -196,9 +208,7 @@
                 "group": "WBTC Vault",
                 "expanded": false,
                 "pages": [
-                  "public/isolated/isolated-wbtc-balance-placeholder/overview",
-                  "public/isolated/isolated-wbtc-balance-placeholder/depositing",
-                  "public/isolated/isolated-wbtc-balance-placeholder/withdrawing"
+                  "public/isolated/isolated-wbtc-balance-placeholder/overview"
                 ]
               }
             ]
@@ -211,7 +221,6 @@
                 "expanded": false,
                 "pages": [
                   "public/demo/arbitrum/overview",
-                  "public/demo/arbitrum/depositing",
                   "public/demo/arbitrum/withdrawing"
                 ]
               },
@@ -220,7 +229,6 @@
                 "expanded": false,
                 "pages": [
                   "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/overview",
-                  "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/depositing",
                   "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/withdrawing"
                 ]
               },
@@ -228,9 +236,7 @@
                 "group": "USDC Yield",
                 "expanded": false,
                 "pages": [
-                  "public/test/usdc-yield/overview",
-                  "public/test/usdc-yield/depositing",
-                  "public/test/usdc-yield/withdrawing"
+                  "public/test/usdc-yield/overview"
                 ]
               }
             ]
@@ -243,7 +249,6 @@
                 "expanded": false,
                 "pages": [
                   "public/frax/frxusd/overview",
-                  "public/frax/frxusd/depositing",
                   "public/frax/frxusd/withdrawing"
                 ]
               }
@@ -256,9 +261,7 @@
                 "group": "Arbitrum Drip Vault",
                 "expanded": false,
                 "pages": [
-                  "public/isolated/isolated-arbitrum/overview",
-                  "public/isolated/isolated-arbitrum/depositing",
-                  "public/isolated/isolated-arbitrum/withdrawing"
+                  "public/isolated/isolated-arbitrum/overview"
                 ]
               },
               {
@@ -266,17 +269,14 @@
                 "expanded": false,
                 "pages": [
                   "public/berabaddies/earn/overview",
-                  "public/berabaddies/earn/depositing",
-                  "public/berabaddies/earn/withdrawing"
+                  "public/berabaddies/earn/depositing"
                 ]
               },
               {
                 "group": "Berachain BERA",
                 "expanded": false,
                 "pages": [
-                  "public/berachain/bera/overview",
-                  "public/berachain/bera/depositing",
-                  "public/berachain/bera/withdrawing"
+                  "public/berachain/bera/overview"
                 ]
               },
               {
@@ -284,26 +284,21 @@
                 "expanded": false,
                 "pages": [
                   "public/berachain/bitcoin/overview",
-                  "public/berachain/bitcoin/depositing",
-                  "public/berachain/bitcoin/withdrawing"
+                  "public/berachain/bitcoin/depositing"
                 ]
               },
               {
                 "group": "Berachain Ethereum",
                 "expanded": false,
                 "pages": [
-                  "public/berachain/ethereum/overview",
-                  "public/berachain/ethereum/depositing",
-                  "public/berachain/ethereum/withdrawing"
+                  "public/berachain/ethereum/overview"
                 ]
               },
               {
                 "group": "Berachain Stables",
                 "expanded": false,
                 "pages": [
-                  "public/berachain/stables/overview",
-                  "public/berachain/stables/depositing",
-                  "public/berachain/stables/withdrawing"
+                  "public/berachain/stables/overview"
                 ]
               },
               {
@@ -320,8 +315,7 @@
                 "expanded": false,
                 "pages": [
                   "public/berachain/boyco/overview",
-                  "public/berachain/boyco/depositing",
-                  "public/berachain/boyco/withdrawing"
+                  "public/berachain/boyco/depositing"
                 ]
               },
               {
@@ -329,8 +323,7 @@
                 "expanded": false,
                 "pages": [
                   "public/corn/btc/overview",
-                  "public/corn/btc/depositing",
-                  "public/corn/btc/withdrawing"
+                  "public/corn/btc/depositing"
                 ]
               },
               {
@@ -338,8 +331,7 @@
                 "expanded": false,
                 "pages": [
                   "public/corn/usdt/overview",
-                  "public/corn/usdt/depositing",
-                  "public/corn/usdt/withdrawing"
+                  "public/corn/usdt/depositing"
                 ]
               },
               {
@@ -365,8 +357,7 @@
                 "expanded": false,
                 "pages": [
                   "public/movement/frax/overview",
-                  "public/movement/frax/depositing",
-                  "public/movement/frax/withdrawing"
+                  "public/movement/frax/depositing"
                 ]
               },
               {
@@ -374,35 +365,28 @@
                 "expanded": false,
                 "pages": [
                   "public/katana/ausd/overview",
-                  "public/katana/ausd/depositing",
-                  "public/katana/ausd/withdrawing"
+                  "public/katana/ausd/depositing"
                 ]
               },
               {
                 "group": "Morph AUSD",
                 "expanded": false,
                 "pages": [
-                  "public/morph/ausd/overview",
-                  "public/morph/ausd/depositing",
-                  "public/morph/ausd/withdrawing"
+                  "public/morph/ausd/overview"
                 ]
               },
               {
                 "group": "Morph BGB",
                 "expanded": false,
                 "pages": [
-                  "public/morph/bgb/overview",
-                  "public/morph/bgb/depositing",
-                  "public/morph/bgb/withdrawing"
+                  "public/morph/bgb/overview"
                 ]
               },
               {
                 "group": "Morph Ethena",
                 "expanded": false,
                 "pages": [
-                  "public/morph/ethena/overview",
-                  "public/morph/ethena/depositing",
-                  "public/morph/ethena/withdrawing"
+                  "public/morph/ethena/overview"
                 ]
               },
               {
@@ -410,8 +394,7 @@
                 "expanded": false,
                 "pages": [
                   "public/morph/majors/overview",
-                  "public/morph/majors/depositing",
-                  "public/morph/majors/withdrawing"
+                  "public/morph/majors/depositing"
                 ]
               },
               {
@@ -419,35 +402,28 @@
                 "expanded": false,
                 "pages": [
                   "public/morph/weeth/overview",
-                  "public/morph/weeth/depositing",
-                  "public/morph/weeth/withdrawing"
+                  "public/morph/weeth/depositing"
                 ]
               },
               {
                 "group": "Morpho Bitcoin",
                 "expanded": false,
                 "pages": [
-                  "public/morpho/btc/overview",
-                  "public/morpho/btc/depositing",
-                  "public/morpho/btc/withdrawing"
+                  "public/morpho/btc/overview"
                 ]
               },
               {
                 "group": "Morpho Ethereum",
                 "expanded": false,
                 "pages": [
-                  "public/morpho/eth/overview",
-                  "public/morpho/eth/depositing",
-                  "public/morpho/eth/withdrawing"
+                  "public/morpho/eth/overview"
                 ]
               },
               {
                 "group": "Morpho USD",
                 "expanded": false,
                 "pages": [
-                  "public/morpho/usd/overview",
-                  "public/morpho/usd/depositing",
-                  "public/morpho/usd/withdrawing"
+                  "public/morpho/usd/overview"
                 ]
               },
               {
@@ -481,9 +457,7 @@
                 "group": "sEIGEN",
                 "expanded": false,
                 "pages": [
-                  "public/seigen/seigen-vault/overview",
-                  "public/seigen/seigen-vault/depositing",
-                  "public/seigen/seigen-vault/withdrawing"
+                  "public/seigen/seigen-vault/overview"
                 ]
               },
               {
@@ -491,7 +465,6 @@
                 "expanded": false,
                 "pages": [
                   "public/stable/usdt/overview",
-                  "public/stable/usdt/depositing",
                   "public/stable/usdt/withdrawing"
                 ]
               },
@@ -500,7 +473,6 @@
                 "expanded": false,
                 "pages": [
                   "public/isolated/isolated-stable/overview",
-                  "public/isolated/isolated-stable/depositing",
                   "public/isolated/isolated-stable/withdrawing"
                 ]
               },
@@ -509,7 +481,6 @@
                 "expanded": false,
                 "pages": [
                   "public/theo/theo-thbill-arbitrum/overview",
-                  "public/theo/theo-thbill-arbitrum/depositing",
                   "public/theo/theo-thbill-arbitrum/withdrawing"
                 ]
               },
@@ -518,7 +489,6 @@
                 "expanded": false,
                 "pages": [
                   "public/theo/theo-thbill-stable/overview",
-                  "public/theo/theo-thbill-stable/depositing",
                   "public/theo/theo-thbill-stable/withdrawing"
                 ]
               },
@@ -527,7 +497,6 @@
                 "expanded": false,
                 "pages": [
                   "public/theo/theo-usdc/overview",
-                  "public/theo/theo-usdc/depositing",
                   "public/theo/theo-usdc/withdrawing"
                 ]
               },
@@ -536,7 +505,6 @@
                 "expanded": false,
                 "pages": [
                   "public/theo/theo-usdc-arbitrum/overview",
-                  "public/theo/theo-usdc-arbitrum/depositing",
                   "public/theo/theo-usdc-arbitrum/withdrawing"
                 ]
               },
@@ -544,9 +512,7 @@
                 "group": "USDai DEX & MM",
                 "expanded": false,
                 "pages": [
-                  "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/overview",
-                  "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/depositing",
-                  "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/withdrawing"
+                  "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/overview"
                 ]
               }
             ]

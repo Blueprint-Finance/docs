@@ -3,82 +3,26 @@ title: "Berachain Bitcoin — Overview"
 sidebarTitle: "Overview"
 ---
 
-## Vault deprecation
-
-A deprecated vault remains visible and operational for existing holders but
-is no longer promoted as a destination for new capital.
-
-
-- The vault is rendered with a deprecation indicator.
-- The expected user action is to withdraw remaining funds; deposits may also
-  be disabled (see [Deposit disable](depositing#deposit-disable)).
-- The vault still appears on the Earn surface so users with a position can
-  reach it; it is not removed from listings while deprecated.
+This vault is deprecated. Deposits may be disabled; existing holders can still withdraw. [Read more about vault deprecation](/concepts/earn/vaults/deprecation-concept#vault-deprecation).
 
 
 
-When a vault group is marked deprecated, deprecation propagates down to
-every vault in that group — each vault behaves as if individually marked
-deprecated, even if its own flag is unset.
+This vault is in a deprecated group. [Read more about vault deprecation](/concepts/earn/vaults/deprecation-concept#vault-deprecation).
 
-
-Deprecation is a CMS-controlled product decision, not a contract state. A
-vault that is deprecated in the UI may still be fully functional on-chain.
-
-## Dynamic APY display
-
-The vault's headline APY can be sourced either from a static CMS-pinned
-target (`aprTarget`) or computed dynamically from on-chain and subgraph
-data.
-
-
-
-
-The headline APY is the value pinned in the CMS (`aprTarget`). It is stable
-between CMS updates and does not reflect short-term yield fluctuations.
-
-## Permissioned vault access
-
-
-
-
-The vault is open to any wallet. No allowlist applies.
-
-
-Permissioning is a property of the deployed contract; the CMS flag exists so
-the UI can render the correct affordances without round-tripping a
-permission check for every visitor.
-
-## Vault versions (v1 and v2)
-
-Vaults exist in two contract generations. The CMS field `vaultVersion`
-selects which generation a vault belongs to, and the UI adapts accordingly.
-
-
-
-
-This vault is **v1**, the legacy generation. v1 vaults are **synchronous**: a
-withdraw transaction returns the underlying asset in the same call, provided
-the vault holds enough liquidity. There is no queue, no epoch, and no cap
-concept. v1 is no longer used for new launches and the remaining v1
-deployments are being migrated forward.
-
-
-Users typically do not need to think about the version — the UI surfaces the
-correct deposit and withdraw affordances per vault.
-
-For deeper detail on the contract architecture, see the smart-contract
-repository's documentation in Mintlify.
-
-## Vault and group visibility
-
-Two independent CMS flags control whether a vault or its parent group
-appears on the Earn surface in production.
+## Dynamic APY calculation
 
 
 
 
 
-Visibility is layered with the address whitelist: even a card-visible vault
-will be dropped if none of its contract addresses are whitelisted in
-production. See `src/modules/earn/content/index.tsx` for the whitelist.
+### Institutional APY
+
+This vault uses an institutional APY. The strategy or the allocated
+assets are operated by Partners, so the headline cannot be assessed
+dynamically the same way as a Concrete-run strategy. Instead the headline
+shows the pinned target rate (`aprTarget` in the CMS).
+
+The displayed APY is stable between CMS updates and changes only when
+Concrete updates the target value. It is intended to represent the rate
+the Partner has communicated for the strategy, not a live measurement of
+recent on-chain performance.

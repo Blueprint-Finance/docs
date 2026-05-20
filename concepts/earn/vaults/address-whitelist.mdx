@@ -1,12 +1,10 @@
 ---
 id: earn.vaults.address-whitelist
-title: Vault address whitelist
+title: Vault rendering controls
 audience: public
 module: earn
 scope: vaults
 gates: []
-related:
-  - earn.vaults.visibility
 source_refs:
   - src/modules/earn/content/index.tsx
   - src/core/utils/storyblok.ts
@@ -14,23 +12,51 @@ emit: once
 last_reviewed: 2026-05-20
 ---
 
-# Vault address whitelist
+# Vault rendering controls
 
-The Earn app does not blindly trust the CMS. Before any vault is rendered
-to users in production, every contract address attached to it must pass a
-**maintained allowlist** of vaults known to the team.
+Before any vault renders to users in production, Concrete applies layered
+rendering controls so an accidental CMS change or an unreviewed vault
+story cannot expose untrusted contracts. The same controls also let
+Concrete preview new vaults end-to-end in non-production environments
+without affecting the production surface.
+
+## Address allowlist
+
+Every contract address attached to a vault story must appear on the
+maintained address allowlist before that vault story renders on the
+production Earn surface. Adding a vault story in the CMS is not enough
+on its own; the allowlist is reviewed as part of the vault release
+process and acts as a safety floor against accidental or malicious CMS
+edits.
 
 What this means in practice:
 
-- Adding a vault story in the CMS is not, on its own, enough to expose the
-  vault to users. Until the vault's addresses are on the allowlist, the
-  vault is silently excluded from the production Earn surface.
-- The allowlist is reviewed and updated as part of the vault release
-  process. It is intended as a safety floor against accidental or
-  malicious CMS changes, not as the primary access-control mechanism.
+- Until a vault's addresses are on the allowlist, the vault is silently
+  excluded from the production Earn surface.
+- The allowlist is intended as a safety floor, not as the primary
+  access-control mechanism for any specific user.
 - Non-production environments and draft mode bypass the allowlist so the
   team can preview new vaults end-to-end before promoting them.
 
-Users do not interact with the allowlist directly. Its only observable
+## Visibility flags
+
+A vault story may also be flagged in two ways at the CMS level:
+
+- `hiddenCard` on the vault. The vault does not appear as a card on the
+  Earn landing, but the per-vault page remains reachable by direct link.
+  Use this to surface a vault that should not be marketed but is still
+  operational for known holders.
+- `hidden` on the parent group. The group and every vault inside it are
+  excluded from the Earn landing in production. Hidden groups remain
+  visible in draft mode and isolated environments so they can be
+  reviewed before promotion.
+
+These flags are presentation controls layered on top of the address
+allowlist. A card-visible vault still drops from production if its
+contract addresses are not on the allowlist; conversely, an allowlisted
+vault that is flagged `hiddenCard` is allowed by the safety floor but
+presented as unlisted.
+
+You do not interact with either layer directly. The only observable
 effect is that a vault becomes available on the Earn surface once it has
-been reviewed.
+been reviewed and approved for production.

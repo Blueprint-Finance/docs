@@ -1,0 +1,40 @@
+---
+id: earn.withdrawals.queue-position-concept
+title: Queue position
+audience: public
+module: earn
+scope: withdrawals
+emit: once
+source_refs:
+  - .claude/rules/withdrawal-overflow.mdc
+last_reviewed: 2026-05-20
+---
+
+# Queue position
+
+A queue position is the FIFO place a withdrawal request holds in line for
+payout. Position `1` means the request is next to be paid, and larger
+numbers sit further back.
+
+For vaults without a configured cap, every request queues into its native
+epoch. The position is the FIFO place inside that epoch's queue, counted
+across all requesters. When the epoch's payout runs, every request in
+that epoch settles at the same time: there is no per-request slicing, and
+the position only changes as earlier epochs complete.
+
+For vaults with a cap configured, the position accounts for overflow from
+earlier epochs. Slices that overflowed from a previous epoch are paid
+first in the next epoch's queue, so a fresh request submitted in that
+new epoch sits behind those earlier slices and its position reflects
+that ordering. See [Withdrawal overflow](./overflow-concept) and
+[Withdrawal caps](./caps-concept) for how the cap and slicing are
+computed.
+
+A request that itself overflows is sliced across multiple epochs. Each
+slice carries its own queue position within the epoch that will settle
+it, and slices of one request are not paid simultaneously. End-to-end,
+position `1` across the vault is always the next slice that will pay.
+
+In the UI, the Withdrawal Queue card displays the position next to each
+request, or next to each slice when a request is split. The position
+updates as earlier requests settle and the queue advances.

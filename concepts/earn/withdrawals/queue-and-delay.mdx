@@ -1,0 +1,43 @@
+---
+id: earn.withdrawals.queue-and-delay
+title: Withdrawal queue and delay
+audience: public
+module: earn
+scope: withdrawals
+emit: once
+source_refs:
+  - src/core/utils/storyblok.ts
+  - .claude/rules/withdrawal-epoch-cycles.mdc
+  - src/modules/earn/hooks/useNextQueueDate.ts
+last_reviewed: 2026-05-20
+---
+
+# Withdrawal queue and delay
+
+An Earn V2 Vault settles withdrawals asynchronously. When a user submits a
+withdraw request, the request is added to the open epoch's queue and is
+paid out at that epoch's payout. The interval between submission and
+payout is the withdrawal delay.
+
+What the user is promised:
+
+- The request is recorded on submission with a queue place (oldest = 1).
+- The request is paid out at the next payout that falls after the
+  epoch's cutoff, subject to any cap rules (see
+  [Withdrawal caps](./caps-concept)).
+- Until paid, the request can be cancelled by the user; once cancelled
+  it releases the user's share balance.
+
+The duration of the delay is communicated to the user in three forms:
+
+- The CMS field `withdrawalQueueDelay`, a human-readable summary
+  (for example, "up to 7 days") shown in the queue card prose.
+- The CMS field `withdrawalQueueDescription`, an optional rich-text
+  override for vaults whose schedule needs extra explanation.
+- The dynamically computed next payout date, derived from the vault's
+  withdrawal cron and current epoch (see
+  [Epoch lifecycle](./epoch-cycle-concept)).
+
+The summary and description are editorial copy. The dynamic date is the
+load-bearing value: it determines when assets actually become claimable
+for a given request.

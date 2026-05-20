@@ -1,0 +1,39 @@
+---
+id: earn.vaults.permissioned-access-concept
+title: Permissioned vault access
+audience: public
+module: earn
+scope: vaults
+emit: once
+source_refs:
+  - src/core/utils/storyblok.ts
+last_reviewed: 2026-05-20
+---
+
+# Permissioned vault access
+
+A permissioned vault follows a deposit allowlist defined at the contract
+level. Only addresses on that list can deposit.
+
+## Mechanics
+
+- The contract maintains the allowlist on-chain.
+- The contract rejects any deposit transaction from an address not on the
+  allowlist; the transaction reverts.
+- The UI mirrors the constraint by surfacing a restricted-access state to
+  unauthorised wallets, so you do not sign a transaction that would revert.
+
+For wallets on the allowlist, the deposit and withdrawal flows are identical
+to a non-permissioned vault. Nothing about post-deposit handling differs.
+
+## Where the flag lives
+
+The permissioning is a property of the deployed contract and is not
+toggleable from the CMS. The CMS carries a `permissioned` flag so the UI can
+render the correct affordances on first paint without round-tripping a
+per-visitor allowlist lookup.
+
+## Behaviour relative to other vault features
+
+Deposit limits, withdrawal queueing, APY calculation, and deprecation all
+behave the same as on a non-permissioned vault of the same version.

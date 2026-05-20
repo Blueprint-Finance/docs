@@ -1,0 +1,144 @@
+---
+id: earn.deposits.disable-concept
+title: Depositing into a vault
+audience: public
+module: earn
+scope: deposits
+emit: once
+source_refs:
+  - src/modules/earn/pages/EarnVaultPage/components/vault-supply/index.tsx
+  - src/modules/earn/hooks/useCrossChainDeposit.ts
+  - src/modules/earn/hooks/useCrossChainProgress.ts
+  - src/modules/earn/hooks/useEnsoCrossChainRoute.ts
+last_reviewed: 2026-05-20
+---
+
+# Depositing into a vault
+
+A Concrete Vault accepts capital in several ways depending on the token you
+hold and the chain you hold it on. The deposit surface adapts to your wallet:
+the same vault may present a direct deposit, a wrapped-asset deposit, a
+same-chain swap, or a cross-chain route, and the UI hides paths that do not
+apply to your selection.
+
+## Direct deposit
+
+The default path. You select the vault's underlying asset, enter an amount,
+and confirm. The vault contract holds the asset and issues vault shares to
+you. A standard ERC-20 approval is required before the first deposit; later
+deposits reuse the existing allowance until it is exhausted.
+
+## Wrapped deposit
+
+When the underlying is a wrapped token (for example WETH) and you hold the
+native asset (ETH), the UI offers a single-step "Wrap and Deposit" flow that
+wraps then deposits in one action. You pay one approval and one deposit
+transaction.
+
+## Swap deposit (same network)
+
+When you hold an unrelated token on the vault's chain, the UI can route
+through Enso to swap into the underlying and then deposit. The quote
+includes price impact and a gas estimate before you sign. Token availability
+is bounded by Enso route coverage for the source token on that network, so
+some assets may appear in your wallet without appearing in the deposit
+selector.
+
+## Cross-chain deposit
+
+When you hold a token on a chain different from the vault's chain, the UI
+routes through Enso and LayerZero. Concrete uses LayerZero as the cross-chain
+messaging primitive (see [LayerZero messaging](../cross-chain/layerzero-messaging)
+for the protocol-level detail).
+
+Mechanics:
+
+- The source-chain transaction approves and swaps your token into the format
+  expected by the destination vault.
+- LayerZero carries the message from the source chain to the vault's chain.
+- The destination chain receives the assets and deposits them into the
+  vault.
+
+What the UI surfaces while a cross-chain deposit is in flight:
+
+- A per-transaction progress timeline that tracks the source-chain
+  transaction, the LayerZero message, and the destination-chain receipt.
+- The LayerZero fee included in the source-chain quote. The UI applies a
+  small safety buffer so transient gas-price movement on the source chain
+  does not cause the source transaction to revert before the message
+  dispatches.
+
+Token availability for cross-chain deposits is the intersection of two
+layers: the CMS configuration for that vault (which tokens Concrete supports
+for that vault as cross-chain sources), and Enso route availability for your
+specific token and amount. The selector surfaces only routes that satisfy
+both.
+
+## Pre-deposit Vaults
+
+A v2 pre-deposit Vault accepts deposits on a source chain before the
+destination vault is live on its target chain. The LayerZero claim moves the
+position once the destination vault opens (see
+[Pre-deposit claim](../cross-chain/pre-deposit-claim)).
+
+## Confirmations the UI requires before submitting
+
+**Mixed-chain ownership confirmation.** When the destination chain differs
+from the source chain, you confirm that you control the same address on the
+destination chain. This matters because smart-contract wallets are not
+guaranteed to exist at the same address on every chain, and shares delivered
+to an address you cannot control on the destination chain are not
+recoverable from the UI.
+
+**Withdrawal-delay acceptance.** For an Earn V2 vault with a per-epoch
+withdrawal cap configured, you accept that the withdrawal delay may extend
+beyond the nominal cycle when queued demand exceeds the cap (see
+[Withdrawal caps](../withdrawals/caps-concept) and
+[Withdrawal overflow](../withdrawals/overflow-concept)). The acceptance is
+shown only when an amount is entered and the vault carries a configured
+queue threshold.
+
+## Deposit limits
+
+A vault may carry a deposit cap, a minimum deposit amount, or a remaining
+headroom value that shrinks as other depositors fill the cap. The UI
+surfaces the cap as a progress bar against the vault's underlying asset
+total, and validates your input against the minimum and remaining values
+before the deposit button enables.
+
+When the deposit amount in underlying terms would exceed the remaining
+headroom, the form raises an over-limit error. When the amount sits below
+the configured minimum, the form raises an under-limit error. Both checks
+operate on the deposit amount in the vault's underlying decimals, even for
+Enso routes where the input token has different decimals.
+
+## Permissioned vaults
+
+Vaults with an on-chain deposit allowlist reject deposits from addresses
+that are not on the list. The UI mirrors this constraint and shows a
+restricted-access state to unauthorised wallets, so you do not sign a
+transaction that would revert (see
+[Permissioned vault access](../vaults/permissioned-access)).
+
+## Vault state messages
+
+A vault may be bridging, paused, deprecated, or at its deposit limit. Each
+state surfaces a message and adjusts the deposit affordance accordingly.
+Deposits are not available while a vault is paused or bridging. A deprecated
+vault may continue to surface its message as a fallback when no other state
+applies.
+
+## Disabled deposits
+
+When a vault disables deposits, the deposit form is hidden or rendered in a
+disabled state. Existing positions are unaffected. You can still withdraw,
+claim, and read state.
+
+Disabling deposits is the standard mechanism for:
+
+- Soft-closing a vault before deprecation.
+- Freezing a vault prior to a migration.
+- Responding to a temporary external constraint.
+
+Deposit disable is independent of withdrawal disable. A vault commonly has
+deposits disabled while withdrawals remain enabled.

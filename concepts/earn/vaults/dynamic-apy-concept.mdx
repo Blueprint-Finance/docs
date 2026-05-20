@@ -1,0 +1,55 @@
+---
+id: earn.vaults.dynamic-apy-concept
+title: Dynamic APY calculation
+audience: public
+module: earn
+scope: vaults
+emit: once
+source_refs:
+  - src/core/queries/earn/query/useVaultApyDetails.ts
+last_reviewed: 2026-05-20
+---
+
+# Dynamic APY calculation
+
+A Concrete vault's headline APY is computed from live data so the figure
+reflects recent strategy performance. The number you see on the vault card
+and on the vault page is derived from the vault's own activity, not a value
+hard-coded in the CMS.
+
+## Inputs to the calculation
+
+Two sources feed the dynamic APY:
+
+- On-chain accrual recorded by the vault contract, which captures how
+  share value has moved as the strategy earned yield.
+- A subgraph-indexed performance history over a recent window, which
+  smooths short-lived spikes and provides the series used to derive an
+  annualised rate.
+
+The two inputs combine into a current annualised yield. The figure
+refreshes between visits and reflects the most recently observed
+performance.
+
+## Relationship to `aprTarget`
+
+A pinned `aprTarget` value from the CMS may still exist on the vault.
+Under dynamic APY, `aprTarget` is supplementary context (for example, the
+target the strategy was launched with) and is not used as the headline.
+The headline is always derived from the live calculation when dynamic APY
+is enabled.
+
+## When dynamic APY is not enabled
+
+For vaults where dynamic APY is not enabled, the headline shows the pinned
+`aprTarget` value instead and is stable between CMS updates. The
+pinned-value path is documented in the per-vault Institutional APY
+section; see the per-vault [dynamic-apy](./dynamic-apy) page for vaults
+where it applies.
+
+## Historical chart
+
+A historical APY chart may render on the vault page independently of the
+headline-APY source. The presence of the chart is controlled by a
+separate flag, so a vault can show a chart without enabling dynamic APY
+and the reverse is also possible.
