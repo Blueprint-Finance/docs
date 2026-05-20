@@ -15,17 +15,18 @@ last_reviewed: 2026-05-20
 
 # Bridge and withdrawal ETAs
 
-Some vault flows complete asynchronously across chains — bridging assets
+Some vault flows complete asynchronously across chains. Bridging assets
 into a destination chain, or finalising a withdrawal that involves an
-off-chain settlement step. When the timing of these steps is not yet
-visible on-chain, the CMS pins a forward-looking ETA so the UI can
-communicate expectations.
+off-chain settlement step, can take time beyond the originating
+transaction. When the timing of these steps is not yet visible on-chain,
+the CMS pins a forward-looking ETA so the UI can communicate
+expectations.
 
 Two ETA fields are surfaced:
 
-- **`bridgeEta`** — When the cross-chain bridge step of a deposit or
+- **`bridgeEta`**: when the cross-chain bridge step of a deposit or
   migration is expected to complete. Used while assets are in flight.
-- **`withdrawalEta`** — When a withdrawal milestone (typically the
+- **`withdrawalEta`**: when a withdrawal milestone (typically the
   destination-chain settlement) is expected to be reachable.
 
 ETAs are editorial promises sourced from the operations team. They are
