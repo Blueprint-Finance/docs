@@ -1,0 +1,45 @@
+---
+title: "Concrete Earn Vaults: Automated DeFi Yield Strategies"
+sidebarTitle: "Overview"
+description: "Deposit once and earn institutional-grade, risk-adjusted yield. Concrete vaults automate allocation, rebalancing, and compounding across DeFi."
+---
+
+Concrete Earn Vaults are automated yield strategies that put your crypto assets to work across DeFi without requiring you to monitor markets, rebalance positions, or understand protocol mechanics. You deposit once, and Concrete's vault engine handles everything: allocation across lending markets, liquidity pools, and restaking layers; continuous rebalancing toward the best risk-adjusted opportunities; and automated compounding of rewards. Three vaults are live today, each built on the same audited, institutional-grade infrastructure.
+
+## Live vaults
+
+<CardGroup cols={3}>
+  <Card title="WBTC Vault" icon="bitcoin">
+    Earn yield on wrapped Bitcoin through lending markets, DEX liquidity, and delta-neutral strategies — without bridge exposure or manual farming. Depositors earn yield, strategy-specific incentives, and Concrete Points.
+  </Card>
+  <Card title="sEIGEN Vault" icon="layers">
+    Deposit EIGEN and access EigenLayer restaking across active validator services (AVSs). Concrete's quantitative models evaluate slashing risk, AVS performance, and reward structures so you don't have to.
+  </Card>
+  <Card title="Stable Vault" icon="circle-dollar-sign">
+    Earn across stablecoin strategies with over $825M in TVL managed to date. The vault routes stablecoin deposits to the highest-yielding opportunities and rebalances continuously as market conditions shift.
+  </Card>
+</CardGroup>
+
+## Why Concrete vaults differ from manual DeFi farming
+
+Manual yield farming requires searching dozens of protocols, monitoring APYs, rebalancing positions, paying gas on every action, managing impermanent loss, and reacting to risk around the clock. Concrete replaces that entire workflow with a single deposit.
+
+Several design choices separate Concrete vaults from simpler yield aggregators:
+
+**Institutional quant models.** Concrete's Quantitative Framework — developed over more than a decade across traditional finance and digital assets — forecasts volatility, correlation, and regime shifts. The vault targets real, risk-adjusted yield rather than chasing headline APY numbers driven by token incentives.
+
+**Audited, modular architecture.** All vaults run on a fully modular smart-contract system audited by Halborn and Zellic. The architecture avoids storage collisions and upgrade risks common in legacy contract patterns.
+
+**Active management.** Vaults don't park capital in one place. Capital moves continuously between yield strategies as conditions change — shifting toward better opportunities and pulling back from underperforming ones.
+
+**Role-based automation (Earn V2).** Vault Manager, Allocator, Strategy Manager, and Hook Manager roles separate high-impact governance decisions from routine daily operations, so withdrawals and rebalancing execute without delay while large structural changes remain under tighter oversight.
+
+**Independent oversight.** TRES provides continuous accounting reconciliation. Hypernative delivers real-time monitoring and policy enforcement across all vault operations.
+
+<Note>
+  Yield rates are not guaranteed and may fluctuate based on market conditions, strategy allocations, and protocol performance. Past performance is not indicative of future results. All strategies involve risk, including possible loss of principal.
+</Note>
+
+## How to get started
+
+Visit [app.concrete.xyz/earn](https://app.concrete.xyz/earn), connect your wallet, select a vault, and deposit. You will receive `ct[Asset]` tokens representing your share of the vault. See [Depositing](/vaults/depositing) for a full walkthrough.

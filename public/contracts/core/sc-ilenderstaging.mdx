@@ -1,0 +1,75 @@
+---
+id: 'sc-ilenderstaging'
+title: 'ILenderStaging'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/ILenderStaging.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'lending-integration'
+---
+
+## ILenderStaging
+
+Interface for staging collateral at the lender module before it is engaged as
+        supplied collateral. Allows depositors to park collateral, then either engage
+        it (supply to the lender) or send it back to the vault/admin.
+
+### stage
+
+```solidity
+function stage(uint256 amount) external
+```
+
+Stages `amount` of collateral by pulling it from the caller into the lender module.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of collateral token to stage. |
+
+### staged
+
+```solidity
+function staged() external view returns (uint256)
+```
+
+Returns the amount of collateral currently staged but not yet engaged.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The staged collateral amount. |
+
+### engage
+
+```solidity
+function engage(uint256 amount) external
+```
+
+Engages `amount` of staged collateral by supplying it to the underlying lender.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of staged collateral to engage. |
+
+### send
+
+```solidity
+function send(uint256 amount) external
+```
+
+Sends `amount` of staged collateral to either the vault or the admin.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of staged collateral to send. |
+

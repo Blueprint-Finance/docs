@@ -1,0 +1,26 @@
+---
+id: api-overview
+title: Backend API Overview
+audience: public
+module: backend
+scope: api
+gates: []
+source_refs:
+  - cb_earn-apy/src/bin/servers/apy
+  - cb_price-oracle-v2/src/bin/servers/rest
+last_reviewed: 2026-05-17
+---
+
+The Concrete Backend exposes two publicly callable HTTP services. Each spec
+is regenerated from the Rust source by `scripts/gen-openapi-specs.sh`; CI
+fails if a committed spec is stale.
+
+| Service | Spec | Source crate |
+|---|---|---|
+| Earn APY | `specs/earn-apy.json` | `cb_earn-apy` (`earn_apy_server`) |
+| Price Oracle v2 | `specs/price-oracle-v2.json` | `cb_price-oracle-v2` (`price_oracle_v2_server`) |
+
+The Earn Build API (`earn_build_server`) is **not** public — every endpoint
+is behind Clerk auth (enterprise-only). Its specs live under
+[`../../internal/api/`](../../internal/api/) and are excluded from this
+navigation.

@@ -1,0 +1,176 @@
+---
+id: 'sc-ihook'
+title: 'IHook'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IHook.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'vault-hooks'
+---
+
+## Hooks
+
+_Hook configuration recorded by the vault: the target contract implementing `IHook`
+     and a flag bitfield indicating which of the pre/post hooks the target wishes to receive._
+
+```solidity
+struct Hooks {
+  address target;
+  uint96 flags;
+}
+```
+
+## IHook
+
+Optional pre/post action hook surface invoked by the vault around deposit, mint,
+        withdraw, and redeem operations.
+
+_Hook contracts are registered via `setHooks` on the vault. Each call carries the
+     pre-operation `totalAssets` of the vault so hooks can perform supply/price checks
+     without recomputing it. Hooks may revert to block the underlying ERC-4626 operation._
+
+### preDeposit
+
+```solidity
+function preDeposit(address sender, uint256 assets, address receiver, uint256 totalAssets) external
+```
+
+Invoked before a deposit is executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller initiating the deposit. |
+| assets | uint256 | The asset amount being deposited. |
+| receiver | address | The address that will receive the minted shares. |
+| totalAssets | uint256 | The vault's `totalAssets()` evaluated before the deposit. |
+
+### preMint
+
+```solidity
+function preMint(address sender, uint256 shares, address receiver, uint256 totalAssets) external
+```
+
+Invoked before a mint is executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller initiating the mint. |
+| shares | uint256 | The amount of shares being minted. |
+| receiver | address | The address that will receive the minted shares. |
+| totalAssets | uint256 | The vault's `totalAssets()` evaluated before the mint. |
+
+### preWithdraw
+
+```solidity
+function preWithdraw(address sender, uint256 assets, address receiver, address owner, uint256 totalAssets) external
+```
+
+Invoked before a withdraw is executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller initiating the withdraw. |
+| assets | uint256 | The asset amount being withdrawn. |
+| receiver | address | The address that will receive the assets. |
+| owner | address | The share owner whose shares will be burned. |
+| totalAssets | uint256 | The vault's `totalAssets()` evaluated before the withdraw. |
+
+### preRedeem
+
+```solidity
+function preRedeem(address sender, uint256 shares, address receiver, address owner, uint256 totalAssets) external
+```
+
+Invoked before a redeem is executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller initiating the redeem. |
+| shares | uint256 | The amount of shares being redeemed. |
+| receiver | address | The address that will receive the assets. |
+| owner | address | The share owner whose shares will be burned. |
+| totalAssets | uint256 | The vault's `totalAssets()` evaluated before the redeem. |
+
+### postDeposit
+
+```solidity
+function postDeposit(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) external
+```
+
+Invoked after a deposit has been executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller that initiated the deposit. |
+| assets | uint256 | The asset amount that was deposited. |
+| shares | uint256 | The amount of shares that were minted. |
+| receiver | address | The address that received the minted shares. |
+| totalAssets | uint256 | The vault's `totalAssets()` evaluated after the deposit. |
+
+### postMint
+
+```solidity
+function postMint(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) external
+```
+
+Invoked after a mint has been executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller that initiated the mint. |
+| assets | uint256 | The asset amount that was pulled from the caller. |
+| shares | uint256 | The amount of shares that were minted. |
+| receiver | address | The address that received the minted shares. |
+| totalAssets | uint256 | The vault's `totalAssets()` evaluated after the mint. |
+
+### postWithdraw
+
+```solidity
+function postWithdraw(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) external
+```
+
+Invoked after a withdraw has been executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller that initiated the withdraw. |
+| assets | uint256 | The asset amount that was withdrawn. |
+| shares | uint256 | The amount of shares that were burned. |
+| receiver | address | The address that received the assets. |
+| totalAssets | uint256 | The vault's `totalAssets()` evaluated after the withdraw. |
+
+### postRedeem
+
+```solidity
+function postRedeem(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) external
+```
+
+Invoked after a redeem has been executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller that initiated the redeem. |
+| assets | uint256 | The asset amount that was paid out. |
+| shares | uint256 | The amount of shares that were burned. |
+| receiver | address | The address that received the assets. |
+| totalAssets | uint256 | The vault's `totalAssets()` evaluated after the redeem. |
+

@@ -1,0 +1,33 @@
+---
+id: 'sc-assettraits'
+title: 'AssetTraits'
+audience: 'public'
+module: 'periphery'
+scope: 'traits'
+source_refs:
+  - 'src/periphery/traits/AssetTraits.sol'
+last_reviewed: '2026-05-15'
+---
+
+## AssetTraits
+
+Minimal trait that lets a contract expose a single underlying ERC-20
+        asset address via an internal hook. Implementers override `_asset()`
+        to return the canonical asset for the contract (e.g. the borrow or
+        deposit token), allowing shared library code to resolve the asset
+        without hard-coding storage layout.
+
+### _asset
+
+```solidity
+function _asset() internal view virtual returns (address)
+```
+
+Returns the address of the underlying asset exposed by the implementer.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The ERC-20 asset address. |
+

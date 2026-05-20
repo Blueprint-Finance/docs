@@ -1,0 +1,407 @@
+---
+id: 'sc-twowayfeesplitter'
+title: 'TwoWayFeeSplitter'
+audience: 'public'
+module: 'periphery'
+scope: 'auxiliary'
+source_refs:
+  - 'src/periphery/auxiliary/TwoWayFeeSplitter.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'fees'
+---
+
+## TwoWayFeeSplitter
+
+Auxiliary contract that abstracts away fee splitting between two recipients per
+        vault. Each fee type (e.g. management, performance, deposit) gets its own splitter
+        instance; the contract is architected as a clonable upgradeable proxy.
+Fees accrue as vault shares held by this contract. Anyone may trigger
+        `distributeFees` permissionlessly; the call routes the configured fraction to the
+        secondary recipient (typically the service provider) and the remainder to the main
+        recipient (typically the vault fee recipient).
+
+### constructor
+
+```solidity
+constructor() public
+```
+
+Disables initializers on the implementation so only proxies can be initialized.
+
+### distributeFeesWithPrevSplitArgs
+
+```solidity
+modifier distributeFeesWithPrevSplitArgs(address vault)
+```
+
+_Modifier that collects the fees for a given vault if the previous fee split is valid._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to collect fees for. |
+
+### initialize
+
+```solidity
+function initialize(address owner, uint8 feeType) external
+```
+
+Initializes the splitter with an owner and a fee-type identifier.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| owner | address | The owner of the contract (controls splitter configuration). |
+| feeType | uint8 | The type of the fee, e.g. Management Fee, Performance Fee, Deposit Fee, etc. |
+
+### distributeFees
+
+```solidity
+function distributeFees(address vault) external
+```
+
+Permissionlessly distributes the fees accrued for a given vault.
+The fee fraction determines the share sent to the secondary recipient: zero
+        routes everything to the main recipient, while `BASIS_POINTS_DENOMINATOR` routes
+        everything to the secondary recipient. The main fee recipient is typically the
+        vault fee recipient, while the secondary recipient is the service provider.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to collect fees for. |
+
+### setFeeSplit
+
+```solidity
+function setFeeSplit(address vault, uint32 feeFractionOfSecondaryRecipient, address mainRecipient, address secondaryRecipient) external
+```
+
+Sets the full fee split for a given vault. The Fee Splitter Owner can set all
+        parameters at once. If a split already exists, the previous accrued fees are
+        distributed first using the old parameters.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to set the fee split for. |
+| feeFractionOfSecondaryRecipient | uint32 | The fraction of the fees going to the secondary recipient. |
+| mainRecipient | address | The main recipient (typically the vault fee recipient). |
+| secondaryRecipient | address | The secondary recipient (typically the service provider). |
+
+### setFeeFraction
+
+```solidity
+function setFeeFraction(address vault, uint32 newFeeFractionOfSecondaryRecipient) external
+```
+
+Sets the fee fraction for a given vault. The Fee Splitter Owner can change the
+        fraction at any time; pre-existing accrued fees are distributed first using the
+        previous split via the `distributeFeesWithPrevSplitArgs` modifier.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to set the fee fraction for. |
+| newFeeFractionOfSecondaryRecipient | uint32 | The new fraction of the fees going to the secondary recipient. |
+
+### setMainRecipient
+
+```solidity
+function setMainRecipient(address vault, address newMainRecipient) external
+```
+
+Sets the main recipient for a given vault. Callable by the splitter owner or by
+        any account holding the `VAULT_MANAGER` role on the vault. Pre-existing accrued
+        fees are distributed first via the `distributeFeesWithPrevSplitArgs` modifier.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to set the main recipient for. |
+| newMainRecipient | address | The new main recipient. |
+
+### setSecondaryRecipient
+
+```solidity
+function setSecondaryRecipient(address vault, address secondaryRecipient) external
+```
+
+Sets the secondary recipient for a given vault. Callable by the Fee Splitter
+        Owner at any time; pre-existing accrued fees are distributed first via the
+        `distributeFeesWithPrevSplitArgs` modifier.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to set the secondary recipient for. |
+| secondaryRecipient | address | The new secondary recipient. |
+
+### rescueTokens
+
+```solidity
+function rescueTokens(address token) external
+```
+
+Rescues an arbitrary ERC-20 balance held by the splitter. Callable only by the
+        Fee Splitter Owner. The token must not be the zero address and must not have an
+        active fee split (i.e. it cannot be a vault share token tracked by this splitter).
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The token to rescue. |
+
+### feesAccrued
+
+```solidity
+function feesAccrued(address vault) external view returns (uint256)
+```
+
+Returns the amount of fees currently accrued (held by this splitter) for a given vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to get the fees accrued for. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The current vault-share balance of this splitter, equal to the unclaimed fee amount. |
+
+### feesDistributed
+
+```solidity
+function feesDistributed(address vault) external view returns (uint256)
+```
+
+Returns the cumulative amount of fees that have already been distributed for a given vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to get the fees distributed for. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The cumulative amount of fees distributed across the lifetime of this splitter for `vault`. |
+
+### getFeeType
+
+```solidity
+function getFeeType() external view returns (uint8)
+```
+
+Returns the fee type configured for this splitter instance.
+The fee type identifies which fee this splitter handles, e.g. Management Fee = 1,
+        Performance Fee = 2, Deposit Fee = 3, etc.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint8 | The fee type identifier set at initialization. |
+
+### getFeeFractionForSecondaryRecipient
+
+```solidity
+function getFeeFractionForSecondaryRecipient(address vault) external view returns (uint32)
+```
+
+Returns the fraction of the fees routed to the secondary recipient for a given vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to get the secondary-recipient fee fraction for. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint32 | The configured fee fraction (basis points scaled by `BASIS_POINTS_DENOMINATOR`). |
+
+### getMainRecipient
+
+```solidity
+function getMainRecipient(address vault) external view returns (address)
+```
+
+Returns the main recipient configured for a given vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to get the main recipient for. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The main recipient address. |
+
+### getSecondaryRecipient
+
+```solidity
+function getSecondaryRecipient(address vault) external view returns (address)
+```
+
+Returns the secondary recipient configured for a given vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to get the secondary recipient for. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The secondary recipient address. |
+
+### feeSplitForVaultIsActive
+
+```solidity
+function feeSplitForVaultIsActive(address vault) public view returns (bool)
+```
+
+Returns whether a fee split is active for `vault`.
+
+_In this iteration the fee split is considered active if and only if the stored
+     `set` flag is true, which coincides with the split being valid._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The address to check. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if a fee split is currently registered for `vault`. |
+
+### hasValidFeeSplit
+
+```solidity
+function hasValidFeeSplit(address vault) external view returns (bool)
+```
+
+Returns whether the stored fee split for `vault` is structurally valid.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to check. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if the recorded `(fraction, mainRecipient, secondaryRecipient)` triple is valid. |
+
+### s
+
+```solidity
+function s() internal pure returns (struct ITwoWayFeeSplitter.TwoWayFeeSplitterStorage $)
+```
+
+INTERNAL FUNCTIONS
+
+### _distributeFeesAndUpdate
+
+```solidity
+function _distributeFeesAndUpdate(address vault, struct ITwoWayFeeSplitter.TwoWayFeeSplit feeSplit) internal
+```
+
+_Distributes the fees for a given vault._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault to distribute fees for. |
+| feeSplit | struct ITwoWayFeeSplitter.TwoWayFeeSplit | The fee split to use. |
+
+### _distributeAmountOfFees
+
+```solidity
+function _distributeAmountOfFees(uint256 feeAmount, address vault, struct ITwoWayFeeSplitter.TwoWayFeeSplit feeSplit) internal returns (uint256 fee1Amount, uint256 fee2Amount)
+```
+
+_Distributes the fees for a given vault._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| feeAmount | uint256 | The amount of fees to distribute. |
+| vault | address | The vault to distribute fees for. |
+| feeSplit | struct ITwoWayFeeSplitter.TwoWayFeeSplit | The fee split to use. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fee1Amount | uint256 | The amount of fees to send to the main recipient. |
+| fee2Amount | uint256 | The amount of fees to send to the secondary recipient. |
+
+### _isInvalidFeeSplit
+
+```solidity
+function _isInvalidFeeSplit(uint32 feeFractionOfSecondaryRecipient, address mainRecipient, address secondaryRecipient) internal view returns (bool)
+```
+
+_Returns whether a fee split is invalid. If the collection of fees would revert, the fee split is invalid._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| feeFractionOfSecondaryRecipient | uint32 | The fee fraction of the secondary recipient to check if it is invalid. |
+| mainRecipient | address | The main recipient to check if it is invalid. |
+| secondaryRecipient | address | The secondary recipient to check if it is invalid. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | Whether a fee split is invalid. |
+
+### _revertIfMalformedFeeSplit
+
+```solidity
+function _revertIfMalformedFeeSplit(uint32 newFeeFractionOfSecondaryRecipient, address newMainRecipient, address newSecondaryRecipient) internal view
+```
+
+_Reverts if a fee split is malformed._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newFeeFractionOfSecondaryRecipient | uint32 | The new fee fraction to check if it is malformed. |
+| newMainRecipient | address | The new main recipient to check if it is malformed. |
+| newSecondaryRecipient | address | The new secondary recipient to check if it is malformed. |
+

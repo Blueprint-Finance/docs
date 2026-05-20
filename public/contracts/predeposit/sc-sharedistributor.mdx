@@ -1,0 +1,253 @@
+---
+id: 'sc-sharedistributor'
+title: 'ShareDistributor'
+audience: 'public'
+module: 'periphery'
+scope: 'predeposit'
+source_refs:
+  - 'src/periphery/predeposit/ShareDistributor.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'cross-chain'
+  - 'predeposit'
+---
+
+## ShareDistributor
+
+Destination-chain LayerZero receiver that distributes vault shares to
+        users on behalf of a predeposit vault deployed on a different chain.
+        Receives cross-chain claim messages and forwards the corresponding
+        vault share balance to each recipient.
+
+### MSG_TYPE_CLAIM
+
+```solidity
+uint16 MSG_TYPE_CLAIM
+```
+
+Message type identifier for a single-user claim payload.
+
+### MSG_TYPE_BATCH_CLAIM
+
+```solidity
+uint16 MSG_TYPE_BATCH_CLAIM
+```
+
+Message type identifier for a batched multi-user claim payload.
+
+### targetVault
+
+```solidity
+address targetVault
+```
+
+Address of the vault whose shares this distributor holds and forwards.
+
+### claimedShares
+
+```solidity
+mapping(address => uint256) claimedShares
+```
+
+Cumulative shares distributed to each user.
+
+_Not using the ERC-7201 pattern as this is an auxiliary short-lived contract._
+
+### SharesDistributed
+
+```solidity
+event SharesDistributed(address user, uint256 shares, bytes32 guid)
+```
+
+Emitted when shares are distributed to a single user from an incoming claim message.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | Recipient address. |
+| shares | uint256 | Amount of shares transferred. |
+| guid | bytes32 | LayerZero message identifier. |
+
+### BatchSharesDistributed
+
+```solidity
+event BatchSharesDistributed(address[] users, uint256[] shares, bytes32 guid)
+```
+
+Emitted when shares are distributed in a batch claim message.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| users | address[] | Recipient addresses, parallel to `shares`. |
+| shares | uint256[] | Amounts of shares transferred, parallel to `users`. |
+| guid | bytes32 | LayerZero message identifier. |
+
+### TargetVaultSet
+
+```solidity
+event TargetVaultSet(address vault)
+```
+
+Emitted when the target vault is set during initialization or by the owner.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault whose shares are being distributed. |
+
+### InvalidMessageType
+
+```solidity
+error InvalidMessageType(uint16 received)
+```
+
+_Fires when an incoming LayerZero message has an unrecognised type identifier._
+
+### InvalidTargetVault
+
+```solidity
+error InvalidTargetVault()
+```
+
+_Fires when the target vault address is zero._
+
+### InsufficientShares
+
+```solidity
+error InsufficientShares(uint256 required, uint256 available)
+```
+
+_Fires when the contract's share balance is below the required transfer amount._
+
+### ArrayLengthMismatch
+
+```solidity
+error ArrayLengthMismatch(uint256 usersLength, uint256 sharesLength)
+```
+
+_Fires when the users and shares arrays in a batch claim payload differ in length._
+
+### constructor
+
+```solidity
+constructor(address lzEndpoint) public
+```
+
+Deploys the implementation contract and disables initializers.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| lzEndpoint | address | The LayerZero endpoint for this chain. |
+
+### initialize
+
+```solidity
+function initialize(address _targetVault, address _owner) external
+```
+
+Initialises the ShareDistributor with the target vault and owner.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _targetVault | address | The vault whose shares will be distributed. |
+| _owner | address | The owner of this contract. |
+
+### setTargetVault
+
+```solidity
+function setTargetVault(address _targetVault) external
+```
+
+Sets the target vault. Owner only.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _targetVault | address | The new target vault address. |
+
+### _lzReceive
+
+```solidity
+function _lzReceive(struct Origin, bytes32 _guid, bytes _message, address, bytes) internal
+```
+
+_Internal function to handle incoming LayerZero messages_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | struct Origin |  |
+| _guid | bytes32 | The unique identifier for the received LayerZero message |
+| _message | bytes | The encoded message payload |
+|  | address |  |
+|  | bytes |  |
+
+### _handleSingleClaim
+
+```solidity
+function _handleSingleClaim(bytes message, bytes32 guid) internal
+```
+
+_Internal function to handle single user claim_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| message | bytes | The encoded message payload containing msgType, user address, and shares amount |
+| guid | bytes32 | The unique identifier for tracking |
+
+### _handleBatchClaim
+
+```solidity
+function _handleBatchClaim(bytes message, bytes32 guid) internal
+```
+
+_Internal function to handle batch user claims_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| message | bytes | The encoded message payload containing msgType, addresses array, and shares array |
+| guid | bytes32 | The unique identifier for tracking |
+
+### getAvailableShares
+
+```solidity
+function getAvailableShares() external view returns (uint256)
+```
+
+Returns the vault-share balance currently held by this distributor.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The balance of vault shares held by this distributor. |
+
+### emergencyWithdraw
+
+```solidity
+function emergencyWithdraw(uint256 amount) external
+```
+
+Emergency owner-only path to recover shares held by this contract.
+        Transfers the requested amount of target-vault shares to `msg.sender`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Amount of shares to withdraw. |
+

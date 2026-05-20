@@ -1,0 +1,64 @@
+---
+id: 'sc-concretestandardloopingstrategy'
+title: 'ConcreteStandardLoopingStrategy'
+audience: 'public'
+module: 'periphery'
+scope: 'strategies'
+source_refs:
+  - 'src/periphery/strategies/ConcreteStandardLoopingStrategy.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'leverage-looping'
+  - 'strategies'
+---
+
+## ConcreteStandardLoopingStrategy
+
+Concrete Earn V2 deployment of `BaseLoopingStrategy`. Provides a leveraged looping
+        position against a single lender module, with target LTV, deviation, and slippage
+        configurable by the strategy admin.
+
+### initialize
+
+```solidity
+function initialize(address admin, address vault_, address lenderModule) external virtual
+```
+
+Initializes the strategy with admin, vault, and lender module bindings.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| admin | address | The address that will receive admin roles. |
+| vault_ | address | The address of the authorized vault. |
+| lenderModule | address | The address of the lender module that owns the leveraged position. |
+
+### strategyType
+
+```solidity
+function strategyType() external pure returns (enum StrategyType)
+```
+
+Returns the strategy type for `ConcreteStandardLoopingStrategy`.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | enum StrategyType | The `ATOMIC` strategy type, as looping operations are executed in the same transaction. |
+
+### ID
+
+```solidity
+function ID() public pure returns (uint64)
+```
+
+Returns the unique contract identifier encoding type, flavour, and version.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The encoded contract id (contractType=2 strategy, flavour=3 concrete standard looping, version=1.1.0). |
+

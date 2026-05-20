@@ -1,0 +1,312 @@
+---
+id: 'sc-feeaccountant'
+title: 'FeeAccountant'
+audience: 'public'
+module: 'periphery'
+scope: 'auxiliary'
+source_refs:
+  - 'src/periphery/auxiliary/FeeAccountant.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'fees'
+---
+
+## FeeAccountant
+
+Receives vault share tokens as the fee recipient and allows authorized
+        distributors to distribute accumulated fee shares to whitelisted
+        recipients in a single call. Deployed behind a UUPS proxy.
+The contract is bound to a single ERC-4626 vault at initialization.
+        Only whitelisted recipient addresses may receive fee shares. Roles:
+        `DEFAULT_ADMIN_ROLE` can grant/revoke roles, manage the recipient
+        whitelist, and authorize upgrades. `DISTRIBUTOR_ROLE` can call
+        `distributeFeeShares`.
+
+_The contract itself holds vault shares. `distributeFeeShares` transfers
+     shares from this contract to each listed recipient while emitting
+     per-transfer and aggregate events that include the share price at the
+     time of distribution._
+
+### DISTRIBUTOR_ROLE
+
+```solidity
+bytes32 DISTRIBUTOR_ROLE
+```
+
+Role identifier for accounts permitted to call `distributeFeeShares`.
+
+### vault
+
+```solidity
+contract IERC4626 vault
+```
+
+The ERC-4626 vault whose share token this contract receives as fees.
+
+### whitelistedRecipients
+
+```solidity
+mapping(address => bool) whitelistedRecipients
+```
+
+Whitelist of recipient addresses allowed to receive fee shares.
+
+### FeeDistribution
+
+```solidity
+event FeeDistribution(address vault, uint256 sharePrice, uint256 totalShares)
+```
+
+Emitted once per `distributeFeeShares` call, after every recipient transfer.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault whose shares were distributed. |
+| sharePrice | uint256 | The vault share price (assets per one full share) at the time of distribution. |
+| totalShares | uint256 | The aggregate amount of shares distributed in this call. |
+
+### FeeTransferred
+
+```solidity
+event FeeTransferred(address vault, address recipient, uint256 amount)
+```
+
+Emitted on every individual fee transfer inside `distributeFeeShares`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault share token transferred. |
+| recipient | address | The whitelisted recipient that received the shares. |
+| amount | uint256 | The amount of shares transferred to `recipient`. |
+
+### RecipientWhitelisted
+
+```solidity
+event RecipientWhitelisted(address recipient)
+```
+
+Emitted when an address is added to the recipient whitelist.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipient | address | The address newly permitted to receive fee shares. |
+
+### RecipientRemovedFromWhitelist
+
+```solidity
+event RecipientRemovedFromWhitelist(address recipient)
+```
+
+Emitted when an address is removed from the recipient whitelist.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipient | address | The address no longer permitted to receive fee shares. |
+
+### TokenRescued
+
+```solidity
+event TokenRescued(address token, address to, uint256 amount)
+```
+
+Emitted when a non-vault token accidentally sent to this contract is rescued.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The ERC-20 token rescued. |
+| to | address | The destination address. |
+| amount | uint256 | The amount transferred out. |
+
+### ArrayLengthMismatch
+
+```solidity
+error ArrayLengthMismatch()
+```
+
+_Thrown when `recipients` and `amounts` have different lengths in `distributeFeeShares`._
+
+### EmptyArrays
+
+```solidity
+error EmptyArrays()
+```
+
+_Thrown when `distributeFeeShares` is called with empty recipient/amount arrays._
+
+### TotalMismatch
+
+```solidity
+error TotalMismatch(uint256 expectedTotal, uint256 actualTotal)
+```
+
+_Thrown when the sum of `amounts` does not equal the `totalShares` integrity argument._
+
+### ZeroAddress
+
+```solidity
+error ZeroAddress()
+```
+
+_Thrown when a generic address argument is the zero address._
+
+### ZeroAdmin
+
+```solidity
+error ZeroAdmin()
+```
+
+_Thrown when initialize is called with a zero admin address._
+
+### ZeroVault
+
+```solidity
+error ZeroVault()
+```
+
+_Thrown when initialize is called with a zero vault address._
+
+### ZeroToken
+
+```solidity
+error ZeroToken()
+```
+
+_Thrown when `rescueToken` is called with the zero address for `token`._
+
+### ZeroRecipient
+
+```solidity
+error ZeroRecipient()
+```
+
+_Thrown when `rescueToken` is called with the zero address for `to`._
+
+### ZeroAmount
+
+```solidity
+error ZeroAmount()
+```
+
+_Thrown when a transfer or rescue is requested for a zero amount._
+
+### CannotRescueVaultShares
+
+```solidity
+error CannotRescueVaultShares()
+```
+
+_Thrown when `rescueToken` targets the vault share token (must use the distribution path instead)._
+
+### RecipientNotWhitelisted
+
+```solidity
+error RecipientNotWhitelisted(address recipient)
+```
+
+_Thrown when `distributeFeeShares` references a recipient absent from the whitelist._
+
+### constructor
+
+```solidity
+constructor() public
+```
+
+Disables initializers on the implementation contract so it cannot be initialized directly.
+
+### initialize
+
+```solidity
+function initialize(address admin_, address vault_) external
+```
+
+Initializes the proxy with an admin and the vault to receive fees for.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| admin_ | address | Account granted both `DEFAULT_ADMIN_ROLE` and `DISTRIBUTOR_ROLE`. |
+| vault_ | address | Address of the ERC-4626 vault whose share token this contract collects. |
+
+### addRecipient
+
+```solidity
+function addRecipient(address recipient) external
+```
+
+Adds an address to the recipient whitelist.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipient | address | Address authorized to receive fee shares. |
+
+### removeRecipient
+
+```solidity
+function removeRecipient(address recipient) external
+```
+
+Removes an address from the recipient whitelist.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipient | address | Address no longer authorized to receive fee shares. |
+
+### distributeFeeShares
+
+```solidity
+function distributeFeeShares(address[] recipients, uint256[] amounts, uint256 totalShares) external
+```
+
+Distribute fee shares held by this contract to multiple recipients.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipients | address[] | Ordered list of whitelisted recipient addresses. |
+| amounts | uint256[] | Ordered list of share amounts (must match `recipients` length). |
+| totalShares | uint256 | Expected sum of all `amounts` entries (integrity check). |
+
+### rescueToken
+
+```solidity
+function rescueToken(address token, address to, uint256 amount) external
+```
+
+Rescue ERC-20 tokens accidentally sent to this contract.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The ERC-20 token to rescue. |
+| to | address | Destination address. |
+| amount | uint256 | Amount to transfer. |
+
+### _transferFee
+
+```solidity
+function _transferFee(contract IERC20 vaultShareToken, address recipient, uint256 amount) internal
+```
+
+### _authorizeUpgrade
+
+```solidity
+function _authorizeUpgrade(address) internal
+```
+

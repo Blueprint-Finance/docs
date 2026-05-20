@@ -1,0 +1,69 @@
+---
+title: "Understanding NAV and Exchange Rate in Concrete Vaults"
+sidebarTitle: "NAV & eRate"
+description: "NAV is the total dollar value of everything the vault holds. The eRate tells you what one vault share is worth in your deposited asset, updated daily."
+---
+
+When you look at your Concrete vault dashboard, two figures tell you how the vault is performing and what your position is worth: **NAV** (Net Asset Value) and **eRate** (exchange rate). Understanding both concepts gives you a clear picture of how yield accumulates in your vault and why your `ct[Asset]` token value changes over time.
+
+## NAV: the vault's total value
+
+NAV stands for **Net Asset Value**. It is the total dollar value of everything the vault currently holds across all of its positions and strategies — lending market deposits, liquidity positions, restaking allocations, and any other holdings.
+
+NAV is the vault's scoreboard. When the vault earns yield from any strategy, NAV goes up. When costs are incurred entering or rebalancing positions, NAV may temporarily dip before recovering through earned returns.
+
+Your shares represent a proportional piece of the vault's total NAV. If the vault's NAV is $1,100,000 and there are 1,000,000 shares outstanding, each share is worth $1.10 in underlying assets.
+
+## eRate: what one vault share is worth
+
+The **eRate** (exchange rate) tells you how much one `ct[Asset]` vault share is worth in your original deposited asset — for example, how many USDT one `ctDefiUSDT` token can be redeemed for.
+
+**A concrete example:** Imagine ten people each deposit $100 into a vault. The vault holds $1,000 total, and each person holds a 1/10 share. The vault's strategies earn yield and the total grows to $1,100. Nobody added money. Nobody received extra shares. But now each 1/10 share is worth $110. The eRate has moved from 1.0 to 1.1 — each share buys 10% more of the underlying asset than it did at the start.
+
+The eRate is calculated the same way as share price:
+
+```
+eRate = total vault assets ÷ total shares outstanding
+```
+
+As the vault earns yield, total assets increase, and the eRate rises. When you withdraw, the vault redeems your `ct[Asset]` tokens at the current eRate, returning you the accumulated value.
+
+## How daily NAV updates work
+
+Concrete Earn V2 uses an automated three-party system to update the vault's NAV every day. This makes Concrete the only vault platform with daily NAV updates, keeping share prices accurate and `ct[Asset]` tokens liquid and composable at all times.
+
+The three parties are:
+
+<AccordionGroup>
+  <Accordion title="Transaction Proposer">
+    Tracks the real-time value of strategist wallets and all vault positions, then proposes an asset update to the vault contract based on verified on-chain data.
+  </Accordion>
+  <Accordion title="Independent Signer">
+    Operates a separate, isolated system and independently confirms that the proposed update is accurate before countersigning. This prevents any single party from manipulating vault accounting.
+  </Accordion>
+  <Accordion title="Smart Contract Safeguards">
+    The vault contract accepts the update only if it falls within a realistic range based on the vault's target APY. Updates that exceed those bounds are rejected and require owner-level intervention before proceeding.
+  </Accordion>
+</AccordionGroup>
+
+This system transforms vault accounting from manual, governance-heavy processes — historically done bi-weekly or weekly — into a daily automated operation that runs without manual oversight while maintaining institutional-grade controls.
+
+## Frequently asked questions
+
+<AccordionGroup>
+  <Accordion title="Why does the eRate sometimes move slowly or dip?">
+    The vault incurs execution costs when entering yield-generating positions — gas, bridging, and protocol interaction fees. These costs are absorbed by the vault, not charged to depositors directly, but they are reflected temporarily in the eRate before being recovered through strategy returns. Over time, earned yield offsets these costs and the eRate trends upward.
+  </Accordion>
+  <Accordion title="How often is NAV updated?">
+    Concrete updates vault NAV daily through its automated three-party accounting system. This frequency keeps share prices accurate and ensures `ct[Asset]` tokens reflect the vault's true current value for composability across DeFi.
+  </Accordion>
+  <Accordion title="What is the difference between NAV and eRate?">
+    NAV is the total dollar value of the entire vault — the sum of all positions across all strategies. The eRate is the per-share value derived from NAV: total assets divided by total shares outstanding. NAV tells you the size of the pool; eRate tells you what your individual slice is worth.
+  </Accordion>
+  <Accordion title="Can the eRate decrease?">
+    Yes. If vault strategy losses reduce total assets, the eRate falls. The eRate can also temporarily dip when the vault incurs costs entering new positions before those positions begin generating returns. Day-to-day fluctuations are normal; the underlying yield trend becomes the dominant factor over longer holding periods.
+  </Accordion>
+  <Accordion title="How does active management affect the eRate over time?">
+    Concrete vaults continuously move capital toward the best risk-adjusted opportunities and away from underperforming ones. Yield earned in early periods is redeployed into strategies in subsequent periods, compounding over time. Depositors who remain in the vault longer capture more of these compounding cycles and more rebalancing rotations, which the eRate reflects as it rises over months rather than days.
+  </Accordion>
+</AccordionGroup>

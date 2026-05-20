@@ -1,0 +1,480 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Price Oracle V2 API",
+    "description": "API for chain metadata, token spot price, and token historical price lookup",
+    "contact": {
+      "name": "Concrete Backend Team"
+    },
+    "license": {
+      "name": ""
+    },
+    "version": "2.0.0"
+  },
+  "paths": {
+    "/v2/chain": {
+      "get": {
+        "tags": [
+          "price-oracle"
+        ],
+        "operationId": "get_chains",
+        "responses": {
+          "200": {
+            "description": "Supported chains",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChainInfo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/chain/{chain_id}/token/native": {
+      "get": {
+        "tags": [
+          "price-oracle"
+        ],
+        "operationId": "get_native_token_info",
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Chain ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Native token info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Native token not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/chain/{chain_id}/token/native/history": {
+      "get": {
+        "tags": [
+          "price-oracle"
+        ],
+        "operationId": "get_native_token_history_price",
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Chain ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "example": 1
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "description": "Historical price date in YYYY-MM-DD format",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2026-02-24"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token historical price",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenHistoryPrice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Token historical price not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/chain/{chain_id}/token/{address}": {
+      "get": {
+        "tags": [
+          "price-oracle"
+        ],
+        "operationId": "get_token_info",
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Chain ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "example": 1
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "description": "Token address",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "0x0000000000000000000000000000000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Token not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/chain/{chain_id}/token/{address}/history": {
+      "get": {
+        "tags": [
+          "price-oracle"
+        ],
+        "operationId": "get_token_history_price",
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "description": "Chain ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "example": 1
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "description": "Token address",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "0x0000000000000000000000000000000000000000"
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "description": "Historical price date in YYYY-MM-DD format",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2026-02-24"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token historical price",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenHistoryPrice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Token historical price not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChainInfo": {
+        "type": "object",
+        "required": [
+          "chain_id",
+          "external_id"
+        ],
+        "properties": {
+          "chain_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1,
+            "minimum": 0
+          },
+          "external_id": {
+            "type": "string"
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "native_token_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "TokenHistoryPrice": {
+        "type": "object",
+        "required": [
+          "chain_id",
+          "address",
+          "date",
+          "price"
+        ],
+        "properties": {
+          "address": {
+            "type": "string",
+            "example": "0x0000000000000000000000000000000000000000"
+          },
+          "chain_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1,
+            "minimum": 0
+          },
+          "date": {
+            "type": "string",
+            "example": "2026-02-24"
+          },
+          "price": {
+            "type": "string",
+            "example": "1.2345"
+          }
+        }
+      },
+      "TokenInfo": {
+        "type": "object",
+        "required": [
+          "chain_id",
+          "address",
+          "external_chain_id",
+          "price",
+          "timestamp"
+        ],
+        "properties": {
+          "address": {
+            "type": "string",
+            "example": "0x0000000000000000000000000000000000000000"
+          },
+          "chain_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1,
+            "minimum": 0
+          },
+          "decimals": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "external_chain_id": {
+            "type": "string"
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "price": {
+            "type": "string",
+            "example": "1.2345"
+          },
+          "symbol": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "price-oracle",
+      "description": "Price oracle endpoints"
+    }
+  ]
+}

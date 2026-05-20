@@ -1,0 +1,32 @@
+---
+title: API reference
+description: Programmatically query Concrete vault performance, TVL, strategy data, and protocol-wide volume metrics over a public read-only HTTP API.
+---
+
+The Concrete Earn APY API exposes read-only endpoints for portfolio strategies, vault performance, and protocol metrics. Use it to power dashboards, analytics pipelines, and integrations that surface live yield data.
+
+## Base URL
+
+All endpoints are served under the `/v1` path on the Concrete backend.
+
+## Authentication
+
+The endpoints documented here are public and do not require authentication.
+
+## Endpoints
+
+| Endpoint | Description |
+| --- | --- |
+| `GET /v1/metrics` | Protocol-wide volume metrics. |
+| `GET /v1/strategy` | Strategy-level total asset diff for a given address and chain. |
+| `GET /v1/vault:performance` | Detailed vault performance, including APY and TVL history. |
+| `GET /v1/vault:performance/all` | Performance overview for every vault. |
+| `GET /v1/vault:tvl/all` | TVL overview for every vault. |
+
+## Common parameters
+
+Most vault and strategy endpoints accept the following query parameters:
+
+- `address`: The vault or strategy contract address.
+- `chain_id`: The chain ID where the contract is deployed (for example, `80094` for Berachain).
+- `limit`: Optional history window in days. Defaults to `30`, with a maximum of `365`.

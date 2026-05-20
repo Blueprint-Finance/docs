@@ -1,0 +1,236 @@
+---
+id: 'sc-swapmoduleuniv3'
+title: 'SwapModuleUniV3'
+audience: 'public'
+module: 'periphery'
+scope: 'auxiliary'
+source_refs:
+  - 'src/periphery/auxiliary/SwapModuleUniV3.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'swaps'
+---
+
+## SwapModuleUniV3
+
+Uniswap V3 swap module bound to a single token pair (`COLLATERAL` <-> `BORROW`),
+        optionally routed through an `INTERMEDIARY` token. Implements `ISwapModule` so it
+        can be wired into looping strategies that need exact-in or exact-out swaps in
+        either direction.
+Pool topology is fixed at construction time:
+        - If `INTERMEDIARY == address(0)`: a single direct pool between collateral and
+          borrow with `FEE1` as the pool fee (same in both directions). `FEE2` must be 0.
+        - Otherwise: two pools, collateral <-> intermediary at `FEE1` and borrow <->
+          intermediary at `FEE2`. Both fees must be non-zero.
+        The constructor approves the configured router for max on both tokens; the module
+        itself never holds balances outside the swap call.
+
+### ROUTER
+
+```solidity
+contract ISwapRouter ROUTER
+```
+
+Uniswap V3 swap router used to execute single- and multi-hop swaps.
+
+### COLLATERAL
+
+```solidity
+address COLLATERAL
+```
+
+The collateral token of the configured pair (one of the two swappable tokens).
+
+### BORROW
+
+```solidity
+address BORROW
+```
+
+The borrow token of the configured pair (one of the two swappable tokens).
+
+### INTERMEDIARY
+
+```solidity
+address INTERMEDIARY
+```
+
+Optional intermediary token for two-hop routing; `address(0)` when direct.
+
+### FEE1
+
+```solidity
+uint24 FEE1
+```
+
+Primary pool fee tier. In direct mode this is the only fee; in two-hop mode it sits on the collateral-intermediary leg.
+
+### FEE2
+
+```solidity
+uint24 FEE2
+```
+
+Secondary pool fee tier, used only when `INTERMEDIARY != address(0)` on the borrow-intermediary leg.
+
+### ZeroAddress
+
+```solidity
+error ZeroAddress()
+```
+
+_Thrown when the router argument is the zero address._
+
+### ZeroToken
+
+```solidity
+error ZeroToken()
+```
+
+_Thrown when either token argument is the zero address at construction._
+
+### ZeroFee
+
+```solidity
+error ZeroFee()
+```
+
+_Thrown when a required fee tier is zero at construction._
+
+### InvalidConfig
+
+```solidity
+error InvalidConfig()
+```
+
+_Thrown when constructor arguments violate the direct/two-hop topology rules._
+
+### ZeroAmount
+
+```solidity
+error ZeroAmount()
+```
+
+_Thrown when a swap is called with `amountIn == 0` or `amountOut == 0`._
+
+### InvalidTokenIn
+
+```solidity
+error InvalidTokenIn()
+```
+
+_Thrown when `tokenIn` is neither `COLLATERAL` nor `BORROW`._
+
+### InvalidTokenOut
+
+```solidity
+error InvalidTokenOut()
+```
+
+_Thrown when `tokenOut` is not the counterpart of `tokenIn` in the configured pair._
+
+### InvalidPair
+
+```solidity
+error InvalidPair()
+```
+
+_Reserved for future pair-validation paths._
+
+### constructor
+
+```solidity
+constructor(contract ISwapRouter _router, address _collateralToken, address _borrowToken, address _intermediaryToken, uint24 _fee1, uint24 _fee2) public
+```
+
+Configures the swap module for a single Uniswap V3 token pair.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _router | contract ISwapRouter | Uniswap V3 swap router contract. |
+| _collateralToken | address | Collateral token address (one side of the pair). |
+| _borrowToken | address | Borrow token address (other side of the pair). |
+| _intermediaryToken | address | Optional intermediary token (`address(0)` for direct routing). |
+| _fee1 | uint24 | Pool fee for the collateral leg (direct mode) or collateral-intermediary leg. |
+| _fee2 | uint24 | Pool fee for the borrow-intermediary leg in two-hop mode; must be 0 in direct mode. |
+
+### swapExactAmountIn
+
+```solidity
+function swapExactAmountIn(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut) external returns (uint256 amountOut)
+```
+
+Swaps an exact `amountIn` of `tokenIn` for at least `minAmountOut` of `tokenOut`.
+
+_Pulls `amountIn` from `msg.sender`, then routes via the direct pool or through the
+     intermediary depending on construction-time configuration. Output is sent directly
+     to `msg.sender` by the router._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokenIn | address | Input token; must be either `COLLATERAL` or `BORROW`. |
+| tokenOut | address | Output token; must be the other side of the configured pair. |
+| amountIn | uint256 | Exact amount of `tokenIn` to spend. |
+| minAmountOut | uint256 | Minimum acceptable amount of `tokenOut` (slippage guard). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amountOut | uint256 | Amount of `tokenOut` received by `msg.sender`. |
+
+### swapExactAmountOut
+
+```solidity
+function swapExactAmountOut(address tokenIn, address tokenOut, uint256 maxAmountIn, uint256 amountOut) external returns (uint256 amountIn)
+```
+
+Swaps up to `maxAmountIn` of `tokenIn` for exactly `amountOut` of `tokenOut`.
+
+_Pulls `maxAmountIn` from `msg.sender` up front, executes the exact-output swap,
+     then refunds any unspent input back to `msg.sender`. Direct or two-hop routing
+     is selected based on construction-time configuration._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokenIn | address | Input token; must be either `COLLATERAL` or `BORROW`. |
+| tokenOut | address | Output token; must be the other side of the configured pair. |
+| maxAmountIn | uint256 | Maximum amount of `tokenIn` the caller is willing to spend. |
+| amountOut | uint256 | Exact amount of `tokenOut` to receive. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amountIn | uint256 | Amount of `tokenIn` actually consumed by the swap. |
+
+### _swapExactInDirect
+
+```solidity
+function _swapExactInDirect(bool collateralToBorrow, uint256 amountIn, uint256 minAmountOut) internal returns (uint256 amountOut)
+```
+
+### _swapExactInViaIntermediary
+
+```solidity
+function _swapExactInViaIntermediary(bool collateralToBorrow, uint256 amountIn, uint256 minAmountOut) internal returns (uint256 amountOut)
+```
+
+### _swapExactOutDirect
+
+```solidity
+function _swapExactOutDirect(bool collateralToBorrow, uint256 maxAmountIn, uint256 amountOut) internal returns (uint256 amountIn)
+```
+
+### _swapExactOutViaIntermediary
+
+```solidity
+function _swapExactOutViaIntermediary(bool collateralToBorrow, uint256 maxAmountIn, uint256 amountOut) internal returns (uint256 amountIn)
+```
+

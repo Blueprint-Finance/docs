@@ -1,0 +1,642 @@
+---
+id: 'sc-baseloopingstrategy'
+title: 'BaseLoopingStrategy'
+audience: 'public'
+module: 'periphery'
+scope: 'strategies'
+source_refs:
+  - 'src/periphery/strategies/BaseLoopingStrategy.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'leverage-looping'
+  - 'strategies'
+---
+
+## BaseLoopingStrategy
+
+Abstract base for leveraged ("looping") strategies. Adds leverage adjustment,
+        target-LTV maintenance, and flash-loan-assisted position management on top of
+        the standard strategy lifecycle.
+
+_Concrete looping strategies inherit this contract; it combines `LoopingPrimitive`
+     and `BaseStrategy`._
+
+### onlyAdminOrOperatorWhenNotPaused
+
+```solidity
+modifier onlyAdminOrOperatorWhenNotPaused()
+```
+
+_Restricts function access: while paused, only `STRATEGY_ADMIN` may call;
+     while unpaused, both `STRATEGY_ADMIN` and `OPERATOR_ROLE` may call._
+
+### _allocateToPosition
+
+```solidity
+function _allocateToPosition(bytes data) internal virtual returns (uint256)
+```
+
+_Allocates funds into the position. When looping is disabled, supplies the
+     tokens directly to the lender. When looping is enabled, prepares loop
+     parameters and runs a leverage operation, then stages any leftover floating
+     collateral via the lender staging interface._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | ABI-encoded `uint256` allocation amount. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount allocated. |
+
+### _deallocateFromPosition
+
+```solidity
+function _deallocateFromPosition(bytes data) internal virtual returns (uint256)
+```
+
+_Deallocates funds from the position. When the amount is `type(uint256).max`,
+     uses the previewed position value as the target. When looping is disabled,
+     withdraws directly from the lender; otherwise runs a leverage deallocation
+     operation. If the operation is a max withdraw, the stored target LTV and
+     deviation are cleared._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | ABI-encoded `uint256` deallocation amount; `type(uint256).max` means        deallocate the full position. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount deallocated. |
+
+### _withdrawFromPosition
+
+```solidity
+function _withdrawFromPosition(uint256 assets) internal virtual returns (uint256)
+```
+
+_Services a user withdrawal. If looping is disabled, withdraws directly from
+     the lender. Otherwise, executes a plain withdraw when it keeps the LTV inside
+     bounds, or runs a full leverage operation. Small-withdraw plain operations
+     mitigate atomic loss attacks that would otherwise force a flash-loan loop._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | uint256 | The amount of assets to withdraw. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The actual amount withdrawn. |
+
+### adjustLeverage
+
+```solidity
+function adjustLeverage() external virtual
+```
+
+Permissionlessly adjusts leverage back toward the stored target LTV.
+
+_Requires looping to be enabled and `permissionedLtvAdjustment` to be `false`.
+     Reverts with `LtvWithinBounds` if the current LTV is already inside the
+     target band; otherwise executes a leverage operation using the stored
+     slippage tolerance._
+
+### adjustLeverage
+
+```solidity
+function adjustLeverage(uint64 maxSlippageInWad, uint64 targetLtvInWad, bool setNewTargetLtv) external virtual
+```
+
+Permissioned leverage adjustment with caller-supplied slippage and target LTV.
+
+_Callable by `STRATEGY_ADMIN` (always) or `OPERATOR_ROLE` (when not paused).
+     When `setNewTargetLtv` is `true` the supplied `targetLtvInWad` is persisted
+     using the stored deviation; when `false` the call adjusts toward
+     `targetLtvInWad` for this transaction only and reverts if it would exceed
+     the lender's maximum LTV._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxSlippageInWad | uint64 | Slippage tolerance for this adjustment, in WAD. |
+| targetLtvInWad | uint64 | Target LTV to adjust toward, in WAD. |
+| setNewTargetLtv | bool | If `true`, also persists `targetLtvInWad` as the stored target. |
+
+### _adjustLeverage
+
+```solidity
+function _adjustLeverage(LoopConfig loopConfig, uint64 targetLtvPlusOneInWad, uint64 maxSlippageInWad) internal virtual
+```
+
+### _supply
+
+```solidity
+function _supply(address, uint256 amount) internal
+```
+
+### _withdraw
+
+```solidity
+function _withdraw(address, uint256 amount) internal
+```
+
+### _repay
+
+```solidity
+function _repay(address, uint256 amount) internal
+```
+
+### _borrow
+
+```solidity
+function _borrow(address, uint256 amount) internal
+```
+
+### previewOperation
+
+```solidity
+function previewOperation(uint256 allocOrDeallocAmount, bool isAllocation, uint64 targetLtvInWad, uint64 maxSlippageInWad) public view returns (struct PreviewOperationResult result, bool ltvUpperBoundReached, bool deallocationHigherThanEquity, bool insufficientFlashLiquidity)
+```
+
+Previews an allocation or deallocation without executing it.
+
+_Returns the leverage figures (flash amount, paired-token amount, equity
+     before/after, maximum loss) together with three error flags so a caller
+     can decide whether the operation is feasible. Equity values include the
+     lender module's staged liquidity. If `targetLtvInWad` exceeds `WAD` the
+     function short-circuits with `ltvUpperBoundReached = true`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| allocOrDeallocAmount | uint256 | The amount to allocate or deallocate. |
+| isAllocation | bool | `true` to preview an allocation, `false` for a deallocation. |
+| targetLtvInWad | uint64 | Target LTV the operation should reach, in WAD. |
+| maxSlippageInWad | uint64 | Slippage tolerance for the operation, in WAD. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| result | struct PreviewOperationResult | The full preview result struct, including flash and swap sizing         and the resulting equity delta. |
+| ltvUpperBoundReached | bool | `true` when the upper LTV bound would be breached. |
+| deallocationHigherThanEquity | bool | `true` when the requested deallocation         exceeds the position equity. |
+| insufficientFlashLiquidity | bool | `true` when the available flash liquidity is         insufficient for the operation. |
+
+### checkLeverageCondition
+
+```solidity
+function checkLeverageCondition() external view virtual returns (bool)
+```
+
+Returns `true` when the current LTV is outside the target band and a
+        leverage adjustment is therefore required.
+
+_Returns `false` when looping is disabled or the LTV is within bounds._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | Whether `adjustLeverage` should be invoked. |
+
+### maxWithdraw
+
+```solidity
+function maxWithdraw() public view virtual returns (uint256)
+```
+
+Returns the maximum withdrawable amount, capped by `maxWithdraw` storage
+        and by the lender liquidity and LTV bounds at the stored target.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The maximum amount, in asset units, that can be withdrawn in a single call. |
+
+### maxDeallocate
+
+```solidity
+function maxDeallocate(uint64 targetLtvInWad, uint64 maxSlippageInWad) public view virtual returns (uint256)
+```
+
+Returns the maximum deallocatable amount for a hypothetical target LTV
+        and slippage tolerance.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| targetLtvInWad | uint64 | Target LTV the deallocation would aim for, in WAD. |
+| maxSlippageInWad | uint64 | Slippage tolerance for the deallocation, in WAD. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The maximum amount, in asset units, that could be deallocated. |
+
+### rescueFunds
+
+```solidity
+function rescueFunds(address token, uint256 amount) external virtual
+```
+
+Recovers non-asset ERC20 tokens accidentally sent to the strategy.
+
+_Callable only by `STRATEGY_ADMIN`. Reverts with `InvalidAssetForRescue`
+     when attempting to rescue the strategy's bound asset._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The token address to rescue. |
+| amount | uint256 | The amount of `token` to transfer to the caller. |
+
+### enableLooping
+
+```solidity
+function enableLooping(address flashModule_, address swapModule_, uint64 targetLtvInWad, uint256 flashCollateralEpsilon_, uint64 ltvAdditiveDeviationInWad, uint64 maxSlippageInWad, bool permissionedLtvAdjustment_) external virtual
+```
+
+Enables looping with the supplied module wiring and LTV/slippage parameters.
+
+_Callable only by `STRATEGY_ADMIN`. Reverts if looping is already enabled or
+     if any of `targetLtvInWad`, `ltvAdditiveDeviationInWad`, or
+     `flashCollateralEpsilon_` is zero. Emits `LoopingEnabled`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| flashModule_ | address | Address of the flash loan module to bind. |
+| swapModule_ | address | Address of the swap module to bind. |
+| targetLtvInWad | uint64 | Target LTV the strategy should maintain, in WAD. |
+| flashCollateralEpsilon_ | uint256 | Minimum flash collateral epsilon used in operation        sizing. |
+| ltvAdditiveDeviationInWad | uint64 | Permitted additive deviation around the target        LTV, in WAD. |
+| maxSlippageInWad | uint64 | Default slippage tolerance, in WAD. |
+| permissionedLtvAdjustment_ | bool | If `true`, only admins/operators may call        `adjustLeverage`; if `false`, leverage adjustment is permissionless. |
+
+### disableLooping
+
+```solidity
+function disableLooping() external virtual
+```
+
+Disables looping. The lender module must hold zero debt.
+
+_Callable only by `STRATEGY_ADMIN`. Reverts with `LenderModuleHasDebt`
+     if outstanding debt remains. Emits `LoopingDisabled`._
+
+### setTargetLtvAndDeviation
+
+```solidity
+function setTargetLtvAndDeviation(uint64 targetLtvInWad, uint64 ltvAdditiveDeviationInWad) external virtual
+```
+
+Sets the target LTV and the additive deviation around it.
+
+_Callable only by `STRATEGY_ADMIN`. Emits `TargetLtvAndDeviationSet`.
+     Reverts with `TargetLtvPlusDeviationAboveMaxLtv` when the sum exceeds the
+     lender's max LTV._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| targetLtvInWad | uint64 | Target LTV in WAD. |
+| ltvAdditiveDeviationInWad | uint64 | Additive deviation around the target LTV, in WAD. |
+
+### setMaxSlippage
+
+```solidity
+function setMaxSlippage(uint64 maxSlippageInWad) external virtual
+```
+
+Sets the default slippage tolerance applied to internal looping operations.
+
+_Callable only by `STRATEGY_ADMIN`. Reverts with `ZeroMaxSlippage` if zero.
+     Emits `MaxSlippageUpdated`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxSlippageInWad | uint64 | New slippage tolerance, in WAD. |
+
+### permissionedLtvAdjustment
+
+```solidity
+function permissionedLtvAdjustment(bool permissionedLtvAdjustment_) external virtual
+```
+
+Toggles whether `adjustLeverage()` is permissionless or restricted to admin/operator.
+
+_Callable only by `STRATEGY_ADMIN`. Emits `PermissionedLtvAdjustmentUpdated`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| permissionedLtvAdjustment_ | bool | If `true`, leverage adjustments require admin/operator roles. |
+
+### setFlashModule
+
+```solidity
+function setFlashModule(address flashModule_) external virtual
+```
+
+Sets the flash loan module address.
+
+_Callable only by `STRATEGY_ADMIN`. Reverts on zero address. Emits `FlashModuleSet`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| flashModule_ | address | Address of the new flash loan module. |
+
+### setSwapModule
+
+```solidity
+function setSwapModule(address swapModule_) external virtual
+```
+
+Sets the swap module address.
+
+_Callable only by `STRATEGY_ADMIN`. Reverts on zero address. Emits `SwapModuleSet`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| swapModule_ | address | Address of the new swap module. |
+
+### setLenderModule
+
+```solidity
+function setLenderModule(address lenderModule_) external virtual
+```
+
+Sets the lender module address.
+
+_Callable only by `STRATEGY_ADMIN`. Validation is delegated to
+     `BaseLoopingHelperLib.setLenderModule`, which also emits `LenderModuleSet`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| lenderModule_ | address | Address of the new lender module. |
+
+### lenderModule
+
+```solidity
+function lenderModule() public view returns (address)
+```
+
+Returns the bound lender module address.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The lender module address. |
+
+### getLenderPosition
+
+```solidity
+function getLenderPosition() public view returns (struct LenderPosition)
+```
+
+Returns a snapshot of the lender position (collateral, debt, equity, price).
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct LenderPosition | The current `LenderPosition`. |
+
+### getCurrentLtvInWad
+
+```solidity
+function getCurrentLtvInWad() public view returns (uint64)
+```
+
+Returns the current loan-to-value reported by the lender module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The current LTV in WAD. |
+
+### loopingIsEnabled
+
+```solidity
+function loopingIsEnabled() public view returns (bool)
+```
+
+Returns whether looping is currently enabled.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | `true` when looping is enabled, `false` otherwise. |
+
+### getTargetLtvInWad
+
+```solidity
+function getTargetLtvInWad() public view returns (uint64)
+```
+
+Returns the stored target LTV.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The target LTV in WAD. |
+
+### getLtvAdditiveDeviationInWad
+
+```solidity
+function getLtvAdditiveDeviationInWad() public view returns (uint64)
+```
+
+Returns the stored additive LTV deviation.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The additive LTV deviation in WAD. |
+
+### getMaxSlippageInWad
+
+```solidity
+function getMaxSlippageInWad() public view returns (uint64)
+```
+
+Returns the stored default slippage tolerance for looping operations.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The max slippage tolerance in WAD. |
+
+### getConfig
+
+```solidity
+function getConfig() public view returns (LoopConfig)
+```
+
+Returns the packed loop configuration.
+
+_Encoding: `0x00` and `0x10` (0 and 2) = looping disabled;
+     `0x01` (1) = looping enabled with permissionless LTV adjustment;
+     `0x11` (3) = looping enabled with permissioned LTV adjustment._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | LoopConfig | The packed `LoopConfig`. |
+
+### _prepareLoopParams
+
+```solidity
+function _prepareLoopParams(uint256 allocOrDeallocAmount, LoopConfig loopConfig, uint64 maxSlippageInWad, uint64 targetLtvPlusOneInWad, struct PreviewOperationFlags flags) internal view virtual returns (LoopModality loopModality, struct FlashLoanParams params, struct LtvBounds ltvBounds, struct TokenPair tokenPair)
+```
+
+### _previewPosition
+
+```solidity
+function _previewPosition() internal view virtual returns (uint256 value)
+```
+
+_Returns the current position value, denominated in the strategy asset.
+     Must be implemented by derived strategies._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| value | uint256 | The current position value. |
+
+### _previewOperation
+
+```solidity
+function _previewOperation(struct PreviewOperationParams po) internal view virtual returns (LoopModality loopModality, struct LeverageData leverageData, uint256 oldEquity)
+```
+
+_Internal preview that branches on whether looping is enabled. When looping
+     is disabled, returns the non-looping preview from `BaseLoopingHelperLib`.
+     Otherwise prepares the loop parameters and delegates to
+     `BaseLoopingHelperLib.previewOperationLooping`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| po | struct PreviewOperationParams | The preview parameters (allocation amount, direction, target LTV, slippage). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| loopModality | LoopModality | The resolved loop modality for the operation. |
+| leverageData | struct LeverageData | The computed leverage figures and any captured error info. |
+| oldEquity | uint256 | The position equity before the previewed operation. |
+
+### _getMaxWithdraw
+
+```solidity
+function _getMaxWithdraw(uint64 targetLtvInWad, uint64 slippageInWad, bool isDeallocation) internal view virtual returns (uint256)
+```
+
+### _setTargetLtvAndDeviation
+
+```solidity
+function _setTargetLtvAndDeviation(uint64 targetLtvInWad, uint64 ltvAdditiveDeviationInWad, bool emitEvent) internal virtual
+```
+
+_Sets the target LTV and the additive deviation. Reverts with
+     `TargetLtvPlusDeviationAboveMaxLtv` when the sum exceeds the lender's max
+     LTV. Can only move the target LTV from zero to non-zero when the position
+     has equity._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| targetLtvInWad | uint64 | Target LTV in WAD. |
+| ltvAdditiveDeviationInWad | uint64 | Additive deviation around the target, in WAD. |
+| emitEvent | bool | Whether to emit `TargetLtvAndDeviationSet`. |
+
+### _setMaxSlippage
+
+```solidity
+function _setMaxSlippage(uint64 maxSlippageInWad, bool emitEvent) internal
+```
+
+### _adjustLtvBoundsIfWithdrawEntirePosition
+
+```solidity
+function _adjustLtvBoundsIfWithdrawEntirePosition(struct FlashLoanParams params, struct LtvBounds ltvBounds, struct TokenPair tokenPair) internal view virtual returns (bool targetLtvChanged)
+```
+
+### _getLtvBounds
+
+```solidity
+function _getLtvBounds(bool checkLenderMaxLtv) internal view returns (struct LtvBounds ltvBounds)
+```
+
+### _checkLeverageCondition
+
+```solidity
+function _checkLeverageCondition(struct LtvBounds ltvBounds, uint64 currentLtvInWad) internal view virtual returns (enum LeverageCondition)
+```
+
+### _lenderPosition
+
+```solidity
+function _lenderPosition() internal view returns (struct LenderPosition position)
+```
+
+### _lenderModule
+
+```solidity
+function _lenderModule() internal view returns (contract ILenderModule)
+```
+
+### _checkAndStage
+
+```solidity
+function _checkAndStage(LoopModality loopModality, uint256 allocOrDeallocAmount, struct TokenPair tokenPair, struct LtvBounds ltvBounds) internal virtual
+```
+
+### __BaseLoopingStrategy_init
+
+```solidity
+function __BaseLoopingStrategy_init(address lenderModule_) internal virtual
+```
+

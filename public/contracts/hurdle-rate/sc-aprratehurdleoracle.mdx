@@ -1,0 +1,163 @@
+---
+id: 'sc-aprratehurdleoracle'
+title: 'APRRateHurdleOracle'
+audience: 'public'
+module: 'oracle'
+scope: 'hurdle-rate'
+source_refs:
+  - 'src/oracle/APRRateHurdleOracle.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'hurdle-rate'
+---
+
+## APRRateHurdleOracle
+
+On-chain hurdle-rate oracle using continuous compounding at a nominal APR:
+
+        rate(t) = hurdleFloor x exp(targetAPR x dt / SECONDS_PER_YEAR)
+
+        Unlike APY-based oracles that target exactly X% after one year via `(1+r)^t`, this oracle
+        compounds continuously: a 5% nominal APR yields `exp(0.05) ~ 5.127%` effective annual
+        growth. Vaults reference this oracle to determine whether realised performance has cleared
+        the hurdle before performance fees accrue.
+
+_All rates use 18-decimal (UD60x18) precision. `targetAPR` is expressed as a fractional
+     nominal rate: 5% -> 0.05e18._
+
+### hurdleFloor
+
+```solidity
+uint256 hurdleFloor
+```
+
+Baseline exchange rate in UD60x18 from which growth is computed.
+
+### targetAPR
+
+```solidity
+uint256 targetAPR
+```
+
+Nominal annualized rate in UD60x18 (e.g. 0.05e18 = 5% APR).
+
+### startTimestamp
+
+```solidity
+uint40 startTimestamp
+```
+
+Unix timestamp from which continuous compounding begins.
+
+### Configured
+
+```solidity
+event Configured(uint256 hurdleFloor, uint256 targetAPR, uint40 startTimestamp)
+```
+
+Emitted whenever `configure` updates the hurdle parameters.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hurdleFloor | uint256 | The new baseline exchange rate. |
+| targetAPR | uint256 | The new nominal annualized rate. |
+| startTimestamp | uint40 | The new Unix timestamp from which compounding begins. |
+
+### ZeroHurdleFloor
+
+```solidity
+error ZeroHurdleFloor()
+```
+
+_Reverts when `configure` is called with a zero `hurdleFloor_`._
+
+### HurdleFloorTooHigh
+
+```solidity
+error HurdleFloorTooHigh(uint256 hurdleFloor, uint256 max)
+```
+
+_Reverts when `configure` is called with a `hurdleFloor_` greater than `MAX_HURDLE_FLOOR`._
+
+### TargetRateOutOfRange
+
+```solidity
+error TargetRateOutOfRange(uint256 targetRate, uint256 min, uint256 max)
+```
+
+_Reverts when `configure` is called with a `targetAPR_` outside [`MIN_TARGET_RATE`, `MAX_TARGET_RATE`]._
+
+### ZeroTimestamp
+
+```solidity
+error ZeroTimestamp()
+```
+
+_Reverts when `configure` is called with a zero `startTimestamp_`._
+
+### constructor
+
+```solidity
+constructor(address owner_) public
+```
+
+Deploys the oracle with `owner_` as the configuration admin. Parameters must be set
+        via `configure` before `getHurdleRate` returns a non-zero value.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| owner_ | address | Address that becomes the oracle owner and may call `configure`. |
+
+### configure
+
+```solidity
+function configure(uint256 hurdleFloor_, uint256 targetAPR_, uint40 startTimestamp_) external
+```
+
+Configure (or reconfigure) the hurdle-rate parameters.
+
+_Owner-only. Reverts on the validation errors documented above._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hurdleFloor_ | uint256 | Baseline exchange rate in UD60x18 (e.g. 1e18 = 1.0). |
+| targetAPR_ | uint256 | Nominal annualized rate in UD60x18 (e.g. 0.05e18 = 5%). |
+| startTimestamp_ | uint40 | Unix timestamp from which growth begins. |
+
+### precision
+
+```solidity
+function precision() external pure returns (uint256)
+```
+
+Returns the scaling factor used to encode the hurdle exchange rate.
+
+_The vault divides by this value when converting the hurdle exchange rate
+     to asset amounts: `hurdleAssets = hurdleRate * totalSupply / precision()`._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The scaling factor applied to `getHurdleRate()` (e.g. `1e18`). |
+
+### getHurdleRate
+
+```solidity
+function getHurdleRate() external view returns (uint256)
+```
+
+Returns the current hurdle rate at the current block timestamp.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 |  |
+

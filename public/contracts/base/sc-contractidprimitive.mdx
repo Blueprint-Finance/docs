@@ -1,0 +1,40 @@
+---
+id: 'sc-contractidprimitive'
+title: 'ContractIdPrimitive'
+audience: 'public'
+module: 'core'
+scope: 'base'
+source_refs:
+  - 'src/common/ContractIdPrimitive.sol'
+last_reviewed: '2026-03-30'
+mechanics:
+  - 'contract-discovery'
+---
+
+## ContractIdPrimitive
+
+Shared base that provides safe `IContractId.ID()` introspection via staticcall.
+        Returns `hasNoId = true` when the target does not implement `ID()` or returns
+        fewer than 32 bytes, instead of reverting.
+
+### _getIdOfContract
+
+```solidity
+function _getIdOfContract(address contractAddress) internal view returns (uint64 id, bool hasNoId)
+```
+
+_Internal function to get the contract ID by calling the ID function._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| contractAddress | address | The contract address to query. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| id | uint64 | The contract ID, or 0 if unavailable. |
+| hasNoId | bool | True if the ID function does not exist or returns insufficient data. |
+

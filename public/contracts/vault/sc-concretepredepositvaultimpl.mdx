@@ -1,0 +1,242 @@
+---
+id: 'sc-concretepredepositvaultimpl'
+title: 'ConcretePredepositVaultImpl'
+audience: 'public'
+module: 'core'
+scope: 'vault'
+source_refs:
+  - 'src/implementation/ConcretePredepositVaultImpl.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'predeposit'
+  - 'vault-core'
+---
+
+## ConcretePredepositVaultImpl
+
+A vault implementation that extends ConcreteStandardVaultImpl with cross-chain share claiming via a standalone OApp.
+
+_This is useful for pre-deposit phases where users can claim their shares on a different chain.
+     Withdrawals should be disabled during the predeposit phase.
+     Claims can only occur when deposits and withdrawals are locked.
+     Claims should only occur when underlying assets are bridged to target chain.
+     Typically self claims should be enabled only when assets are already bridged to target chain.
+     In claims phase shares are duplicated until claimed on target chain and burned on source chain.
+     The vault uses a separate OApp contract for cross-chain messaging._
+
+### MSG_TYPE_CLAIM
+
+```solidity
+uint16 MSG_TYPE_CLAIM
+```
+
+Message-type identifier for single-user cross-chain claim payloads.
+
+### MSG_TYPE_BATCH_CLAIM
+
+```solidity
+uint16 MSG_TYPE_BATCH_CLAIM
+```
+
+Message-type identifier for batched cross-chain claim payloads.
+
+### ID
+
+```solidity
+function ID() public pure virtual returns (uint64)
+```
+
+Returns the encoded contract identifier for this predeposit vault implementation.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The encoded contract ID for the predeposit vault flavour. |
+
+### OAppSet
+
+```solidity
+event OAppSet(address oapp)
+```
+
+Emitted when the OApp messenger address is updated by a vault manager.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| oapp | address | The newly configured OApp address (zero address clears the configuration). |
+
+### constructor
+
+```solidity
+constructor(address factory) public
+```
+
+Disables initializers on the implementation contract.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| factory | address | The address of the `ConcreteFactory` that will manage proxies for this implementation. |
+
+### _initialize
+
+```solidity
+function _initialize(uint64 initialVersion, address owner, struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration defaultEnforcedVaultConfig, bytes data) internal virtual
+```
+
+_Initializer called by the factory on deployment. Decodes the standard-vault payload and
+     forwards to the parent initializer, then disables self claims by default._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| initialVersion | uint64 | The initial vault implementation ID. |
+| owner | address | The vault owner address. |
+| defaultEnforcedVaultConfig | struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration | Default fee recipients injected by the factory. |
+| data | bytes | Encoded payload `(allocateModule, asset, initialVaultManager, name, symbol)`. |
+
+### claimOnTargetChain
+
+```solidity
+function claimOnTargetChain(bytes options) external payable
+```
+
+Burn `msg.sender`'s locked L1 shares and route the claim to the target chain via LayerZero.
+
+_Sends a single LayerZero message reporting the caller and their eligible share amount,
+     burning the L1 shares in the same call. Accrues yield first to sync strategy state;
+     strategies are expected to report no yield once claims have opened. Gated by
+     `selfClaimsEnabled` so individual users can only call this when self claims are enabled._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| options | bytes | LayerZero messaging options (gas/fee parameters). |
+
+### batchClaimOnTargetChain
+
+```solidity
+function batchClaimOnTargetChain(bytes addressesData, bytes options) external payable
+```
+
+Burn locked L1 shares for a batch of users and route the claim to the target chain.
+
+_Only callable by accounts with the VAULT_MANAGER role. Aggregates the supplied
+     addresses, sends a single LayerZero message, and silently skips addresses that have
+     zero claimable shares (including users who have already claimed). Accrues yield first
+     so strategy accounting is synced; strategies are expected to report no yield once
+     claims have opened._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| addressesData | bytes | ABI-encoded array of addresses to claim for. |
+| options | bytes | LayerZero messaging options (gas/fee parameters). |
+
+### getLockedShares
+
+```solidity
+function getLockedShares(address user) external view returns (uint256)
+```
+
+Returns the amount of locked (unclaimed) shares held for `user` on this chain.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The user whose locked share balance is being queried. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The amount of locked shares attributable to `user`. |
+
+### setSelfClaimsEnabled
+
+```solidity
+function setSelfClaimsEnabled(bool enabled) external
+```
+
+Enable or disable user self-initiated claims on the target chain.
+
+_Only callable by accounts with the VAULT_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| enabled | bool | True to enable self claims, false to disable. |
+
+### getSelfClaimsEnabled
+
+```solidity
+function getSelfClaimsEnabled() external view returns (bool)
+```
+
+Returns whether user self-initiated claims are currently enabled.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if self claims are enabled, false otherwise. |
+
+### setOApp
+
+```solidity
+function setOApp(address oappAddress) external
+```
+
+Set the LayerZero OApp contract address used for cross-chain claim messaging.
+
+_Only callable by accounts with the VAULT_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| oappAddress | address | The address of the OApp contract. |
+
+### getOApp
+
+```solidity
+function getOApp() external view returns (address)
+```
+
+Returns the LayerZero OApp contract address used for cross-chain claim messaging.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The address of the OApp contract, or address(0) if not set. |
+
+### _upgrade
+
+```solidity
+function _upgrade(uint64, bytes) internal virtual
+```
+
+_Upgrade hook handling migration from `ConcreteStandardVaultImpl` to
+     `ConcretePredepositVaultImpl`. Migrates any legacy admin roles to `ROLE_ADMIN` and
+     defaults `selfClaimsEnabled` to false (it can later be enabled via `setSelfClaimsEnabled`)._
+
+### _validateClaimConditions
+
+```solidity
+function _validateClaimConditions(struct ConcretePredepositVaultImplStorageLib.ConcretePredepositVaultImplStorage $) internal view
+```
+
+_Validates that a cross-chain claim can proceed: OApp address is set, deposits are
+     locked (max global = 0), and withdrawals are locked (max tx = 0). The caller passes in
+     the predeposit storage reference so this helper does not need to call `fetch()` again._
+

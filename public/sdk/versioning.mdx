@@ -1,0 +1,36 @@
+---
+id: sdk.versioning
+title: SDK versioning and release tags
+audience: public
+module: sdk
+scope: overview
+gates: []
+related:
+  - sdk.overview
+source_refs:
+  - docs/08-sdk-build-and-publish.md
+  - sdk/package.json
+last_reviewed: 2026-05-14
+---
+
+# SDK versioning and release tags
+
+The SDK is published to npm as `@concrete-xyz/sdk`. Two release channels
+are maintained:
+
+- **`latest`** — the stable channel. Installing `@concrete-xyz/sdk`
+  without a tag pulls from here. Breaking changes follow semver: a major
+  version bump signals an intentional change to the public surface.
+- **`test`** — a pre-release channel used to validate changes before
+  promoting them to `latest`. Installable via
+  `npm install @concrete-xyz/sdk@test`. The contents of `test` may
+  change without notice and should not be relied on for production.
+
+Vault contracts are versioned independently. The SDK exposes both `v1`
+and `v2` vault interfaces; the version is selected per vault instance at
+construction time. A single SDK release supports both versions
+concurrently.
+
+The package is currently in closed beta. Integrators using the SDK
+should expect occasional breaking changes during the beta window and are
+encouraged to pin to an exact version in their `package.json`.

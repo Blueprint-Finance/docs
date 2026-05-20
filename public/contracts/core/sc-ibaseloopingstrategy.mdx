@@ -1,0 +1,717 @@
+---
+id: 'sc-ibaseloopingstrategy'
+title: 'IBaseLoopingStrategy'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/IBaseLoopingStrategy.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'leverage-looping'
+---
+
+## PreviewOperationResult
+
+Struct containing preview operation results
+
+```solidity
+struct PreviewOperationResult {
+  uint256 flashAmount;
+  uint256 pairedTokenAmount;
+  uint256 floatingAmount;
+  uint256 collateralDiff;
+  uint256 debtDiff;
+  uint256 positionEquityBeforeOperation;
+  uint256 positionEquityAfterOperation;
+  int256 maximumLoss;
+  uint64 flashPremiumQuoteInWad;
+  enum LeverageOperation operation;
+}
+```
+
+## LenderModuleState
+
+Complete state of a lender module including position and configuration
+
+```solidity
+struct LenderModuleState {
+  address collateralToken;
+  address borrowToken;
+  uint256 collateralAmount;
+  uint256 debtAmount;
+  uint256 collateralBalance;
+  uint64 currentLtvInWad;
+  bool hasFunds;
+}
+```
+
+## PreviewOperationFlags
+
+Flags indicating the type and context of a preview operation
+
+_Combined into a single struct to avoid stack-too-deep in operation previews_
+
+```solidity
+struct PreviewOperationFlags {
+  bool isAllocation;
+  bool isUserWithdraw;
+}
+```
+
+## PreviewOperationParams
+
+Parameters for previewing an operation
+
+```solidity
+struct PreviewOperationParams {
+  uint256 allocOrDeallocAmount;
+  bool isAllocation;
+  uint64 maxSlippageInWad;
+  uint64 targetLtvInWad;
+}
+```
+
+## IBaseLoopingStrategy
+
+Shared interface for looping strategy implementations exposing leverage adjustment,
+        position previewing, looping configuration, module wiring, and emergency rescue.
+
+### InvalidAssetForRescue
+
+```solidity
+error InvalidAssetForRescue(address token)
+```
+
+Thrown when attempting to rescue the strategy's asset token
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The token address that cannot be rescued |
+
+### InsufficientFloatingAmountToDeallocate
+
+```solidity
+error InsufficientFloatingAmountToDeallocate(uint256 floatingAmount, uint256 allocOrDeallocAmount)
+```
+
+Thrown when attempting to deallocate more than available floating amount
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| floatingAmount | uint256 | The available floating amount |
+| allocOrDeallocAmount | uint256 | The requested deallocation amount |
+
+### InsufficientEquityToReachTargetLtv
+
+```solidity
+error InsufficientEquityToReachTargetLtv(uint256 equity, uint64 targetLtvInWad)
+```
+
+Thrown when there is insufficient equity to reach the target LTV
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| equity | uint256 | Current equity in the position |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad |
+
+### InvalidBorrowToken
+
+```solidity
+error InvalidBorrowToken()
+```
+
+Thrown when the borrow token is invalid (same as collateral or zero address)
+
+### InvalidCollateralToken
+
+```solidity
+error InvalidCollateralToken()
+```
+
+Thrown when the collateral token does not match the strategy's asset
+
+### LtvAboveUpperBound
+
+```solidity
+error LtvAboveUpperBound(uint64 currentLtvInWad, uint64 targetLtvInWad, uint64 ltvAdditiveDeviationInWad)
+```
+
+Thrown when current LTV is above the upper bound (target + deviation)
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| currentLtvInWad | uint64 | Current loan-to-value ratio in wad |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad |
+| ltvAdditiveDeviationInWad | uint64 | LTV additive deviation in wad |
+
+### LtvBelowLowerBound
+
+```solidity
+error LtvBelowLowerBound(uint64 currentLtvInWad, uint64 targetLtvInWad, uint64 ltvAdditiveDeviationInWad)
+```
+
+Thrown when current LTV is below the lower bound (target - deviation)
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| currentLtvInWad | uint64 | Current loan-to-value ratio in wad |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad |
+| ltvAdditiveDeviationInWad | uint64 | LTV additive deviation in wad |
+
+### LtvWithinBounds
+
+```solidity
+error LtvWithinBounds(uint64 currentLtvInWad, uint64 targetLtvInWad, uint64 ltvAdditiveDeviationInWad)
+```
+
+Thrown when LTV is within acceptable bounds (no adjustment needed)
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| currentLtvInWad | uint64 | Current loan-to-value ratio in wad |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad |
+| ltvAdditiveDeviationInWad | uint64 | LTV additive deviation in wad |
+
+### LoopingAlreadyEnabled
+
+```solidity
+error LoopingAlreadyEnabled()
+```
+
+Thrown when looping is already enabled and enableLooping is called again
+
+### LoopingIsDisabled
+
+```solidity
+error LoopingIsDisabled()
+```
+
+Thrown when a looping operation is attempted but looping is disabled
+
+### PermissionedLtvAdjustment
+
+```solidity
+error PermissionedLtvAdjustment()
+```
+
+Thrown when a permissionless leverage adjustment is attempted but adjustments are permissioned
+
+### PreviousLenderModuleHasFunds
+
+```solidity
+error PreviousLenderModuleHasFunds(uint256 collateralAmount, uint256 debtAmount, uint256 collateralBalance)
+```
+
+Thrown when attempting to change lender module but the previous one still has funds
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 | Amount of collateral in the previous lender module |
+| debtAmount | uint256 | Amount of debt in the previous lender module |
+| collateralBalance | uint256 | Collateral balance in the previous lender module |
+
+### LenderModuleHasDebt
+
+```solidity
+error LenderModuleHasDebt(uint256 debtAmount)
+```
+
+Thrown when attempting to change lender module but the previous one still has debt
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| debtAmount | uint256 | Amount of debt in the previous lender module |
+
+### TargetLtvPlusDeviationAboveMaxLtv
+
+```solidity
+error TargetLtvPlusDeviationAboveMaxLtv(uint64 targetLtvInWad, uint64 ltvAdditiveDeviationInWad, uint64 maxLtvInWad)
+```
+
+Thrown when target LTV plus deviation exceeds the lender's maximum LTV
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad |
+| ltvAdditiveDeviationInWad | uint64 | LTV additive deviation in wad |
+| maxLtvInWad | uint64 | Maximum allowed LTV in wad from the lender |
+
+### TargetLtvMinusDeviationBelowZeroLtv
+
+```solidity
+error TargetLtvMinusDeviationBelowZeroLtv(uint64 targetLtvInWad, uint64 ltvAdditiveDeviationInWad)
+```
+
+Thrown when target LTV minus deviation would be below zero
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad |
+| ltvAdditiveDeviationInWad | uint64 | LTV additive deviation in wad |
+
+### ZeroFlashCollateralEpsilon
+
+```solidity
+error ZeroFlashCollateralEpsilon()
+```
+
+Thrown when flash collateral epsilon is zero
+
+### ZeroFlashModuleAddress
+
+```solidity
+error ZeroFlashModuleAddress()
+```
+
+Thrown when flash module address is zero
+
+### ZeroLenderModuleAddress
+
+```solidity
+error ZeroLenderModuleAddress()
+```
+
+Thrown when lender module address is zero
+
+### ZeroLtvAdditiveDeviation
+
+```solidity
+error ZeroLtvAdditiveDeviation()
+```
+
+Thrown when LTV additive deviation is zero
+
+### ZeroMaxSlippage
+
+```solidity
+error ZeroMaxSlippage()
+```
+
+Thrown when max slippage is zero
+
+### ZeroTargetLtv
+
+```solidity
+error ZeroTargetLtv()
+```
+
+Thrown when target LTV is zero
+
+### ZeroSwapModuleAddress
+
+```solidity
+error ZeroSwapModuleAddress()
+```
+
+Thrown when swap module address is zero
+
+### LenderModuleSet
+
+```solidity
+event LenderModuleSet(address previousLenderModule, address newLenderModule)
+```
+
+Emitted when the lender module is set or changed
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| previousLenderModule | address | Address of the previous lender module |
+| newLenderModule | address | Address of the new lender module |
+
+### LoopingDisabled
+
+```solidity
+event LoopingDisabled()
+```
+
+Emitted when looping functionality is disabled
+
+### LoopingEnabled
+
+```solidity
+event LoopingEnabled(uint64 targetLtvInWad, uint64 ltvAdditiveDeviationInWad, uint64 maxSlippageInWad, bool permissionedLtvAdjustment, uint256 flashCollateralEpsilon)
+```
+
+Emitted when looping functionality is enabled
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad (1e18) |
+| ltvAdditiveDeviationInWad | uint64 | LTV additive deviation in wad (1e18) |
+| maxSlippageInWad | uint64 | Maximum acceptable slippage in wad (1e18) |
+| permissionedLtvAdjustment | bool | Whether LTV adjustments require permissions |
+| flashCollateralEpsilon | uint256 | Minimum flash collateral amount for operations |
+
+### MaxSlippageUpdated
+
+```solidity
+event MaxSlippageUpdated(uint64 maxSlippageInWad)
+```
+
+Emitted when the maximum slippage is updated
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxSlippageInWad | uint64 | New maximum acceptable slippage in wad (1e18) |
+
+### PermissionedLtvAdjustmentUpdated
+
+```solidity
+event PermissionedLtvAdjustmentUpdated(bool permissionedLtvAdjustment)
+```
+
+Emitted when the permissioned LTV adjustment setting is updated
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| permissionedLtvAdjustment | bool | Whether LTV adjustments now require permissions |
+
+### TargetLtvAndDeviationSet
+
+```solidity
+event TargetLtvAndDeviationSet(uint64 targetLtvInWad, uint64 ltvAdditiveDeviationInWad)
+```
+
+Emitted when target LTV and deviation are updated
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| targetLtvInWad | uint64 | New target loan-to-value ratio in wad (1e18) |
+| ltvAdditiveDeviationInWad | uint64 | New LTV additive deviation in wad (1e18) |
+
+### lenderModule
+
+```solidity
+function lenderModule() external view returns (address)
+```
+
+Gets the lender module address
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | Lender module address |
+
+### checkLeverageCondition
+
+```solidity
+function checkLeverageCondition() external view returns (bool)
+```
+
+Checks whether the leverage condition requires adjustment
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if leverage adjustment is needed, false otherwise |
+
+### getCurrentLtvInWad
+
+```solidity
+function getCurrentLtvInWad() external view returns (uint64)
+```
+
+Gets the current loan-to-value ratio of the position
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Current LTV in wad (1e18) |
+
+### getTargetLtvInWad
+
+```solidity
+function getTargetLtvInWad() external view returns (uint64)
+```
+
+Gets the target loan-to-value ratio
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Target LTV in wad (1e18) |
+
+### getLtvAdditiveDeviationInWad
+
+```solidity
+function getLtvAdditiveDeviationInWad() external view returns (uint64)
+```
+
+Gets the LTV additive deviation
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | LTV additive deviation in wad (1e18) |
+
+### getLenderPosition
+
+```solidity
+function getLenderPosition() external view returns (struct LenderPosition)
+```
+
+Gets the complete lender position information
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct LenderPosition | position The lender position including collateral, debt, floating amount, equity, and price |
+
+### loopingIsEnabled
+
+```solidity
+function loopingIsEnabled() external view returns (bool)
+```
+
+Checks whether looping functionality is enabled
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if looping is enabled, false otherwise |
+
+### maxDeallocate
+
+```solidity
+function maxDeallocate(uint64 targetLtvInWad, uint64 maxSlippageInWad) external view returns (uint256)
+```
+
+Calculates the maximum amount that can be deallocated
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad (1e18) |
+| maxSlippageInWad | uint64 | Maximum acceptable slippage in wad (1e18) |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | Maximum deallocation amount |
+
+### previewOperation
+
+```solidity
+function previewOperation(uint256 requestedAmount, bool isAllocation, uint64 targetLtvInWad, uint64 maxSlippageInWad) external view returns (struct PreviewOperationResult result, bool ltvUpperBoundReached, bool deallocationHigherThanEquity, bool insufficientFlashLiquidity)
+```
+
+Previews an allocation or deallocation operation without executing it
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| requestedAmount | uint256 | Amount to allocate or deallocate |
+| isAllocation | bool | True for allocation, false for deallocation |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad (1e18) |
+| maxSlippageInWad | uint64 | Maximum acceptable slippage in wad (1e18) |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| result | struct PreviewOperationResult | Preview operation result containing all operation details |
+| ltvUpperBoundReached | bool | Whether target LTV exceeds upper bound |
+| deallocationHigherThanEquity | bool | Whether deallocation exceeds equity |
+| insufficientFlashLiquidity | bool | Whether flash liquidity is insufficient |
+
+### adjustLeverage
+
+```solidity
+function adjustLeverage() external
+```
+
+Permissionless adjustment of leverage to target parameters
+
+_Can only be called when looping is enabled and LTV adjustments are not permissioned_
+
+### adjustLeverage
+
+```solidity
+function adjustLeverage(uint64 maxSlippageInWad, uint64 targetLtvInWad, bool setNewTargetLtv) external
+```
+
+Permissioned adjustment of leverage with custom parameters
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxSlippageInWad | uint64 | Maximum acceptable slippage in wad (1e18) |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad (1e18) |
+| setNewTargetLtv | bool | Whether to update the stored target LTV with the provided value |
+
+### disableLooping
+
+```solidity
+function disableLooping() external
+```
+
+Disables looping functionality
+
+_Removes approvals from the lender module_
+
+### enableLooping
+
+```solidity
+function enableLooping(address flashModule_, address swapModule_, uint64 targetLtvInWad, uint256 flashCollateralEpsilon, uint64 ltvAdditiveDeviationInWad, uint64 maxSlippageInWad, bool permissionedLtvAdjustment) external
+```
+
+Enables looping functionality with specified parameters
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| flashModule_ | address | Address of the flash loan module |
+| swapModule_ | address | Address of the swap module |
+| targetLtvInWad | uint64 | Target loan-to-value ratio in wad (1e18) |
+| flashCollateralEpsilon | uint256 | Minimum flash collateral amount for operations |
+| ltvAdditiveDeviationInWad | uint64 | LTV additive deviation in wad (1e18) |
+| maxSlippageInWad | uint64 | Maximum acceptable slippage in wad (1e18) |
+| permissionedLtvAdjustment | bool | Whether LTV adjustments require permissions |
+
+### permissionedLtvAdjustment
+
+```solidity
+function permissionedLtvAdjustment(bool permissionedLtvAdjustment_) external
+```
+
+Updates the permissioned LTV adjustment setting
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| permissionedLtvAdjustment_ | bool | Whether LTV adjustments should require permissions |
+
+### setMaxSlippage
+
+```solidity
+function setMaxSlippage(uint64 maxSlippageInWad) external
+```
+
+Updates the maximum slippage parameter
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxSlippageInWad | uint64 | New maximum acceptable slippage in wad (1e18) |
+
+### setTargetLtvAndDeviation
+
+```solidity
+function setTargetLtvAndDeviation(uint64 targetLtvInWad, uint64 ltvAdditiveDeviationInWad) external
+```
+
+Updates the target LTV and deviation parameters
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| targetLtvInWad | uint64 | New target loan-to-value ratio in wad (1e18) |
+| ltvAdditiveDeviationInWad | uint64 | New LTV additive deviation in wad (1e18) |
+
+### setFlashModule
+
+```solidity
+function setFlashModule(address flashModule_) external
+```
+
+Updates the flash loan module address
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| flashModule_ | address | Address of the new flash loan module |
+
+### setLenderModule
+
+```solidity
+function setLenderModule(address lenderModule_) external
+```
+
+Updates the lender module address
+
+_Validates the new module and removes approvals from the previous one_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| lenderModule_ | address | Address of the new lender module |
+
+### setSwapModule
+
+```solidity
+function setSwapModule(address swapModule_) external
+```
+
+Updates the swap module address
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| swapModule_ | address | Address of the new swap module |
+
+### rescueFunds
+
+```solidity
+function rescueFunds(address token, uint256 amount) external
+```
+
+Emergency function to rescue tokens that are not the strategy asset
+
+_Cannot be used to rescue the strategy's asset token_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | Address of the token to rescue |
+| amount | uint256 | Amount of tokens to rescue |
+

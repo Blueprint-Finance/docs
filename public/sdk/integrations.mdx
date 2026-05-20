@@ -1,0 +1,40 @@
+---
+id: sdk.integrations
+title: Integration entry points
+audience: public
+module: sdk
+scope: overview
+gates: []
+related:
+  - sdk.overview
+source_refs:
+  - sdk/README.md
+  - sdk/wagmi/README.md
+last_reviewed: 2026-05-14
+---
+
+# Integration entry points
+
+The SDK ships three import paths so integrators can pick the one that
+matches their stack without paying the cost of layers they don't use.
+
+| Entry point                  | Use when                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| `@concrete-xyz/sdk`          | Any JS/TS environment. You bring an `ethers`-compatible `ContractRunner` (provider or signer).    |
+| `@concrete-xyz/sdk/react`    | React apps without wagmi. Hooks read a host-provided web3 context.                                |
+| `@concrete-xyz/sdk/wagmi`    | React apps using wagmi. Hooks compose with wagmi's connector and react-query cache.               |
+
+What integrators are promised:
+
+- Every entry point exposes the same vault read/write surface — picking a
+  layer is a stylistic choice, not a capability choice.
+- Each entry point is independently typed and tree-shakable; importing
+  from `@concrete-xyz/sdk/wagmi` does not pull in the React-only entry,
+  and vice versa.
+- ABI artifacts ship in the package; integrators do not need to copy
+  ABIs from this repository.
+
+Reach for the **core** entry point when the consumer is a script, a
+serverless function, or an indexer. Reach for **react** when there is a
+React tree but no wagmi. Reach for **wagmi** when wagmi is already wired
+up — that path avoids duplicating connector state.

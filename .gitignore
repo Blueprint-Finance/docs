@@ -1,0 +1,4 @@
+.DS_Store
+.preview/
+scripts/node_modules/
+scripts/.env

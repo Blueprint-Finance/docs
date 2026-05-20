@@ -1,0 +1,82 @@
+{
+  "projectType": "saas",
+  "projectName": "Concrete",
+  "projectDescription": "Concrete is an institutional-grade DeFi platform that automates yield generation across multiple chains, allowing users to deposit once and earn risk-adjusted returns through managed vault strategies.",
+  "theme": "luma",
+  "primaryColor": "#f2e28a",
+  "lightColor": "#7c6c44",
+  "darkColor": "#0c0c08",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "how-it-works",
+              "key-concepts"
+            ]
+          },
+          {
+            "group": "Earn Vaults",
+            "pages": [
+              "vaults/overview",
+              "vaults/depositing",
+              "vaults/withdrawals",
+              "vaults/vault-shares",
+              "vaults/nav-and-erate"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/overview",
+              "security/audits",
+              "security/monitoring"
+            ]
+          },
+          {
+            "group": "Enterprise",
+            "pages": [
+              "enterprise/overview",
+              "enterprise/assetcx",
+              "enterprise/vault-setup"
+            ]
+          },
+          {
+            "group": "Ecosystem",
+            "pages": [
+              "ecosystem/overview",
+              "ecosystem/supported-chains",
+              "ecosystem/integrations"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "One-click DeFi yield access through automated vault strategies",
+    "Institutional-grade vault infrastructure with daily NAV updates",
+    "ct[Asset] yield-bearing vault share tokens composable across DeFi",
+    "Role-based automation with separation of duties (Vault Manager, Allocator, Strategy Manager)",
+    "Multi-chain yield routing across Ethereum, Arbitrum, Base, Berachain, and more",
+    "Real-time security monitoring via Hypernative and ZeroShadow integration",
+    "Noncustodial vault curation on Morpho for institutional lending markets",
+    "Enterprise vault deployment with custom strategy and SDK integration",
+    "AssetCX product for custodians earning yield on off-chain assets",
+    "Audited by Cantina, Code4rena, Halborn, and Zellic"
+  ],
+  "publicApiSurface": [
+    "Concrete Earn App (app.concrete.xyz/earn) — deposit and manage vault positions",
+    "ct[Asset] tokens — yield-bearing vault shares (e.g. ctDefiUSDT, ctWBTC)",
+    "Exchange Rate (eRate) — vault share valuation metric",
+    "Net Asset Value (NAV) — total vault asset valuation",
+    "Withdrawal queue — orderly daily processing cycle for redemptions",
+    "Enterprise vault SDK — hosted UI or SDK integration for custom vaults",
+    "AssetCX — custodian yield-earning product for institutional assets",
+    "ctDefiUSDT Dashboard (accountable.concrete.xyz/ctDefiUSDT) — verifiable exposure analytics"
+  ]
+}

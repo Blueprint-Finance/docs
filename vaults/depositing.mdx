@@ -1,0 +1,53 @@
+---
+title: "How to Deposit into a Concrete Earn Vault and Start Earning"
+sidebarTitle: "Depositing"
+description: "Connect your wallet, choose a vault, and deposit supported assets to start earning automated, risk-adjusted yield with a single transaction."
+---
+
+Depositing into a Concrete vault is a single transaction. After you confirm, the vault immediately puts your assets to work across yield strategies — no further action required. The steps below walk you through the full process, from opening the app to receiving your vault share tokens.
+
+## Supported assets
+
+Each vault accepts a specific asset:
+
+- **WBTC Vault** — Wrapped Bitcoin (WBTC)
+- **sEIGEN Vault** — EIGEN
+- **Stable Vault** — USDT and other supported stablecoins
+
+## Deposit steps
+
+<Steps>
+  <Step title="Go to the Earn page">
+    Open [app.concrete.xyz/earn](https://app.concrete.xyz/earn) in your browser.
+  </Step>
+  <Step title="Connect your wallet">
+    Click **Connect Wallet** and approve the connection request in your wallet. Concrete supports standard Web3 wallets.
+  </Step>
+  <Step title="Select a vault">
+    Review the available vaults — WBTC, sEIGEN, and Stable. Choose the one that matches the asset you want to deposit. Each vault card shows the current strategy and historical performance.
+  </Step>
+  <Step title="Enter the amount">
+    Type the amount you want to deposit, or click **Max** to deposit your full available balance.
+  </Step>
+  <Step title="Approve the token">
+    If this is your first deposit with this token, you will need to submit an approval transaction allowing the vault contract to spend your tokens. Confirm this in your wallet.
+  </Step>
+  <Step title="Confirm the deposit">
+    Review the deposit summary and click **Deposit**. Confirm the transaction in your wallet. Gas costs for entering vault positions are absorbed by the vault and not charged to you directly.
+  </Step>
+  <Step title="Receive ct[Asset] tokens">
+    Once the transaction confirms, you receive `ct[Asset]` tokens (for example, `ctDefiUSDT` or `ctWBTC`) in your wallet. These tokens represent your proportional share of the vault and appreciate in value as the vault earns yield. See [Vault Shares](/vaults/vault-shares) for more detail.
+  </Step>
+</Steps>
+
+<Tip>
+  Concrete vaults are designed for longer time horizons. Compounding builds on itself — yield earned in week one is redeployed and earns its own yield in week two and beyond. Depositors who stay longer capture more compounding cycles and give active management more time to rotate toward the best opportunities.
+</Tip>
+
+<Note>
+  Execution costs involved in entering yield-generating positions — such as gas, bridging, and protocol interaction fees — are absorbed by the vault and not charged to depositors directly. These costs are reflected temporarily in the exchange rate and are recovered through strategy returns over time.
+</Note>
+
+## What happens after you deposit
+
+Your capital is allocated across the vault's active yield strategies immediately. The vault continuously rebalances between strategies — shifting toward better opportunities and pulling back from underperforming ones — without any action required from you. Your `ct[Asset]` token balance remains fixed; it is the value of each token that increases as the vault earns yield.

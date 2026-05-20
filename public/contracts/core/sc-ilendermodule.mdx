@@ -1,0 +1,263 @@
+---
+id: 'sc-ilendermodule'
+title: 'ILenderModule'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/ILenderModule.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'lending-integration'
+---
+
+## ILenderModule
+
+Interface for lender module adapters that wrap an external lending market
+        (e.g. Aave V3, Morpho) and expose a unified API for supply, withdraw, borrow,
+        and repay, plus the read-side data required by looping strategies.
+
+### supply
+
+```solidity
+function supply(uint256 amount) external
+```
+
+Supplies `amount` of collateral token to the underlying lender.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of collateral token to supply. |
+
+### withdraw
+
+```solidity
+function withdraw(uint256 amount) external
+```
+
+Withdraws `amount` of collateral token from the underlying lender.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of collateral token to withdraw. |
+
+### borrow
+
+```solidity
+function borrow(uint256 amount) external
+```
+
+Borrows `amount` of borrow token from the underlying lender.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of borrow token to borrow. |
+
+### repay
+
+```solidity
+function repay(uint256 amount) external
+```
+
+Repays `amount` of borrow token to the underlying lender.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of borrow token to repay. |
+
+### COLLATERAL_TOKEN
+
+```solidity
+function COLLATERAL_TOKEN() external view returns (address)
+```
+
+Returns the collateral token managed by this lender module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The address of the collateral token. |
+
+### BORROW_TOKEN
+
+```solidity
+function BORROW_TOKEN() external view returns (address)
+```
+
+Returns the borrow token managed by this lender module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The address of the borrow token. |
+
+### getTokenPair
+
+```solidity
+function getTokenPair() external view returns (struct TokenPair)
+```
+
+Returns the collateral and borrow token pair as a single struct.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct TokenPair | The `TokenPair` describing collateral and borrow tokens. |
+
+### getPosition
+
+```solidity
+function getPosition() external view returns (uint256 collateralAmount, uint256 debtAmount)
+```
+
+Returns the current collateral supplied and debt owed by this module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 | The amount of collateral currently supplied. |
+| debtAmount | uint256 | The amount of debt currently borrowed. |
+
+### getFullPosition
+
+```solidity
+function getFullPosition() external view returns (uint256 collateralAmount, uint256 debtAmount, uint64 currentLtvInWad, uint256 collateralPriceInRay)
+```
+
+Returns the full position state including current LTV and collateral price.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 | The amount of collateral currently supplied. |
+| debtAmount | uint256 | The amount of debt currently borrowed. |
+| currentLtvInWad | uint64 | The current loan-to-value ratio in wad (1e18 = 100%). |
+| collateralPriceInRay | uint256 | The collateral price denominated in the borrow token, in ray (1e27). |
+
+### getCollateralAmount
+
+```solidity
+function getCollateralAmount() external view returns (uint256)
+```
+
+Returns the amount of collateral currently supplied via this module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The collateral amount in collateral token units. |
+
+### getDebtAmount
+
+```solidity
+function getDebtAmount() external view returns (uint256)
+```
+
+Returns the amount of debt currently owed via this module.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The debt amount in borrow token units. |
+
+### getCurrentLtvInWad
+
+```solidity
+function getCurrentLtvInWad() external view returns (uint64)
+```
+
+Returns the current loan-to-value ratio of the position.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The current LTV in wad (1e18 = 100%). |
+
+### getMaxLtvInWad
+
+```solidity
+function getMaxLtvInWad() external view returns (uint64)
+```
+
+Returns the maximum allowed LTV configured by the underlying lender for the collateral/borrow pair.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The maximum LTV in wad (1e18 = 100%). |
+
+### getBorrowRateInWad
+
+```solidity
+function getBorrowRateInWad() external view returns (uint64)
+```
+
+Returns the current annualised borrow rate quoted by the underlying lender.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The borrow rate in wad (1e18 = 100%). |
+
+### getSupplyRateInWad
+
+```solidity
+function getSupplyRateInWad() external view returns (uint64)
+```
+
+Returns the current annualised supply rate quoted by the underlying lender.
+
+_The supply rate is the annualised yield earned on supplied collateral._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The supply rate in wad (1e18 = 100%). |
+
+### collateralPriceInBorrowTokensInRay
+
+```solidity
+function collateralPriceInBorrowTokensInRay() external view returns (uint256)
+```
+
+Returns the collateral price denominated in borrow tokens.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The price in ray (1e27 = 1 collateral token equal to 1 borrow token). |
+
+### getAvailablePoolLiquidity
+
+```solidity
+function getAvailablePoolLiquidity() external view returns (uint256)
+```
+
+Returns the amount of borrow token currently available to borrow from the underlying pool.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The available pool liquidity, in borrow token units. |
+

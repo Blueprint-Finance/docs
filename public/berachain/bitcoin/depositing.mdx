@@ -1,0 +1,23 @@
+---
+title: "Berachain Bitcoin — Depositing"
+sidebarTitle: "Depositing"
+---
+
+## Deposit disable
+
+
+New deposits into the vault are disabled in the UI. The deposit form is
+either hidden or rendered in a disabled state communicating that the vault
+is no longer accepting capital.
+
+Existing positions are unaffected: holders can still withdraw, claim, and
+read state. Disabling deposits is the standard mechanism for soft-closing a
+vault before deprecation, freezing a vault prior to a migration, or
+responding to a temporary external constraint.
+
+
+
+
+Deposit disable is independent of withdrawal disable. A vault commonly has
+deposits disabled while withdrawals remain enabled — that combination
+describes a vault winding down toward deprecation.

@@ -1,0 +1,638 @@
+---
+id: 'sc-iconcretefactory'
+title: 'IConcreteFactory'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IConcreteFactory.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'vault-factory'
+  - 'vault-upgradeability'
+---
+
+## IConcreteFactory
+
+Factory that approves vault implementations, deploys CREATE2-deterministic vault proxies,
+        tracks per-vault upgrade/migration paths, and stores the protocol-wide enforced default
+        configuration (e.g. fee recipients) applied to newly created vaults.
+
+_Implementations expose: implementation approval/blocking, migration path declarations,
+     proxy deployment with optional caller-provided salts, address prediction, single and batch
+     vault upgrades, vault registration for externally deployed vaults, and getters for the
+     current implementation registry and default vault configuration._
+
+### AlreadyBlocked
+
+```solidity
+error AlreadyBlocked()
+```
+
+_Thrown when blocking an implementation that is already blocked._
+
+### AlreadyApproved
+
+```solidity
+error AlreadyApproved()
+```
+
+_Thrown when approving an implementation that is already approved._
+
+### InvalidImplementation
+
+```solidity
+error InvalidImplementation()
+```
+
+_Thrown when an implementation fails the factory's contract-ID / interface checks._
+
+### InvalidVersion
+
+```solidity
+error InvalidVersion()
+```
+
+_Thrown when a requested vault implementation version is invalid (zero or unknown)._
+
+### NotOwner
+
+```solidity
+error NotOwner()
+```
+
+_Thrown when a privileged call is made by an address other than the vault's owner._
+
+### NotRegisteredVault
+
+```solidity
+error NotRegisteredVault()
+```
+
+_Thrown when an operation targets a vault that was not registered with this factory._
+
+### OldVersion
+
+```solidity
+error OldVersion()
+```
+
+_Thrown when attempting to upgrade to a vault implementation that is older than the current one._
+
+### ImplementationBlocked
+
+```solidity
+error ImplementationBlocked()
+```
+
+_Thrown when attempting to use an implementation that has been blocked._
+
+### CanNotMigrate
+
+```solidity
+error CanNotMigrate()
+```
+
+_Thrown when attempting a migration that has not been declared as allowed._
+
+### InvalidFactoryOwner
+
+```solidity
+error InvalidFactoryOwner()
+```
+
+_Thrown when the factory's expected owner does not match the on-chain owner._
+
+### VaultAlreadyRegistered
+
+```solidity
+error VaultAlreadyRegistered()
+```
+
+_Thrown when a vault is being registered but is already known to the factory._
+
+### ZeroAddress
+
+```solidity
+error ZeroAddress()
+```
+
+_Thrown when a required address argument is the zero address._
+
+### InvalidVaultAddress
+
+```solidity
+error InvalidVaultAddress()
+```
+
+_Thrown when a vault address fails the factory's vault-shape validation._
+
+### InvalidDataLength
+
+```solidity
+error InvalidDataLength()
+```
+
+_Thrown when an input array length is invalid (e.g. mismatched batch arguments)._
+
+### ProxyBytecodeNotInitialized
+
+```solidity
+error ProxyBytecodeNotInitialized()
+```
+
+_Thrown when proxy bytecode has not been initialised on the factory yet._
+
+### ImplementationNotFound
+
+```solidity
+error ImplementationNotFound()
+```
+
+_Thrown when no implementation can be found for the requested lookup key._
+
+### ZeroVaultImplId
+
+```solidity
+error ZeroVaultImplId()
+```
+
+_Thrown when a vault implementation ID of zero is supplied where a non-zero ID is required._
+
+### Deployed
+
+```solidity
+event Deployed(address vault, uint64 vaultImpl, address owner)
+```
+
+Emitted when a new vault proxy is deployed by the factory.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | Address of the newly deployed vault proxy. |
+| vaultImpl | uint64 | Vault implementation ID used at deployment. |
+| owner | address | Initial owner assigned to the new vault. |
+
+### ApprovedImplementation
+
+```solidity
+event ApprovedImplementation(address implementation)
+```
+
+Emitted when a vault implementation is approved for use by the factory.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implementation | address | Address of the newly approved implementation contract. |
+
+### NewVaultImplToImplementation
+
+```solidity
+event NewVaultImplToImplementation(uint64 vaultImpl, address implementation)
+```
+
+Emitted when a vault implementation ID is mapped to its implementation contract.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultImpl | uint64 | Vault implementation ID being registered. |
+| implementation | address | Address of the implementation contract for `vaultImpl`. |
+
+### Blocked
+
+```solidity
+event Blocked(uint64 vaultImpl)
+```
+
+Emitted when a vault implementation ID is blocked from further deployments/upgrades.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultImpl | uint64 | Vault implementation ID that was blocked. |
+
+### Migratable
+
+```solidity
+event Migratable(uint64 fromVaultImpl, uint64 toVaultImpl)
+```
+
+Emitted when a migration path between two vault implementation IDs is declared.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fromVaultImpl | uint64 | Source vault implementation ID. |
+| toVaultImpl | uint64 | Destination vault implementation ID. |
+
+### Migrated
+
+```solidity
+event Migrated(address vault, uint64 newVaultImpl)
+```
+
+Emitted when a vault is migrated to a new implementation ID.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | Address of the vault that was migrated. |
+| newVaultImpl | uint64 | New vault implementation ID applied to `vault`. |
+
+### VaultRegistered
+
+```solidity
+event VaultRegistered(address vault)
+```
+
+Emitted when an externally deployed vault is registered with the factory.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | Address of the vault that was registered. |
+
+### DefaultEnforcedVaultConfigurationUpdated
+
+```solidity
+event DefaultEnforcedVaultConfigurationUpdated(address managementFeeRecipient, address performanceFeeRecipient)
+```
+
+Emitted when the factory's default enforced vault configuration is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| managementFeeRecipient | address | New default management fee recipient applied to new vaults. |
+| performanceFeeRecipient | address | New default performance fee recipient applied to new vaults. |
+
+### approveImplementation
+
+```solidity
+function approveImplementation(address implementation) external
+```
+
+Approve a new vault implementation contract for use by the factory.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implementation | address | Address of the implementation contract to approve. |
+
+### blockImplementation
+
+```solidity
+function blockImplementation(uint64 vaultImpl) external
+```
+
+Block a vault implementation by its implementation ID.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultImpl | uint64 | Vault implementation ID to block. |
+
+### blockImplementationByAddress
+
+```solidity
+function blockImplementationByAddress(address implementation) external
+```
+
+Block a vault implementation by its contract address.
+
+_Convenience wrapper that resolves the implementation's version internally.
+     Reverts if the implementation is not found._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| implementation | address | Address of the implementation contract to block. |
+
+### setMigratable
+
+```solidity
+function setMigratable(uint64 fromVaultImpl, uint64 toVaultImpl) external
+```
+
+Declare a migration path between two vault implementation IDs.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fromVaultImpl | uint64 | Source vault implementation ID. |
+| toVaultImpl | uint64 | Destination vault implementation ID. |
+
+### setMigratableByAddress
+
+```solidity
+function setMigratableByAddress(address fromImplementation, address toImplementation) external
+```
+
+Declare a migration path between two implementations by their contract addresses.
+
+_Convenience wrapper that resolves the implementation versions internally.
+     Reverts if either implementation is not found._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fromImplementation | address | Address of the source implementation contract. |
+| toImplementation | address | Address of the destination implementation contract. |
+
+### create
+
+```solidity
+function create(uint64 vaultImpl, address owner, bytes data) external returns (address)
+```
+
+Deploy a new vault proxy using a salt derived from the supplied parameters.
+
+_The CREATE2 salt is constructed deterministically from `vaultImpl`, `owner`, and `data`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultImpl | uint64 | Vault implementation ID to deploy. |
+| owner | address | Initial owner of the new vault. |
+| data | bytes | Initial vault initialisation calldata. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | Address of the newly deployed vault. |
+
+### create
+
+```solidity
+function create(uint64 vaultImpl, address owner, bytes data, bytes32 salt) external returns (address)
+```
+
+Deploy a new vault proxy using a caller-provided CREATE2 salt.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultImpl | uint64 | Vault implementation ID to deploy. |
+| owner | address | Initial owner of the new vault. |
+| data | bytes | Initial vault initialisation calldata. |
+| salt | bytes32 | Caller-provided CREATE2 salt. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | Address of the newly deployed vault. |
+
+### predictVaultAddress
+
+```solidity
+function predictVaultAddress(uint64 vaultImpl, address ownerAddr, bytes data) external view returns (address)
+```
+
+Predict the deterministic address of a vault that would be deployed with the
+        given parameters using the factory-derived salt.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultImpl | uint64 | Vault implementation ID that would be deployed. |
+| ownerAddr | address | Initial owner that would be set on the new vault. |
+| data | bytes | Initial vault initialisation calldata. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The predicted CREATE2 address for the deployment. |
+
+### predictVaultAddress
+
+```solidity
+function predictVaultAddress(uint64 vaultImpl, address ownerAddr, bytes data, bytes32 salt) external view returns (address)
+```
+
+Predict the deterministic address of a vault that would be deployed with the
+        given parameters and a caller-provided salt.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultImpl | uint64 | Vault implementation ID that would be deployed. |
+| ownerAddr | address | Initial owner that would be set on the new vault. |
+| data | bytes | Initial vault initialisation calldata. |
+| salt | bytes32 | CREATE2 salt that would be supplied at deployment. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The predicted CREATE2 address for the deployment. |
+
+### upgrade
+
+```solidity
+function upgrade(address vault, uint64 newVaultImpl, bytes data) external
+```
+
+Upgrade a vault to a new implementation ID.
+
+_Only the vault's owner can initiate the upgrade. `newVaultImpl` must be strictly
+     greater than the vault's current implementation ID._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | Address of the vault to upgrade. |
+| newVaultImpl | uint64 | Target vault implementation ID. |
+| data | bytes | Upgrade calldata forwarded to the new implementation's upgrade routine. |
+
+### batchUpgrade
+
+```solidity
+function batchUpgrade(address[] vaultAddresses, uint64 newVaultImpl, bytes[] data) external
+```
+
+Upgrade a set of vaults to the same new implementation ID in a single transaction.
+
+_The caller must own every vault in `vaultAddresses`, and `newVaultImpl` must be
+     strictly greater than each vault's current implementation ID._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultAddresses | address[] | Vaults to upgrade. |
+| newVaultImpl | uint64 | Target vault implementation ID applied to every vault. |
+| data | bytes[] | Per-vault upgrade calldata (one entry per vault). |
+
+### lastVersion
+
+```solidity
+function lastVersion() external view returns (uint64)
+```
+
+Returns the highest implementation version currently approved by the factory.
+
+_Returns 0 if no implementations have been approved._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The highest known approved implementation version. |
+
+### getImplementationByVaultImpl
+
+```solidity
+function getImplementationByVaultImpl(uint64 vaultImpl) external view returns (address)
+```
+
+Resolve a vault implementation ID to its implementation contract address.
+
+_Consults `vaultImplToImplementation` first and falls back to lookup by version
+     if no direct mapping exists._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultImpl | uint64 | Vault implementation ID to resolve. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | Address of the implementation contract for `vaultImpl`. |
+
+### isBlocked
+
+```solidity
+function isBlocked(uint64 vaultImpl) external view returns (bool)
+```
+
+Returns whether a vault implementation ID is currently blocked.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultImpl | uint64 | Vault implementation ID to inspect. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if the implementation is blocked, false otherwise. |
+
+### isMigratable
+
+```solidity
+function isMigratable(uint64 fromVaultImpl, uint64 toVaultImpl) external view returns (bool)
+```
+
+Returns whether a migration path from one implementation ID to another has been declared.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fromVaultImpl | uint64 | Source vault implementation ID. |
+| toVaultImpl | uint64 | Destination vault implementation ID. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if `fromVaultImpl` may migrate to `toVaultImpl`, false otherwise. |
+
+### isRegisteredVault
+
+```solidity
+function isRegisteredVault(address vault) external view returns (bool)
+```
+
+Returns whether a vault was deployed by, or has been registered with, this factory.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault address to check. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if the vault is known to the factory, false otherwise. |
+
+### registerVault
+
+```solidity
+function registerVault(address vault) external
+```
+
+Register an externally deployed upgradeable vault with this factory.
+
+_Only callable by the factory owner. The vault must satisfy the factory's
+     upgradeable-vault validation._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | Address of the vault to register. |
+
+### setDefaultEnforcedVaultConfiguration
+
+```solidity
+function setDefaultEnforcedVaultConfiguration(address managementFeeRecipient, address performanceFeeRecipient) external
+```
+
+Set the default fee recipients applied to newly created vaults.
+
+_Only callable by the factory owner._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| managementFeeRecipient | address | Default management fee recipient. |
+| performanceFeeRecipient | address | Default performance fee recipient. |
+
+### getDefaultEnforcedVaultConfiguration
+
+```solidity
+function getDefaultEnforcedVaultConfiguration() external view returns (address defaultManagementFeeRecipient, address defaultPerformanceFeeRecipient)
+```
+
+Returns the protocol-wide default fee recipients applied to new vaults.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| defaultManagementFeeRecipient | address | The default management fee recipient. |
+| defaultPerformanceFeeRecipient | address | The default performance fee recipient. |
+

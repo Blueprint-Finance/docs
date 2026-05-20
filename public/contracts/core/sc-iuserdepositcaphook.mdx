@@ -1,0 +1,145 @@
+---
+id: 'sc-iuserdepositcaphook'
+title: 'IUserDepositCapHook'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/IUserDepositCapHook.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'deposit-limits'
+  - 'vault-hooks'
+---
+
+## IUserDepositCapHook
+
+Interface for the UserDepositCapHook contract that enforces a per-user deposit cap
+        per vault. Implementors expose admin functions to configure caps and view functions
+        to query effective caps and check whether a deposit is permitted.
+
+### UserDepositLimitExceeded
+
+```solidity
+error UserDepositLimitExceeded(address user, uint256 attemptedTotal, uint256 limit)
+```
+
+_Thrown when a user's attempted deposit would push their cumulative deposit above the configured cap._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The address of the depositing user. |
+| attemptedTotal | uint256 | The cumulative deposit amount the user would hold after the deposit. |
+| limit | uint256 | The configured per-user cap on this vault. |
+
+### InvalidLimit
+
+```solidity
+error InvalidLimit(uint256 limit)
+```
+
+_Thrown when the provided deposit cap is invalid (e.g. zero, or otherwise out of accepted range)._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| limit | uint256 | The rejected limit value. |
+
+### VaultNotConfigured
+
+```solidity
+error VaultNotConfigured(address vault)
+```
+
+_Thrown when a vault address has no cap configuration registered with the hook._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The unconfigured vault address. |
+
+### ZeroAddress
+
+```solidity
+error ZeroAddress()
+```
+
+_Thrown when a required address argument is the zero address._
+
+### VaultDepositCapSet
+
+```solidity
+event VaultDepositCapSet(address vault, uint256 oldCap, uint256 newCap)
+```
+
+Emitted when the per-user deposit cap for a vault is set or updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault whose cap is being updated. |
+| oldCap | uint256 | The previous deposit cap. |
+| newCap | uint256 | The new deposit cap. |
+
+### setVaultDepositCap
+
+```solidity
+function setVaultDepositCap(address _vault, uint256 _depositCap) external
+```
+
+Sets the deposit cap for a specific vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _vault | address | The vault address to configure |
+| _depositCap | uint256 | The deposit cap for users in this vault (in asset terms) |
+
+### getUserDepositCap
+
+```solidity
+function getUserDepositCap(address _vault) external view returns (uint256)
+```
+
+Gets the per-user deposit cap for a specific vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _vault | address | The vault address |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The deposit cap that applies to each user in this vault |
+
+### canUserDeposit
+
+```solidity
+function canUserDeposit(address _vault, address _user, uint256 _additionalAssets) external view returns (bool)
+```
+
+Checks if a user can deposit a given amount into a vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _vault | address | The vault address to check against |
+| _user | address | The user (receiver) address |
+| _additionalAssets | uint256 | The amount of assets to deposit |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | Whether the deposit is allowed |
+
