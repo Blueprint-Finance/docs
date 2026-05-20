@@ -832,7 +832,7 @@ function renderRichTextInline(nodes) {
   return out;
 }
 
-function renderRichTextBlocks(nodes, depth = 0) {
+function renderRichTextBlocks(nodes) {
   if (!Array.isArray(nodes)) return '';
   const blocks = [];
   for (const n of nodes) {
@@ -848,18 +848,30 @@ function renderRichTextBlocks(nodes, depth = 0) {
       }
       case 'bullet_list':
       case 'ordered_list': {
+        // Each list level renders its children with no leading indent and then
+        // indents every physical line of the item body (continuation lines,
+        // blank paragraph separators, and any nested list output already
+        // rendered with its own marker spacing). Outer levels recursing into
+        // an item see fully-formed inner Markdown and only need to add their
+        // own marker on the first line plus a `contIndent` of spaces on the
+        // rest — which is the standard CommonMark nesting rule. The previous
+        // depth-based indent was incorrect: nested lists got their continuation
+        // applied only to the first physical line of each paragraph (Cursor
+        // PR #15 finding) and were also double-indented through recursion.
         const ordered = n.type === 'ordered_list';
         const items = (n.content ?? [])
           .filter((c) => c?.type === 'list_item')
           .map((c, i) => {
-            const inner = renderRichTextBlocks(c.content ?? [], depth + 1);
+            const inner = renderRichTextBlocks(c.content ?? []);
             const marker = ordered ? `${i + 1}.` : '-';
-            const indent = '  '.repeat(depth);
+            const contIndent = ' '.repeat(marker.length + 1);
             return inner
-              .split('\n\n')
-              .map((para, idx) =>
-                idx === 0 ? `${indent}${marker} ${para}` : `${indent}  ${para}`,
-              )
+              .split('\n')
+              .map((line, j) => {
+                if (j === 0) return `${marker} ${line}`;
+                if (line === '') return '';
+                return `${contIndent}${line}`;
+              })
               .join('\n');
           })
           .join('\n');
@@ -867,7 +879,7 @@ function renderRichTextBlocks(nodes, depth = 0) {
         break;
       }
       case 'blockquote': {
-        const inner = renderRichTextBlocks(n.content ?? [], depth);
+        const inner = renderRichTextBlocks(n.content ?? []);
         if (inner) blocks.push(inner.split('\n').map((l) => `> ${l}`).join('\n'));
         break;
       }
