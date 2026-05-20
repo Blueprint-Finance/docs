@@ -1,0 +1,34 @@
+---
+id: earn.vaults.multi-address
+title: Multi-address vaults
+audience: public
+module: earn
+scope: vaults
+gates: []
+related:
+  - earn.cross-chain.bridge-eta
+source_refs:
+  - src/core/utils/storyblok.ts
+  - docs/05-cms-storyblok.md
+emit: once
+last_reviewed: 2026-05-20
+---
+
+# Multi-address vaults
+
+A single vault product can represent **multiple contract deployments** — for
+example, the same strategy on several chains, or several deployments of the
+same strategy on one chain. Each deployment is identified by its contract
+address.
+
+What the user sees:
+
+- One vault entry on the Earn landing.
+- One vault page, with an address selector when more than one deployment is
+  available.
+- Per-address state for balance, deposit, and withdraw flows — switching
+  the selector switches the on-chain target.
+
+Deployments share the CMS content (overview, auditors, owner, rewards,
+images) but each has its own on-chain state. APY, balance, and TVL are
+computed per address.

@@ -1,0 +1,37 @@
+---
+id: earn.cross-chain.bridge-eta
+title: Bridge and withdrawal ETAs
+audience: public
+module: earn
+scope: cross-chain
+gates: []
+related:
+  - earn.cross-chain.pre-deposit-claim
+source_refs:
+  - src/core/utils/storyblok.ts
+emit: once
+last_reviewed: 2026-05-20
+---
+
+# Bridge and withdrawal ETAs
+
+Some vault flows complete asynchronously across chains — bridging assets
+into a destination chain, or finalising a withdrawal that involves an
+off-chain settlement step. When the timing of these steps is not yet
+visible on-chain, the CMS pins a forward-looking ETA so the UI can
+communicate expectations.
+
+Two ETA fields are surfaced:
+
+- **`bridgeEta`** — When the cross-chain bridge step of a deposit or
+  migration is expected to complete. Used while assets are in flight.
+- **`withdrawalEta`** — When a withdrawal milestone (typically the
+  destination-chain settlement) is expected to be reachable.
+
+ETAs are editorial promises sourced from the operations team. They are
+shown alongside on-chain timestamps when both are available, with the
+on-chain value taking precedence once the step has actually occurred.
+
+The destination chain for a cross-chain flow is named via
+`bridgeDestinationChainName` so the UI can show "bridging to `<chain>`"
+copy without inferring it from contract state.
