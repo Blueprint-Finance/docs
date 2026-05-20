@@ -776,17 +776,25 @@ async function copyMetaArtifacts() {
 
 // --- docs.json assembly ------------------------------------------------------
 
+// Tabs the worker regenerates from FE/BE/SC sources on every run. They are
+// stripped from the base nav before being re-added below, so a previous run's
+// output left in `docs.json` (e.g. when main carries the last aggregated tree
+// under the single-branch publish model) does not produce duplicate tabs.
+const CLASS_B_TABS = new Set(['Vaults', 'SDK', 'Backend API', 'Smart Contracts']);
+
 async function emitDocsJson(vaults, composedByVault, sdkPages) {
   const base = JSON.parse(await fs.readFile(BASE_DOCS_JSON, 'utf8'));
 
   // Class A — preserve the base repo's conceptual navigation verbatim,
-  // dropping only stray empty groups (e.g. an unfilled placeholder).
-  const tabs = (base.navigation?.tabs ?? []).map((tab) => ({
-    ...tab,
-    groups: (tab.groups ?? []).filter(
-      (g) => !Array.isArray(g.pages) || g.pages.length > 0,
-    ),
-  }));
+  // dropping any class-B tab (regenerated below) and stray empty groups.
+  const tabs = (base.navigation?.tabs ?? [])
+    .filter((tab) => !CLASS_B_TABS.has(tab.tab))
+    .map((tab) => ({
+      ...tab,
+      groups: (tab.groups ?? []).filter(
+        (g) => !Array.isArray(g.pages) || g.pages.length > 0,
+      ),
+    }));
 
   // Class B — "Vaults" tab. Active vaults keep their Storyblok-group → vault
   // hierarchy (each vault a collapsed nested group of its theme pages; Mintlify
