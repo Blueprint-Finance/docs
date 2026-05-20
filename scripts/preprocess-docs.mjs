@@ -572,12 +572,27 @@ function isWithdrawalsRcActive(wcRc) {
   return Boolean(wcRc && typeof wcRc === 'object' && wcRc.cutoff_cron);
 }
 
+// Single source of truth for "can the primary schedule-pane step resolve?"
+// Both cycle_summary and cycle_days call this so they fire at the same step
+// for the same vault — adding a precondition here automatically aligns both
+// placeholders. `cycles` is also returned so callers don't re-parse.
+function canDerivePrimaryCycle(content, wc) {
+  if (content?.disableWithdrawalCron) return null;
+  if (!isUsableCron(wc?.cutoff_cron) || !isUsableCron(wc?.payout_cron)) {
+    return null;
+  }
+  const cycles = getCronCyclesPerWeek(wc.cutoff_cron);
+  if (!cycles) return null;
+  return cycles;
+}
+
 // Primary cycle-summary derivation — one full sentence per cron cycle.
 // Mirrors src/modules/earn/pages/EarnVaultPage/components/vault-withdrawal-cycle/schedule-pane.tsx
 // so the doc prose matches the in-app schedule explanation: "Withdrawals
 // requested between Mondays 12:00 PM and Thursdays 12:00 PM are processed
 // and made available for claiming the following Friday at 9:00 AM UTC."
-// Returns "" when both crons aren't usable or no sentence can be formed.
+// Returns "" when no sentence can be formed (preconditions covered by
+// canDerivePrimaryCycle; this still recomputes cycles for symmetry).
 function derivePrimaryCycleSummary(cutoffCron, payoutCron) {
   if (!isUsableCron(cutoffCron) || !isUsableCron(payoutCron)) return '';
   const cycles = getCronCyclesPerWeek(cutoffCron);
@@ -616,7 +631,7 @@ function computeWithdrawalCycleSummary(vault) {
   const wc = vault.performance?.withdrawals_config ?? {};
   const wcRc = vault.performance?.withdrawals_config_rc ?? {};
 
-  if (!c.disableWithdrawalCron) {
+  if (canDerivePrimaryCycle(c, wc)) {
     const primary = derivePrimaryCycleSummary(wc.cutoff_cron, wc.payout_cron);
     if (primary) return primary;
   }
@@ -637,14 +652,12 @@ function computeWithdrawalCycleSummary(vault) {
   return '';
 }
 
-// Worst-case days the user could wait. Matches `cycle_summary`'s precedence
-// step-for-step (primary cron → RC → queue delay → null) so the numeric and
-// the prose stay genuinely consistent: when one resolves at a given step the
-// other resolves at the same step. The primary step deliberately requires
-// BOTH cutoff and payout crons usable, identical to derivePrimaryCycleSummary
-// — without payout_cron the schedule-pane sentence can't be formed, so
-// cycle_days falls through too rather than emit a cutoff-only number next to
-// an RC-derived sentence.
+// Worst-case days the user could wait. Step-for-step aligned with
+// `cycle_summary`: both gate the primary step on canDerivePrimaryCycle and
+// fall through to RC → queue delay → null in the same order. The numeric
+// and the prose resolve at the same step for the same vault — an author
+// dropping both into the same paragraph won't see a "Thursdays, 12:30 PM"
+// sentence next to an RC-derived day count or vice-versa.
 // Authors reach for this when they want a numeric value to slot into prose
 // ("up to {{ vault.withdrawal.cycle_days }} days").
 function computeWithdrawalCycleDays(vault) {
@@ -652,11 +665,7 @@ function computeWithdrawalCycleDays(vault) {
   const wc = vault.performance?.withdrawals_config ?? {};
   const wcRc = vault.performance?.withdrawals_config_rc ?? {};
 
-  if (
-    !c.disableWithdrawalCron &&
-    isUsableCron(wc.cutoff_cron) &&
-    isUsableCron(wc.payout_cron)
-  ) {
+  if (canDerivePrimaryCycle(c, wc)) {
     const d = computeFullCycleDays(wc.cutoff_cron);
     if (d) return d;
   }
