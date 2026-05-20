@@ -498,6 +498,15 @@ function frequencyFromInterval(ms) {
   return null;
 }
 
+// Some BE callers emit "-" for "no cron set". Treat that and the obvious
+// empty values the same — an unusable cron skips the schedule-pane primary
+// path entirely.
+function isUsableCron(cron) {
+  if (cron == null) return false;
+  const s = String(cron).trim();
+  return s !== '' && s !== '-';
+}
+
 function parseTwoNext(cron) {
   const interval = CronExpressionParser.parse(cron, { tz: 'UTC' });
   return { first: interval.next().toDate(), second: interval.next().toDate() };
@@ -506,7 +515,7 @@ function parseTwoNext(cron) {
 // Worst-case queue wait in days = the span first→third cutoff occurrence
 // (= 7 for Mon+Thu, 14 for weekly Thu). Mirrors FE computeFullCycleDays.
 function computeFullCycleDays(cutoffCron) {
-  if (!cutoffCron) return null;
+  if (!isUsableCron(cutoffCron)) return null;
   try {
     const interval = CronExpressionParser.parse(cutoffCron, { tz: 'UTC' });
     const first = interval.next().toDate();
@@ -516,6 +525,52 @@ function computeFullCycleDays(cutoffCron) {
   } catch {
     return null;
   }
+}
+
+// Number of cron occurrences per week (1 for weekly, 2 for Mon+Thu, …).
+// Mirrors FE getCronCyclesPerWeek; returns null when the cadence doesn't
+// fit a sub-week window.
+function getCronCyclesPerWeek(cron) {
+  if (!isUsableCron(cron)) return null;
+  try {
+    const { first, second } = parseTwoNext(cron);
+    const diffMs = second.getTime() - first.getTime();
+    if (diffMs <= 0) return null;
+    const n = Math.round(WEEK_MS / diffMs);
+    return n > 0 && n <= 7 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function getCronDates(cron, count = 2) {
+  if (!isUsableCron(cron)) return [];
+  try {
+    const interval = CronExpressionParser.parse(cron, { tz: 'UTC' });
+    return Array.from({ length: count }, () => interval.next().toDate());
+  } catch {
+    return [];
+  }
+}
+
+function getNextCronOccurrence(cron, after) {
+  if (!isUsableCron(cron)) return null;
+  try {
+    const interval = CronExpressionParser.parse(cron, {
+      tz: 'UTC',
+      currentDate: after,
+    });
+    return interval.next().toDate();
+  } catch {
+    return null;
+  }
+}
+
+function formatCronDate(date) {
+  return {
+    weekday: CRON_WEEKDAY_FMT.format(date),
+    time: CRON_TIME_FMT.format(date),
+  };
 }
 
 // Human-readable schedule string. Same shape FE uses on the vault page:
@@ -552,40 +607,69 @@ function isWithdrawalsRcActive(wcRc) {
   return Boolean(wcRc && typeof wcRc === 'object' && wcRc.cutoff_cron);
 }
 
-// Translate the vault's withdrawal cadence into one of:
-//   1. ISO date if Storyblok pinned a one-shot `withdrawalEta`
-//   2. "{N} days" from RC `cutoff_cron` if RC is active
-//   3. formatCronSchedule on payoutCron (weekday + time)
-//   4. "Up to {N} days" from Storyblok `withdrawalQueueDelay` (with init date)
-//   5. null — nothing renderable
-// Precedence mirrors src/modules/earn/pages/EarnVaultPage/components/queue-warning/index.tsx.
+// Primary cycle-summary derivation — one full sentence per cron cycle.
+// Mirrors src/modules/earn/pages/EarnVaultPage/components/vault-withdrawal-cycle/schedule-pane.tsx
+// so the doc prose matches the in-app schedule explanation: "Withdrawals
+// requested between Mondays 12:00 PM and Thursdays 12:00 PM are processed
+// and made available for claiming the following Friday at 9:00 AM UTC."
+// Returns "" when both crons aren't usable or no sentence can be formed.
+function derivePrimaryCycleSummary(cutoffCron, payoutCron) {
+  if (!isUsableCron(cutoffCron) || !isUsableCron(payoutCron)) return '';
+  const cycles = getCronCyclesPerWeek(cutoffCron);
+  if (!cycles) return '';
+  const closes = getCronDates(cutoffCron, cycles)
+    .sort((a, b) => a.getUTCDay() - b.getUTCDay());
+  if (closes.length < cycles) return '';
+  const lines = [];
+  for (let i = 0; i < cycles; i += 1) {
+    const open = closes[i];
+    const close = closes[(i + 1) % cycles];
+    const claim = getNextCronOccurrence(payoutCron, close);
+    if (!claim) continue;
+    const o = formatCronDate(open);
+    const c = formatCronDate(close);
+    const p = formatCronDate(claim);
+    const window = cycles === 1
+      ? `by ${o.weekday}s ${o.time}`
+      : `between ${o.weekday}s ${o.time} and ${c.weekday}s ${c.time}`;
+    lines.push(
+      `Withdrawals requested ${window} are processed and made available ` +
+      `for claiming the following ${p.weekday} at ${p.time} UTC.`,
+    );
+  }
+  // \n\n so each sentence is its own paragraph in the rendered MDX.
+  return lines.join('\n\n');
+}
+
+// FE handoff (2026-05-20 spec) for the `cycle_summary` placeholder:
+// primary = schedule-pane prose against `withdrawals_config.{cutoff,payout}_cron`;
+// fallback = RC days → queue delay → eta → empty. Order differs from
+// queue-warning/index.tsx because in a prose context the live RC schedule
+// is more informative than a one-shot eta date.
 function computeWithdrawalCycleSummary(vault) {
   const c = vault.content || {};
   const wc = vault.performance?.withdrawals_config ?? {};
   const wcRc = vault.performance?.withdrawals_config_rc ?? {};
 
+  if (!c.disableWithdrawalCron) {
+    const primary = derivePrimaryCycleSummary(wc.cutoff_cron, wc.payout_cron);
+    if (primary) return primary;
+  }
+  if (isWithdrawalsRcActive(wcRc)) {
+    const days = computeFullCycleDays(wcRc.cutoff_cron);
+    if (days) return `${days} ${days === 1 ? 'Day' : 'Days'}`;
+  }
+  const delay = Number(c.withdrawalQueueDelay);
+  if (Number.isFinite(delay) && delay > 0 && c.withdrawalQueueInitialDate) {
+    return `Up to ${delay} ${delay === 1 ? 'day' : 'days'}`;
+  }
   if (c.withdrawalEta) {
     const d = new Date(c.withdrawalEta);
     if (!Number.isNaN(d.getTime())) {
       return `Available ${d.toISOString().slice(0, 10)}`;
     }
   }
-  if (isWithdrawalsRcActive(wcRc)) {
-    const days = computeFullCycleDays(wcRc.cutoff_cron);
-    if (days) return `${days} ${days === 1 ? 'day' : 'days'}`;
-  }
-  if (!c.disableWithdrawalCron && wc.payout_cron) {
-    const s = formatCronSchedule(wc.payout_cron, {
-      includeWeekday: true,
-      omitFrequency: true,
-    });
-    if (s) return s;
-  }
-  const delay = Number(c.withdrawalQueueDelay);
-  if (Number.isFinite(delay) && delay > 0 && c.withdrawalQueueInitialDate) {
-    return `Up to ${delay} day${delay !== 1 ? 's' : ''}`;
-  }
-  return null;
+  return '';
 }
 
 // Worst-case days the user could wait, using the same precedence chain as
@@ -633,17 +717,21 @@ function buildVaultContext(vault) {
 
 const PLACEHOLDER_RE = /\{\{\s*([\w.]+)\s*\}\}/g;
 
-// Replace {{ vault.* }} placeholders with per-vault values. An unresolved
-// placeholder renders as "—" and is collected for an end-of-run warning —
-// leaving a literal {{ }} would break MDX parsing downstream.
+// Replace {{ vault.* }} placeholders with per-vault values.
+//   - `null`/`undefined`/object/array  → "—" + end-of-run warning. The path
+//      doesn't resolve to a leaf scalar; leaving a literal {{ }} would break
+//      MDX parsing downstream.
+//   - empty string                     → "" (no warning). A computed field
+//      may legitimately have nothing to render this run (e.g.
+//      `cycle_summary` per the FE handoff: cron missing + all fallbacks
+//      empty → "" so the surrounding paragraph collapses cleanly).
 function substitutePlaceholders(src, context, file, slug) {
   return src.replace(PLACEHOLDER_RE, (_match, dotted) => {
     const value = dotted
       .split('.')
       .reduce((node, key) => (node == null ? undefined : node[key]), context);
-    // Objects/arrays (e.g. `{{ vault.withdrawal }}` with no leaf field) would
-    // stringify to "[object Object]" — treat them as unresolved instead.
-    if (value == null || value === '' || typeof value === 'object') {
+    if (value === '') return '';
+    if (value == null || typeof value === 'object') {
       unresolvedPlaceholders.push({
         file: path.relative(STAGING, file),
         slug,
