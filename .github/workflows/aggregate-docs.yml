@@ -152,6 +152,15 @@ jobs:
           git fetch --quiet origin main
           git reset --hard origin/main
 
+          # Re-merge docs.json against the just-reset main. The preprocessor
+          # read its BASE_DOCS_JSON once at job start; anything landed on main
+          # during this run (Mintlify editor pushes are paths-ignored on
+          # docs.json so they don't re-trigger the worker) would otherwise be
+          # clobbered by the stale class-A nav in the worker's output. This
+          # rewrites OUTPUT_DIR/docs.json with class-A from fresh main + class-B
+          # from the worker, before the rsync overlay copies it over.
+          node scripts/merge-docs-json.mjs
+
           # Overlay the owned paths from the preprocessor output. --delete on
           # directory targets so removed vaults or themes don't leave stale
           # files behind in the published tree.
