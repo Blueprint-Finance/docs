@@ -1,0 +1,73 @@
+---
+id: 'sc-vaultproxy'
+title: 'VaultProxy'
+audience: 'public'
+module: 'core'
+scope: 'factory'
+source_refs:
+  - 'src/factory/VaultProxy.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'vault-upgradeability'
+---
+
+## VaultProxy
+
+ERC-1967 proxy deployed by `ConcreteFactory` for every vault. The deployer (factory) is
+        pinned as the immutable proxy admin, and all upgrades must route through that admin.
+
+_The admin is stored both immutably (for cheap reads) and at the ERC-1967 storage slot so
+     external tooling that follows the standard sees a consistent value._
+
+### CallerNotProxyAdmin
+
+```solidity
+error CallerNotProxyAdmin()
+```
+
+_Reverts when a caller other than the proxy admin attempts an upgrade._
+
+### constructor
+
+```solidity
+constructor(address logic, bytes data) public
+```
+
+Deploys a new vault proxy delegating to `logic`, pinning the caller as the admin.
+
+_Forwards to `ERC1967Proxy` and stores the admin both immutably and in the ERC-1967
+     admin slot for standard compatibility._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| logic | address | Address of the initial implementation contract. |
+| data | bytes | Optional ABI-encoded initializer call forwarded to `logic` via `delegatecall`. |
+
+### upgradeToAndCall
+
+```solidity
+function upgradeToAndCall(address newImplementation, bytes data) external
+```
+
+Upgrades the proxy to a new implementation and optionally executes a call on it.
+
+_Only callable by the proxy admin (the factory). Reverts with `CallerNotProxyAdmin`
+     otherwise. Does not fall back to the implementation via this proxy._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newImplementation | address | Address of the new implementation contract. |
+| data | bytes | Calldata to execute on the new implementation after upgrade (e.g. a re-init call). |
+
+### _proxyAdmin
+
+```solidity
+function _proxyAdmin() internal view returns (address)
+```
+
+_Returns the admin of this proxy._
+

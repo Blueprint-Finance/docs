@@ -1,0 +1,193 @@
+---
+id: 'sc-offchainhurdlerateoracle'
+title: 'OffchainHurdleRateOracle'
+audience: 'public'
+module: 'oracle'
+scope: 'hurdle-rate'
+source_refs:
+  - 'src/oracle/OffchainHurdleRateOracle.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'hurdle-rate'
+---
+
+## OffchainHurdleRateOracle
+
+Minimal hurdle-rate oracle whose value is pushed by a privileged off-chain backend via
+        `setRate`. `getHurdleRate` returns the stored value with a staleness check; no on-chain
+        compounding is performed. Vaults reference this oracle to determine whether realised
+        performance has cleared the hurdle before performance fees accrue.
+
+_All rates use 18-decimal precision (UD60x18 compatible). The owner is expected to
+     periodically push updated rates that reflect the desired hurdle (e.g. compound growth
+     computed off-chain with arbitrary precision)._
+
+### DEFAULT_MAX_STALENESS
+
+```solidity
+uint256 DEFAULT_MAX_STALENESS
+```
+
+Default staleness window applied at construction (100 years). Most deployments
+        override this via `setMaxStaleness` to enable an effective freshness check.
+
+### rate
+
+```solidity
+uint256 rate
+```
+
+The latest hurdle exchange rate, in UD60x18.
+
+### lastUpdateTimestamp
+
+```solidity
+uint256 lastUpdateTimestamp
+```
+
+Unix timestamp at which `rate` was last updated by the owner.
+
+### maxStaleness
+
+```solidity
+uint256 maxStaleness
+```
+
+Maximum allowed age (in seconds) of `rate` before `getHurdleRate` reverts with `StaleRate`.
+
+### RateUpdated
+
+```solidity
+event RateUpdated(uint256 oldRate, uint256 newRate)
+```
+
+Emitted when the owner pushes a new hurdle rate via `setRate`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| oldRate | uint256 | The previous rate value (in UD60x18). |
+| newRate | uint256 | The newly stored rate value (in UD60x18). |
+
+### MaxStalenessUpdated
+
+```solidity
+event MaxStalenessUpdated(uint256 oldMaxStaleness, uint256 newMaxStaleness)
+```
+
+Emitted when the owner updates the staleness threshold via `setMaxStaleness`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| oldMaxStaleness | uint256 | The previous staleness window (in seconds). |
+| newMaxStaleness | uint256 | The newly stored staleness window (in seconds). |
+
+### ZeroRate
+
+```solidity
+error ZeroRate()
+```
+
+_Reverts when the constructor or `setRate` is called with a zero rate._
+
+### RateTooHigh
+
+```solidity
+error RateTooHigh(uint256 rate, uint256 max)
+```
+
+_Reverts when the constructor or `setRate` is called with a value greater than `MAX_RATE`._
+
+### StaleRate
+
+```solidity
+error StaleRate(uint256 lastUpdate, uint256 maxStaleness)
+```
+
+_Reverts on `getHurdleRate` when the stored rate is older than `maxStaleness`._
+
+### constructor
+
+```solidity
+constructor(address owner_, uint256 initialRate_) public
+```
+
+Deploys the oracle and seeds the initial rate.
+
+_Reverts with `ZeroRate` if `initialRate_` is zero or `RateTooHigh` if it exceeds
+     `MAX_RATE`. The staleness window defaults to `DEFAULT_MAX_STALENESS`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| owner_ | address | Address that becomes the oracle owner and may push subsequent updates. |
+| initialRate_ | uint256 | Initial hurdle exchange rate in UD60x18 (e.g. 1.05e18 = 1.05). |
+
+### setRate
+
+```solidity
+function setRate(uint256 newRate_) external
+```
+
+Set a new hurdle rate.
+
+_Owner-only. Reverts with `ZeroRate` if `newRate_` is zero or `RateTooHigh` if it
+     exceeds `MAX_RATE`. Updates `lastUpdateTimestamp` to `block.timestamp`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newRate_ | uint256 | The new hurdle exchange rate in UD60x18 (e.g. 1.05e18 = 1.05 assets per share). |
+
+### setMaxStaleness
+
+```solidity
+function setMaxStaleness(uint256 newMaxStaleness_) external
+```
+
+Update the staleness threshold.
+
+_Owner-only. No bounds are enforced on `newMaxStaleness_`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newMaxStaleness_ | uint256 | The new maximum age (in seconds) before `getHurdleRate` reverts. |
+
+### precision
+
+```solidity
+function precision() external pure returns (uint256)
+```
+
+Returns the scaling factor used to encode the hurdle exchange rate.
+
+_The vault divides by this value when converting the hurdle exchange rate
+     to asset amounts: `hurdleAssets = hurdleRate * totalSupply / precision()`._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The scaling factor applied to `getHurdleRate()` (e.g. `1e18`). |
+
+### getHurdleRate
+
+```solidity
+function getHurdleRate() external view returns (uint256)
+```
+
+Returns the current hurdle rate at the current block timestamp.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 |  |
+

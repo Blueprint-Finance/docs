@@ -1,0 +1,65 @@
+---
+id: 'sc-iswapmodule'
+title: 'ISwapModule'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/ISwapModule.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'swaps'
+---
+
+## ISwapModule
+
+Interface for swap module adapters used by looping strategies and position helpers.
+        Exposes exact-input and exact-output swap entry points so callers can convert between
+        collateral and borrow tokens (or any supported token pair).
+
+### swapExactAmountIn
+
+```solidity
+function swapExactAmountIn(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut) external returns (uint256 amountOut)
+```
+
+Swap an exact amount of `tokenIn` for `tokenOut`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokenIn | address | The address of the input token. |
+| tokenOut | address | The address of the output token. |
+| amountIn | uint256 | The exact amount of `tokenIn` to spend. |
+| minAmountOut | uint256 | The minimum acceptable amount of `tokenOut` to receive (slippage guard). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amountOut | uint256 | The actual amount of `tokenOut` received. |
+
+### swapExactAmountOut
+
+```solidity
+function swapExactAmountOut(address tokenIn, address tokenOut, uint256 maxAmountIn, uint256 amountOut) external returns (uint256 amountIn)
+```
+
+Swap `tokenIn` for an exact amount of `tokenOut`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokenIn | address | The address of the input token. |
+| tokenOut | address | The address of the output token. |
+| maxAmountIn | uint256 | The maximum amount of `tokenIn` to spend (slippage guard). |
+| amountOut | uint256 | The exact amount of `tokenOut` to receive. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amountIn | uint256 | The actual amount of `tokenIn` spent. |
+

@@ -1,0 +1,72 @@
+---
+id: 'sc-iallocatemodule'
+title: 'IAllocateModule'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IAllocateModule.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'strategy-allocation'
+---
+
+## IAllocateModule
+
+Coordinates batched fund allocation and deallocation across multiple vault strategies.
+
+_Implementations expose a single entry point that accepts an ABI-encoded array of
+     AllocateParams. Each entry either allocates funds to a strategy (deposit) or deallocates
+     funds from a strategy (withdrawal), with the vault's per-strategy accounting updated
+     in lockstep. The module is typically invoked during rebalancing operations to adjust
+     strategy weights atomically._
+
+### AllocatedFunds
+
+```solidity
+event AllocatedFunds(address strategy, bool isDeposit, uint256 amount, bytes extraData)
+```
+
+Emitted once per leg of a batched allocate/deallocate execution.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | The strategy contract that was credited or debited. |
+| isDeposit | bool | True for allocations (deposits), false for deallocations (withdrawals). |
+| amount | uint256 | The asset amount allocated to or deallocated from the strategy. |
+| extraData | bytes | The raw strategy-specific calldata forwarded to the strategy's allocate/deallocate entry point. |
+
+### AllocateParams
+
+_Per-leg payload for a batched allocate/deallocate call. `extraData` is forwarded verbatim
+     to the strategy and may encode strategy-specific parameters such as slippage tolerance,
+     routing information, or protocol-specific selectors._
+
+```solidity
+struct AllocateParams {
+  bool isDeposit;
+  address strategy;
+  bytes extraData;
+}
+```
+
+### allocateFunds
+
+```solidity
+function allocateFunds(bytes data) external
+```
+
+Execute an ordered batch of allocation and deallocation operations against the vault's strategies.
+
+_For each entry the module either calls `allocateFunds` (deposit) or `deallocateFunds`
+     (withdrawal) on the target strategy, then updates the vault's internal per-strategy
+     allocation accounting. The batch is atomic — any failing leg reverts the whole call._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | ABI-encoded `AllocateParams[]` describing every leg of the batch. |
+

@@ -1,0 +1,157 @@
+---
+id: 'sc-ibasestrategy'
+title: 'IBaseStrategy'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/IBaseStrategy.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'strategies'
+---
+
+## IBaseStrategy
+
+Interface exposed by BaseStrategy implementations.
+
+_Extends `IStrategyTemplate` with the events and errors specific to BaseStrategy
+     (vault-funded allocation, deallocation, withdrawal accounting, and admin recovery)._
+
+### AllocateFunds
+
+```solidity
+event AllocateFunds(uint256 amount)
+```
+
+Emitted when funds are allocated from the vault to the strategy
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of funds allocated |
+
+### DeallocateFunds
+
+```solidity
+event DeallocateFunds(uint256 amount)
+```
+
+Emitted when funds are deallocated from the strategy back to the vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of funds deallocated |
+
+### StrategyWithdraw
+
+```solidity
+event StrategyWithdraw(uint256 amount)
+```
+
+Emitted when funds are withdrawn from the strategy
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | The amount of funds withdrawn |
+
+### MaxWithdrawUpdated
+
+```solidity
+event MaxWithdrawUpdated(uint256 oldMaxWithdraw, uint256 newMaxWithdraw)
+```
+
+Emitted when the maximum withdrawal amount is updated
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| oldMaxWithdraw | uint256 | The previous maximum withdrawal amount |
+| newMaxWithdraw | uint256 | The new maximum withdrawal amount |
+
+### UnauthorizedVault
+
+```solidity
+error UnauthorizedVault()
+```
+
+Thrown when a function is called by an unauthorized vault
+
+_Only the vault bound to this strategy can call strategy functions_
+
+### InsufficientBalance
+
+```solidity
+error InsufficientBalance()
+```
+
+Thrown when there are insufficient funds in the strategy for the requested operation
+
+_This error indicates the strategy doesn't have enough balance to fulfill the request_
+
+### InsufficientAllocatedAmount
+
+```solidity
+error InsufficientAllocatedAmount()
+```
+
+Thrown when trying to deallocate more funds than are currently allocated
+
+_This error prevents over-deallocation of funds from the strategy_
+
+### InvalidAsset
+
+```solidity
+error InvalidAsset()
+```
+
+Thrown when trying to recover the strategy's primary asset token
+
+_Emergency recovery cannot be used to recover the strategy's main asset_
+
+### MaxWithdrawAmountExceeded
+
+```solidity
+error MaxWithdrawAmountExceeded()
+```
+
+Thrown when trying to withdraw more than the maximum allowed amount
+
+_The withdrawal amount exceeds the strategy's maxWithdraw limit_
+
+### ZeroAdminAddress
+
+```solidity
+error ZeroAdminAddress()
+```
+
+Thrown when trying to initialize with a zero admin address
+
+_The admin address must be a valid non-zero address_
+
+### ZeroVaultAddress
+
+```solidity
+error ZeroVaultAddress()
+```
+
+Thrown when trying to initialize with a zero vault address
+
+_The vault address must be a valid non-zero address_
+
+### InvalidDataLength
+
+```solidity
+error InvalidDataLength()
+```
+
+Thrown when the calldata length is invalid (too short)
+
+_The calldata must contain at least the required amount of data_
+

@@ -1,0 +1,113 @@
+---
+id: 'sc-iflashmodule'
+title: 'IFlashModule'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/IFlashModule.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'leverage-looping'
+---
+
+## IFlashModule
+
+Interface for the flash loan module used by looping strategies and position helpers.
+        Provides flash borrowing of a token alongside introspection of available flash liquidity
+        and applicable premium quotes.
+
+### flash
+
+```solidity
+function flash(address token, uint256 amount, LoopModality loopModality, bytes data) external returns (bool)
+```
+
+Executes a flash loan for the calling looping primitive.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The address of the token to flash borrow. |
+| amount | uint256 | The amount of `token` to flash borrow. |
+| loopModality | LoopModality | The loop modality identifying the operation to perform inside the callback. |
+| data | bytes | ABI-encoded operation payload forwarded to the requester's `executeFlash` callback. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True if the flash operation completed successfully. |
+
+### depthOfFlashLiquidityExact
+
+```solidity
+function depthOfFlashLiquidityExact(address token) external view returns (uint256)
+```
+
+Returns the exact depth of flash liquidity currently available for a token.
+
+_Implementations MUST return the exact depth, with no estimate or stale value._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The address of the token to query liquidity for. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The amount of `token` available for flash borrowing. |
+
+### flashPremiumMaxInWad
+
+```solidity
+function flashPremiumMaxInWad(address token) external view returns (uint64 premiumInWad, bool premiumDependsOnLiquidity)
+```
+
+Returns the maximum flash premium percentage applicable to a token, across all flash
+        liquidity sources.
+
+_Implementations MUST return the maximum premium percentage in wad. The
+     `premiumDependsOnLiquidity` flag indicates whether the premium varies with the borrowed
+     amount; when false, the returned value is also the minimum premium._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The address of the token to query. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| premiumInWad | uint64 | The maximum premium percentage, in wad (1e18 = 100%). |
+| premiumDependsOnLiquidity | bool | True if the actual premium depends on the requested amount. |
+
+### flashPremiumQuoteInWad
+
+```solidity
+function flashPremiumQuoteInWad(address token, uint256 requiredFlashLiquidity) external view returns (uint64 premiumInWad)
+```
+
+Quotes the flash premium percentage for borrowing a specific amount of `token`.
+
+_Implementations MUST return a quote even if the requested liquidity is not currently available._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The address of the token to flash borrow. |
+| requiredFlashLiquidity | uint256 | The amount of `token` that would be flash borrowed. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| premiumInWad | uint64 | The premium percentage that would be charged, in wad (1e18 = 100%). |
+

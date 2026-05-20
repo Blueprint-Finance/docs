@@ -1,0 +1,157 @@
+---
+id: 'sc-whitelistuserdeposithook'
+title: 'WhitelistUserDepositHook'
+audience: 'public'
+module: 'periphery'
+scope: 'hooks'
+source_refs:
+  - 'src/periphery/hooks/WhitelistUserDepositHook.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'permissioned-access'
+  - 'vault-hooks'
+---
+
+## WhitelistUserDepositHook
+
+Extends `UserDepositCapHook` with an additional whitelist gate. The
+        pre-deposit and pre-mint hooks revert when the deposit-initiating
+        `sender` is not on the whitelist; otherwise the parent contract's
+        per-user deposit cap is then applied.
+
+### NotWhitelisted
+
+```solidity
+error NotWhitelisted(address user)
+```
+
+_Fires when the deposit-initiating sender is not on the whitelist._
+
+### WhitelistSet
+
+```solidity
+event WhitelistSet(address user, bool isWhitelisted)
+```
+
+Emitted when a user's whitelist status changes.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | Address whose status was updated. |
+| isWhitelisted | bool | New whitelist status. |
+
+### whitelist
+
+```solidity
+mapping(address => bool) whitelist
+```
+
+Maps each user address to whether they are currently whitelisted.
+
+### constructor
+
+```solidity
+constructor(address owner) public
+```
+
+Deploys the hook and forwards ownership to the parent constructor.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| owner | address | The owner address that can manage caps and whitelist entries. |
+
+### whitelistUsers
+
+```solidity
+function whitelistUsers(address[] users) external
+```
+
+Adds one or more users to the whitelist. Owner only.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| users | address[] | Addresses to whitelist. |
+
+### unWhitelistUsers
+
+```solidity
+function unWhitelistUsers(address[] users) external
+```
+
+Removes one or more users from the whitelist. Owner only.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| users | address[] | Addresses to un-whitelist. |
+
+### isWhitelisted
+
+```solidity
+function isWhitelisted(address user) external view returns (bool)
+```
+
+Returns whether the supplied address is currently whitelisted.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | Address to query. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True when the user is whitelisted, false otherwise. |
+
+### preDeposit
+
+```solidity
+function preDeposit(address sender, uint256 assets, address receiver, uint256 totalAssets) public view
+```
+
+Pre-deposit hook. Reverts when `sender` is not whitelisted, then
+        enforces the parent contract's per-user deposit cap.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The address initiating the deposit at the vault. |
+| assets | uint256 | The amount of assets being deposited. |
+| receiver | address | The address that will receive the vault shares. |
+| totalAssets | uint256 | The total assets in the vault before this deposit. |
+
+### preMint
+
+```solidity
+function preMint(address sender, uint256 shares, address receiver, uint256 totalAssets) public view
+```
+
+Pre-mint hook. Reverts when `sender` is not whitelisted, then
+        enforces the parent contract's per-user deposit cap on the
+        asset-equivalent of the mint.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The address initiating the mint at the vault. |
+| shares | uint256 | The amount of shares being minted. |
+| receiver | address | The address that will receive the vault shares. |
+| totalAssets | uint256 | The total assets in the vault before this mint. |
+
+### _whitelistUser
+
+```solidity
+function _whitelistUser(address user, bool setWhitelisted) internal
+```
+

@@ -1,0 +1,979 @@
+---
+id: 'sc-concretestandardvaultimpl'
+title: 'ConcreteStandardVaultImpl'
+audience: 'public'
+module: 'core'
+scope: 'vault'
+source_refs:
+  - 'src/implementation/ConcreteStandardVaultImpl.sol'
+last_reviewed: '2026-05-17'
+mechanics:
+  - 'deposit-limits'
+  - 'strategy-allocation'
+  - 'vault-core'
+  - 'withdrawal-caps'
+---
+
+## ConcreteStandardVaultImpl
+
+Standard ERC-4626 vault implementation: synchronous deposits and withdrawals,
+        strategy allocation through the allocate module, configurable deposit and
+        withdrawal limits, and lifecycle hooks.
+
+_Base implementation for the Concrete vault family; users interact with it through
+     a `VaultProxy`._
+
+### HooksSet
+
+```solidity
+event HooksSet(struct Hooks hooks)
+```
+
+Emitted when the vault's pre/post hook configuration changes.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hooks | struct Hooks | The newly configured `Hooks` struct (target address and enabled-step flags). |
+
+### ID
+
+```solidity
+function ID() public pure virtual returns (uint64)
+```
+
+Returns the encoded contract identifier of this vault implementation.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The encoded contract ID for the standard vault flavour. |
+
+### withYieldAccrual
+
+```solidity
+modifier withYieldAccrual()
+```
+
+_Accrues yield (and the associated management/performance fees) before the function body executes._
+
+### constructor
+
+```solidity
+constructor(address factory) public
+```
+
+Disables initializers on the implementation contract and records the factory address.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| factory | address | The address of the `ConcreteFactory` that will manage proxies for this implementation. |
+
+### allocate
+
+```solidity
+function allocate(bytes data) public virtual
+```
+
+Execute a batch of allocation and deallocation operations across vault strategies.
+
+_Triggers a yield accrual before executing the batch so accounting is current.
+     Operations are dispatched via delegatecall into the allocate module to preserve
+     storage context and access control. Only callable by accounts with the ALLOCATOR role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | ABI-encoded `AllocateParams[]` describing each allocation/deallocation leg. |
+
+### accrueYield
+
+```solidity
+function accrueYield() external virtual
+```
+
+Accrue yield and absorb losses across all active strategies, updating internal accounting.
+
+_Permissionless — anyone may call. The accrual reads each strategy's reported
+     allocated value, computes the net delta versus tracked allocation, and updates
+     cached totals. No funds are moved; only accounting state changes._
+
+### updateManagementFee
+
+```solidity
+function updateManagementFee(uint16 managementFee_) external
+```
+
+Update the management fee rate charged by the vault.
+
+_Only callable by accounts with the VAULT_MANAGER role. The new fee must not
+     exceed `MAX_MANAGEMENT_FEE`. If `managementFee > 0` the recipient must already be set._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| managementFee_ | uint16 |  |
+
+### updateManagementFeeRecipient
+
+```solidity
+function updateManagementFeeRecipient(address recipient) external
+```
+
+Update the management-fee recipient.
+
+_Only callable by accounts with the VAULT_MANAGER role. `recipient` cannot be `address(0)`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipient | address | The new management fee recipient address. |
+
+### updatePerformanceFee
+
+```solidity
+function updatePerformanceFee(uint16 performanceFee_) external
+```
+
+Update the performance fee rate charged by the vault.
+
+_Only callable by accounts with the VAULT_MANAGER role. The new fee must not
+     exceed `MAX_PERFORMANCE_FEE`. If `performanceFee > 0` the recipient must already be set._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| performanceFee_ | uint16 |  |
+
+### updatePerformanceFeeRecipient
+
+```solidity
+function updatePerformanceFeeRecipient(address recipient) external
+```
+
+Update the performance-fee recipient.
+
+_Only callable by accounts with the VAULT_MANAGER role. `recipient` cannot be `address(0)`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| recipient | address | The new performance fee recipient address. |
+
+### setHurdleRateOracle
+
+```solidity
+function setHurdleRateOracle(contract IHurdleRateOracle oracle) external
+```
+
+Set the hurdle rate oracle used to gate performance fees.
+
+_When non-zero, performance fees are only charged on yield that exceeds the
+     oracle's reported exchange rate. Pass `address(0)` to disable hurdle gating
+     and revert to flat performance fees. Only callable by accounts with the
+     VAULT_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| oracle | contract IHurdleRateOracle | The address of the hurdle-rate oracle contract. |
+
+### getHurdleRateOracle
+
+```solidity
+function getHurdleRateOracle() external view returns (contract IHurdleRateOracle)
+```
+
+Returns the currently configured hurdle-rate oracle.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | contract IHurdleRateOracle | The hurdle-rate oracle contract, or `address(0)` if hurdle gating is disabled. |
+
+### setDepositLimits
+
+```solidity
+function setDepositLimits(uint256 minTxDepositAmount, uint256 maxGlobalDepositAmount) external
+```
+
+Configure per-transaction and global deposit limits.
+
+_Only callable by accounts with the VAULT_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| minTxDepositAmount | uint256 | Minimum deposit amount enforced per transaction. |
+| maxGlobalDepositAmount | uint256 | Maximum total assets the vault is allowed to hold across all users. |
+
+### setWithdrawLimits
+
+```solidity
+function setWithdrawLimits(uint256 minTxWithdrawAmount, uint256 maxTxWithdrawAmount) external
+```
+
+Configure per-transaction withdrawal limits.
+
+_Only callable by accounts with the VAULT_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| minTxWithdrawAmount | uint256 | Minimum withdraw amount enforced per transaction. |
+| maxTxWithdrawAmount | uint256 | Maximum withdraw amount enforced per transaction. |
+
+### getFeeConfig
+
+```solidity
+function getFeeConfig() external view returns (uint16 currentManagementFee, address currentManagementFeeRecipient, uint32 currentLastManagementFeeAccrual, uint16 currentPerformanceFee, address currentPerformanceFeeRecipient)
+```
+
+Returns the current fee configuration for the vault.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| currentManagementFee | uint16 | The current management fee rate in basis points. |
+| currentManagementFeeRecipient | address | The current management fee recipient address. |
+| currentLastManagementFeeAccrual | uint32 | The unix timestamp of the last management fee accrual. |
+| currentPerformanceFee | uint16 | The current performance fee rate in basis points. |
+| currentPerformanceFeeRecipient | address | The current performance fee recipient address. |
+
+### deposit
+
+```solidity
+function deposit(uint256 assets, address receiver) public virtual returns (uint256)
+```
+
+_Mints shares Vault shares to receiver by depositing exactly amount of underlying tokens.
+
+- MUST emit the Deposit event.
+- MAY support an additional flow in which the underlying tokens are owned by the Vault contract before the
+  deposit execution, and are accounted for during deposit.
+- MUST revert if all of assets cannot be deposited (due to deposit limit being reached, slippage, the user not
+  approving enough underlying tokens to the Vault contract, etc).
+
+NOTE: most implementations will require pre-approval of the Vault with the Vault’s underlying asset token._
+
+### mint
+
+```solidity
+function mint(uint256 shares, address receiver) public virtual returns (uint256)
+```
+
+_Mints exactly shares Vault shares to receiver by depositing amount of underlying tokens.
+
+- MUST emit the Deposit event.
+- MAY support an additional flow in which the underlying tokens are owned by the Vault contract before the mint
+  execution, and are accounted for during mint.
+- MUST revert if all of shares cannot be minted (due to deposit limit being reached, slippage, the user not
+  approving enough underlying tokens to the Vault contract, etc).
+
+NOTE: most implementations will require pre-approval of the Vault with the Vault’s underlying asset token._
+
+### withdraw
+
+```solidity
+function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256)
+```
+
+_Burns shares from owner and sends exactly assets of underlying tokens to receiver.
+
+- MUST emit the Withdraw event.
+- MAY support an additional flow in which the underlying tokens are owned by the Vault contract before the
+  withdraw execution, and are accounted for during withdraw.
+- MUST revert if all of assets cannot be withdrawn (due to withdrawal limit being reached, slippage, the owner
+  not having enough shares, etc).
+
+Note that some implementations will require pre-requesting to the Vault before a withdrawal may be performed.
+Those methods should be performed separately._
+
+### redeem
+
+```solidity
+function redeem(uint256 shares, address receiver, address owner) public virtual returns (uint256)
+```
+
+_Burns exactly shares from owner and sends assets of underlying tokens to receiver.
+
+- MUST emit the Withdraw event.
+- MAY support an additional flow in which the underlying tokens are owned by the Vault contract before the
+  redeem execution, and are accounted for during redeem.
+- MUST revert if all of shares cannot be redeemed (due to withdrawal limit being reached, slippage, the owner
+  not having enough shares, etc).
+
+NOTE: some implementations will require pre-requesting to the Vault before a withdrawal may be performed.
+Those methods should be performed separately._
+
+### setHooks
+
+```solidity
+function setHooks(struct Hooks hooks) external virtual
+```
+
+Set the vault's pre/post action hooks.
+
+_Only callable by accounts with the HOOK_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hooks | struct Hooks | The `Hooks` struct containing the target address and flag bitfield. |
+
+### getHooks
+
+```solidity
+function getHooks() external view returns (struct Hooks)
+```
+
+Returns the current hooks configuration for the vault.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct Hooks | The `Hooks` struct containing the target address and flag bitfield. |
+
+### setDeallocationOrder
+
+```solidity
+function setDeallocationOrder(address[] order) external virtual
+```
+
+Overwrites the order in which strategies are deallocated to satisfy withdrawals.
+
+_Caller must hold the `ALLOCATOR` role and the vault must not be paused. Reentrant calls
+     are rejected. The provided order must reference currently registered strategies (see
+     `StateSetterLib.setDeallocationOrder` for validation rules)._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| order | address[] | Strategy addresses in the order they should be drained on withdrawals. |
+
+### addStrategy
+
+```solidity
+function addStrategy(address strategy) public virtual
+```
+
+Register a new strategy with the vault.
+
+_The strategy must implement `IStrategyTemplate` and report the same underlying
+     asset as the vault. Only callable by accounts with the STRATEGY_MANAGER role.
+     Emits `StrategyAdded` on success; reverts with `InvalidStrategyAsset` if the
+     assets do not match or `StrategyAlreadyAdded` if the strategy is already registered._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | Address of the strategy contract to add. |
+
+### removeStrategy
+
+```solidity
+function removeStrategy(address strategy) public virtual
+```
+
+Remove a previously registered strategy from the vault.
+
+_The strategy must have zero allocated funds, unless it is currently `Halted`,
+     in which case it may be removed even with outstanding allocation. Only callable
+     by accounts with the STRATEGY_MANAGER role. Emits `StrategyRemoved` on success;
+     reverts with `StrategyDoesNotExist` if the strategy is unknown._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | Address of the strategy contract to remove. |
+
+### toggleStrategyStatus
+
+```solidity
+function toggleStrategyStatus(address strategy) public virtual
+```
+
+Toggle a strategy's status between `Active` and `Halted`.
+
+_Halted strategies are skipped during yield accrual and withdrawals; the toggle
+     is the primary mechanism for isolating problematic strategies and reactivating
+     them later. Only callable by accounts with the STRATEGY_MANAGER role. `Inactive`
+     strategies cannot be toggled. Emits `StrategyStatusToggled` on success and
+     reverts with `StrategyDoesNotExist` if the strategy is unknown._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | Address of the strategy contract to toggle. |
+
+### getDeallocationOrder
+
+```solidity
+function getDeallocationOrder() external view returns (address[] order)
+```
+
+Returns the currently configured strategy deallocation order.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| order | address[] | Strategy addresses in the order they will be drained on withdrawals. |
+
+### previewDeposit
+
+```solidity
+function previewDeposit(uint256 assets) public view virtual returns (uint256)
+```
+
+Simulates the number of shares a deposit of `assets` would mint at the
+        current exchange rate, before deposit hooks or limits are applied.
+
+_See {IERC4626-previewDeposit}._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | uint256 | Amount of underlying assets to simulate depositing. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The number of vault shares the deposit would mint. |
+
+### previewMint
+
+```solidity
+function previewMint(uint256 shares) public view virtual returns (uint256)
+```
+
+_Allows an on-chain or off-chain user to simulate the effects of their mint at the current block, given
+current on-chain conditions.
+
+- MUST return as close to and no fewer than the exact amount of assets that would be deposited in a mint call
+  in the same transaction. I.e. mint should return the same or fewer assets as previewMint if called in the
+  same transaction.
+- MUST NOT account for mint limits like those returned from maxMint and should always act as though the mint
+  would be accepted, regardless if the user has enough tokens approved, etc.
+- MUST be inclusive of deposit fees. Integrators should be aware of the existence of deposit fees.
+- MUST NOT revert.
+
+NOTE: any unfavorable discrepancy between convertToAssets and previewMint SHOULD be considered slippage in
+share price or some other type of condition, meaning the depositor will lose assets by minting._
+
+### previewWithdraw
+
+```solidity
+function previewWithdraw(uint256 assets) public view virtual returns (uint256)
+```
+
+_Allows an on-chain or off-chain user to simulate the effects of their withdrawal at the current block,
+given current on-chain conditions.
+
+- MUST return as close to and no fewer than the exact amount of Vault shares that would be burned in a withdraw
+  call in the same transaction. I.e. withdraw should return the same or fewer shares as previewWithdraw if
+  called
+  in the same transaction.
+- MUST NOT account for withdrawal limits like those returned from maxWithdraw and should always act as though
+  the withdrawal would be accepted, regardless if the user has enough shares, etc.
+- MUST be inclusive of withdrawal fees. Integrators should be aware of the existence of withdrawal fees.
+- MUST NOT revert.
+
+NOTE: any unfavorable discrepancy between convertToShares and previewWithdraw SHOULD be considered slippage in
+share price or some other type of condition, meaning the depositor will lose assets by depositing._
+
+### previewRedeem
+
+```solidity
+function previewRedeem(uint256 shares) public view virtual returns (uint256)
+```
+
+_Allows an on-chain or off-chain user to simulate the effects of their redeemption at the current block,
+given current on-chain conditions.
+
+- MUST return as close to and no more than the exact amount of assets that would be withdrawn in a redeem call
+  in the same transaction. I.e. redeem should return the same or more assets as previewRedeem if called in the
+  same transaction.
+- MUST NOT account for redemption limits like those returned from maxRedeem and should always act as though the
+  redemption would be accepted, regardless if the user has enough shares, etc.
+- MUST be inclusive of withdrawal fees. Integrators should be aware of the existence of withdrawal fees.
+- MUST NOT revert.
+
+NOTE: any unfavorable discrepancy between convertToAssets and previewRedeem SHOULD be considered slippage in
+share price or some other type of condition, meaning the depositor will lose assets by redeeming._
+
+### previewAccrueYield
+
+```solidity
+function previewAccrueYield() public view virtual returns (uint256, uint256)
+```
+
+Simulate a yield accrual and return the resulting totals.
+
+_View-only — does not mutate state, move funds, or interact with strategies.
+     Returns what the vault's totals would be if `accrueYield` were executed at the
+     current block (lastTotalAssets + positive yield - losses, and totalSupply +
+     management fee shares that would be minted)._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The asset total that would be reported after accrual, in the underlying asset. |
+| [1] | uint256 | The share total that would be reported after accrual (`totalSupply` + management fee shares). |
+
+### totalAssets
+
+```solidity
+function totalAssets() public view virtual returns (uint256 totalAssetsWithYield)
+```
+
+_Returns the total amount of the underlying asset that is “managed” by Vault.
+
+- SHOULD include any compounding that occurs from yield.
+- MUST be inclusive of any fees that are charged against assets in the Vault.
+- MUST NOT revert._
+
+### maxDeposit
+
+```solidity
+function maxDeposit(address receiver) public view virtual returns (uint256)
+```
+
+_Returns the maximum amount of the underlying asset that can be deposited into the Vault for the receiver,
+through a deposit call.
+
+- MUST return a limited value if receiver is subject to some deposit limit.
+- MUST return 2 ** 256 - 1 if there is no limit on the maximum amount of assets that may be deposited.
+- MUST NOT revert._
+
+### maxMint
+
+```solidity
+function maxMint(address receiver) public view virtual returns (uint256)
+```
+
+_Returns the maximum amount of the Vault shares that can be minted for the receiver, through a mint call.
+- MUST return a limited value if receiver is subject to some mint limit.
+- MUST return 2 ** 256 - 1 if there is no limit on the maximum amount of shares that may be minted.
+- MUST NOT revert._
+
+### _maxMint
+
+```solidity
+function _maxMint(address, uint256 totalAssets_, uint256 totalSupply_) internal view virtual returns (uint256)
+```
+
+### _maxDeposit
+
+```solidity
+function _maxDeposit(address, uint256 totalAssets_) internal view virtual returns (uint256)
+```
+
+### maxRedeem
+
+```solidity
+function maxRedeem(address owner) public view virtual returns (uint256)
+```
+
+_Returns the maximum amount of Vault shares that can be redeemed from the owner balance in the Vault,
+through a redeem call.
+
+- MUST return a limited value if owner is subject to some withdrawal limit or timelock.
+- MUST return balanceOf(owner) if owner is not subject to any withdrawal limit or timelock.
+- MUST NOT revert._
+
+### _maxRedeem
+
+```solidity
+function _maxRedeem(address owner, uint256 totalAssets_, uint256 totalSupply_) internal view virtual returns (uint256)
+```
+
+### maxWithdraw
+
+```solidity
+function maxWithdraw(address owner) public view virtual returns (uint256 maxAssets)
+```
+
+_Returns the maximum amount of the underlying asset that can be withdrawn from the owner balance in the
+Vault, through a withdraw call.
+
+- MUST return a limited value if owner is subject to some withdrawal limit or timelock.
+- MUST NOT revert._
+
+### _maxWithdraw
+
+```solidity
+function _maxWithdraw(address owner, uint256 totalAssets_, uint256 totalSupply_) internal view virtual returns (uint256)
+```
+
+### getStrategyData
+
+```solidity
+function getStrategyData(address strategy) public view returns (struct IConcreteStandardVaultImpl.StrategyData)
+```
+
+Returns the current metadata recorded by the vault for a strategy.
+
+_Returns default values (`Inactive` status, zero allocated) for unknown strategies;
+     does not revert for invalid strategy addresses._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| strategy | address | The strategy address to query. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct IConcreteStandardVaultImpl.StrategyData | The `StrategyData` struct containing the strategy's current status and allocated amount. |
+
+### getStrategies
+
+```solidity
+function getStrategies() public view returns (address[])
+```
+
+Returns the addresses of every strategy currently registered with the vault.
+
+_The result includes strategies in any status (Active, Inactive, Halted) and the
+     ordering is unspecified. Returns an empty array if no strategies have been added._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address[] | An array of every registered strategy address. |
+
+### allocateModule
+
+```solidity
+function allocateModule() public view returns (address)
+```
+
+Returns the address of the allocate module used by the vault.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The allocate module address. |
+
+### getDepositLimits
+
+```solidity
+function getDepositLimits() public view returns (uint256, uint256)
+```
+
+Returns the configured deposit limits for the vault.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The maximum global deposit amount (cap on `totalAssets()`). |
+| [1] | uint256 | The minimum per-transaction deposit amount. |
+
+### getWithdrawLimits
+
+```solidity
+function getWithdrawLimits() public view returns (uint256, uint256)
+```
+
+Returns the configured withdraw limits.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 |  |
+| [1] | uint256 |  |
+
+### getTotalAllocated
+
+```solidity
+function getTotalAllocated() public view returns (uint256)
+```
+
+Returns the total assets currently tracked as allocated to all strategies.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The total allocated asset amount across every strategy. |
+
+### cachedTotalAssets
+
+```solidity
+function cachedTotalAssets() public view returns (uint256)
+```
+
+Returns the cached total assets value, which does not include unaccrued yield.
+
+_`totalAssets()` returns the projected value after yield/fee accrual; this returns the
+     raw cached state. Used by hooks and internal accounting._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The current cached `totalAssets` value. |
+
+### _initialize
+
+```solidity
+function _initialize(uint64, address, struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration defaultEnforcedVaultConfig, bytes data) internal virtual
+```
+
+_Initialization function called when a proxy vault is deployed through `ConcreteFactory`.
+     Decodes `data` into (allocateModule, asset, initialVaultManager, name, symbol),
+     validates them, and wires up ERC20/ERC4626/AccessControl/Pausable, fee recipients and
+     vault-specific storage._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | uint64 |  |
+|  | address |  |
+| defaultEnforcedVaultConfig | struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration | Default fee recipients injected by the factory. |
+| data | bytes | ABI-encoded payload: `(address allocateModule, address asset, address initialVaultManager, string name, string symbol)`. |
+
+### _upgrade
+
+```solidity
+function _upgrade(uint64, bytes) internal virtual
+```
+
+_Upgrade hook called when a proxy vault upgrades to this implementation. Migrates any
+     legacy admin roles to the new `ROLE_ADMIN` so post-upgrade permissions remain intact._
+
+### pause
+
+```solidity
+function pause() external
+```
+
+Pauses the vault, blocking deposits, withdrawals and other guarded operations.
+
+_Caller must hold the `PAUSER` role._
+
+### unpause
+
+```solidity
+function unpause() external
+```
+
+Unpauses the vault, re-enabling guarded operations.
+
+_Caller must hold the `PAUSER` role._
+
+### _accrueYield
+
+```solidity
+function _accrueYield() internal virtual returns (uint256)
+```
+
+_Internal function that executes the yield accrual operation across all active strategies._
+
+### _executeWithdraw
+
+```solidity
+function _executeWithdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares) internal virtual returns (uint256)
+```
+
+_Internal function that handles withdrawal operations, including strategy deallocation when needed.
+This function implements the core withdrawal logic for the vault, automatically managing
+     fund retrieval from both idle vault balance and allocated strategies to fulfill withdrawal requests.
+Withdrawal Process:
+     1. First attempts to use idle funds (assets sitting in the vault contract)
+     2. If idle funds are insufficient, iterates through active strategies to deallocate funds
+     3. For each strategy, respects the strategy's maxWithdraw() limit
+     4. Updates strategy allocation accounting after successful deallocations
+     5. Executes the final withdrawal by burning shares, updating cached total assets, and transferring assets to the receiver
+Requirements:
+     - Combined idle funds and strategy liquidity must be sufficient for withdrawal amount
+     - All deallocated strategies must be in Active status
+     - Strategy onWithdraw() calls must succeed and return expected amounts_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| caller | address | The address that initiated the withdrawal (for access control) |
+| receiver | address | The address that will receive the withdrawn assets |
+| owner | address | The address whose shares are being burned for the withdrawal |
+| assets | uint256 | The amount of assets to withdraw from the vault |
+| shares | uint256 | The amount of shares to burn in exchange for the assets |
+
+### _withdraw
+
+```solidity
+function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares) internal virtual
+```
+
+_Withdraw/redeem common workflow._
+
+### _deposit
+
+```solidity
+function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal virtual
+```
+
+_Deposit/mint common workflow._
+
+### _previewAccrueYieldAndFees
+
+```solidity
+function _previewAccrueYieldAndFees() internal view virtual returns (uint256, uint256)
+```
+
+_Simulates the yield accrual operation across all strategies including fees._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | totalAssets The projected total assets after yield accrual (current + yield - losses) |
+| [1] | uint256 | totalSupply The projected total supply after yield accrual (current + management fee shares + performance fee shares) |
+
+### _previewYieldNoFees
+
+```solidity
+function _previewYieldNoFees() internal view virtual returns (uint256 totalPositiveYield, uint256 totalNegativeYield)
+```
+
+_Calculates total positive and negative yield across all strategies._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| totalPositiveYield | uint256 | The sum of all positive yields from strategies |
+| totalNegativeYield | uint256 | The sum of all losses from strategies |
+
+### _maxWithdrawWithSimulation
+
+```solidity
+function _maxWithdrawWithSimulation(address owner) internal view virtual returns (uint256, uint256, uint256)
+```
+
+_Internal function to calculate the maximum amount of assets that can be withdrawn by an owner.
+The calculation considers:
+     - Owner's current share balance converted to equivalent assets
+     - Current vault liquidity (idle assets + withdrawable amounts from strategies)
+     - Strategy withdrawal limitations and availability_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| owner | address | The address of the account for which to calculate maximum withdrawal. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The maximum amount of assets that can actually be withdrawn by the owner,         considering both ownership rights and liquidity constraints. |
+| [1] | uint256 | totalAssets The total amount of assets in the vault after previewing the yield accrual |
+| [2] | uint256 |  |
+
+### _simulateWithdraw
+
+```solidity
+function _simulateWithdraw(uint256 requestedAssets) internal view virtual returns (uint256)
+```
+
+_Simulate withdrawing an amount of assets from the vault._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| requestedAssets | uint256 | Amount of assets to withdraw. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | Amount of assets filled. |
+
+### _convertToShares
+
+```solidity
+function _convertToShares(uint256 assets, enum Math.Rounding rounding) internal view virtual returns (uint256)
+```
+
+_Internal function used only by the public convertToShares() function.
+This function returns share amounts NOT inclusive of management or performance fees,
+     as required by the ERC4626 specification. The convertToShares() function should return
+     the theoretical share amount for a given asset amount without considering fee deductions._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | uint256 | The amount of assets to convert to shares |
+| rounding | enum Math.Rounding | The rounding direction for the conversion |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The equivalent amount of shares, NOT inclusive of fees |
+
+### _convertToAssets
+
+```solidity
+function _convertToAssets(uint256 shares, enum Math.Rounding rounding) internal view virtual returns (uint256)
+```
+
+_Internal function used only by the public convertToAssets() function.
+This function returns asset amounts NOT inclusive of management or performance fees,
+     as required by the ERC4626 specification. The convertToAssets() function should return
+     the theoretical asset amount for a given share amount without considering fee deductions._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 | The amount of shares to convert to assets |
+| rounding | enum Math.Rounding | The rounding direction for the conversion |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The equivalent amount of assets, NOT inclusive of fees |
+
+### _lockedAssets
+
+```solidity
+function _lockedAssets() internal view virtual returns (uint256)
+```
+

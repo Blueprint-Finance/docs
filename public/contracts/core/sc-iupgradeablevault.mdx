@@ -1,0 +1,128 @@
+---
+id: 'sc-iupgradeablevault'
+title: 'IUpgradeableVault'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IUpgradeableVault.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'vault-upgradeability'
+---
+
+## IUpgradeableVault
+
+Interface implemented by every vault deployed behind the Concrete factory's proxy.
+
+_Exposes initialization, upgrade, and factory/version introspection. The factory invokes
+     `initialize` on deployment and `upgrade` when migrating a proxy to a new implementation._
+
+### AlreadyInitialized
+
+```solidity
+error AlreadyInitialized()
+```
+
+_Thrown when `initialize` is called on an already-initialised vault._
+
+### NotFactory
+
+```solidity
+error NotFactory()
+```
+
+_Thrown when a factory-only entry point is called by a non-factory address._
+
+### NotInitialized
+
+```solidity
+error NotInitialized()
+```
+
+_Thrown when an operation requiring initialisation runs against an uninitialised vault._
+
+### InvalidFactoryOwner
+
+```solidity
+error InvalidFactoryOwner()
+```
+
+_Thrown when the factory's expected owner does not match the on-chain owner during initialisation/upgrade._
+
+### InvalidVaultImpl
+
+```solidity
+error InvalidVaultImpl()
+```
+
+_Thrown when the supplied vault implementation ID is invalid (e.g. zero or unsupported)._
+
+### factory
+
+```solidity
+function factory() external view returns (address)
+```
+
+Returns the factory that deployed or registered this vault.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The factory address. |
+
+### version
+
+```solidity
+function version() external view returns (uint64)
+```
+
+Returns the vault's initialisation version.
+
+_Starts at 1 and increments by 1 on each upgrade. Note that legacy versions could
+     advance in larger steps and so the version is not necessarily the same as the
+     vault implementation ID._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The current initialisation version of the vault. |
+
+### initialize
+
+```solidity
+function initialize(uint64 initialVersion, address owner, struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration defaultEnforcedVaultConfig, bytes data) external
+```
+
+Initialise the proxy with the supplied version, owner, defaults, and impl-specific data.
+
+_Only callable by the factory and only once per vault._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| initialVersion | uint64 | The vault's initial implementation version. |
+| owner | address | The initial owner of the vault. |
+| defaultEnforcedVaultConfig | struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration | The factory-supplied default configuration (e.g. fee recipients). |
+| data | bytes | Implementation-specific initialisation calldata forwarded to the vault. |
+
+### upgrade
+
+```solidity
+function upgrade(uint64 newVaultImpl, bytes data) external
+```
+
+Upgrade the vault to a newer implementation version.
+
+_Only callable by the factory._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newVaultImpl | uint64 | Target vault implementation ID. |
+| data | bytes | Implementation-specific upgrade calldata forwarded to the new implementation. |
+

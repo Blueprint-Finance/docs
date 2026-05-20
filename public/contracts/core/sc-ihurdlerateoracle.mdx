@@ -1,0 +1,56 @@
+---
+id: 'sc-ihurdlerateoracle'
+title: 'IHurdleRateOracle'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IHurdleRateOracle.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'hurdle-rate'
+---
+
+## IHurdleRateOracle
+
+Oracle that returns the expected exchange rate (assets per share) that the
+        vault must exceed before performance fees are charged.
+
+_The hurdle rate is expressed as an exchange rate scaled to `precision()`.
+     For example, with `precision() == 1e18`, a hurdle rate of 1.05e18 means the vault
+     must reach 1.05 assets per share before performance fees activate.
+     Implementations may compute this on-chain (e.g. linear/compound growth from a
+     baseline) or relay an off-chain computed value. Each oracle instance is bound
+     to a single vault._
+
+### precision
+
+```solidity
+function precision() external view returns (uint256)
+```
+
+Returns the scaling factor used to encode the hurdle exchange rate.
+
+_The vault divides by this value when converting the hurdle exchange rate
+     to asset amounts: `hurdleAssets = hurdleRate * totalSupply / precision()`._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The scaling factor applied to `getHurdleRate()` (e.g. `1e18`). |
+
+### getHurdleRate
+
+```solidity
+function getHurdleRate() external view returns (uint256 hurdleRate)
+```
+
+Returns the current hurdle rate at the current block timestamp.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hurdleRate | uint256 | The minimum assets-per-share value below which no         performance fee should be charged. |
+

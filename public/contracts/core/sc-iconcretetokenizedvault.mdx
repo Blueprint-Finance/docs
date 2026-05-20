@@ -1,0 +1,97 @@
+---
+id: 'sc-iconcretetokenizedvault'
+title: 'IConcreteTokenizedVault'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IConcreteTokenizedVault.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'vault-core'
+---
+
+## IConcreteTokenizedVault
+
+ERC-4626 tokenized vault augmented with historical snapshots of total assets,
+        total supply, and per-account balances.
+
+_Implementations expose `*At(timestamp)` views in addition to the standard ERC-4626
+     surface, allowing callers to query the vault's state at a past block timestamp.
+     A cached snapshot of `totalAssets()` from the most recent accrual is also exposed._
+
+### totalAssetsAt
+
+```solidity
+function totalAssetsAt(uint32 timestamp) external view returns (uint256)
+```
+
+Returns the vault's `totalAssets` recorded at or before `timestamp`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| timestamp | uint32 | Unix timestamp to query (must match a checkpoint maintained by the vault). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The historical total assets value at `timestamp`. |
+
+### cachedTotalAssets
+
+```solidity
+function cachedTotalAssets() external view returns (uint256)
+```
+
+Returns the most recently cached `totalAssets()` value.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The cached total assets recorded at the last accrual. |
+
+### totalSupplyAt
+
+```solidity
+function totalSupplyAt(uint32 timestamp) external view returns (uint256)
+```
+
+Returns the vault's `totalSupply` recorded at or before `timestamp`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| timestamp | uint32 | Unix timestamp to query. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The historical total supply value at `timestamp`. |
+
+### balanceOfAt
+
+```solidity
+function balanceOfAt(address account, uint32 timestamp) external view returns (uint256)
+```
+
+Returns `account`'s share balance recorded at or before `timestamp`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| account | address | The account whose historical balance is being queried. |
+| timestamp | uint32 | Unix timestamp to query. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The historical share balance of `account` at `timestamp`. |
+

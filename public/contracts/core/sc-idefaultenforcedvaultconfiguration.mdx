@@ -1,0 +1,31 @@
+---
+id: 'sc-idefaultenforcedvaultconfiguration'
+title: 'IDefaultEnforcedVaultConfiguration'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IDefaultEnforcedVaultConfiguration.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'vault-factory'
+---
+
+## IDefaultEnforcedVaultConfiguration
+
+Interface defining the default vault configuration enforced by the protocol on new vaults.
+
+_Implementers must use the `DefaultEnforcedVaultConfiguration` struct as the canonical
+     shape for default fee recipient parameters supplied during vault initialisation._
+
+### DefaultEnforcedVaultConfiguration
+
+_Default fee recipients applied to newly created vaults by the factory._
+
+```solidity
+struct DefaultEnforcedVaultConfiguration {
+  address defaultManagementFeeRecipient;
+  address defaultPerformanceFeeRecipient;
+}
+```
+

@@ -1,0 +1,265 @@
+---
+id: 'sc-iloopingprimitive'
+title: 'ILoopingPrimitive'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/ILoopingPrimitive.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'leverage-looping'
+---
+
+## LeverageCondition
+
+_Indicates whether leverage is disabled or whether the current LTV sits above, below, or within bounds._
+
+```solidity
+enum LeverageCondition {
+  Disabled,
+  AboveUpperLtvBound,
+  BelowLowerLtvBound,
+  WithinBounds
+}
+```
+
+## TokenPair
+
+_Pair of tokens used by a looping position: collateral asset and the borrowed asset._
+
+```solidity
+struct TokenPair {
+  address collateralToken;
+  address borrowToken;
+}
+```
+
+## FlashLoanParams
+
+_Inputs describing the current position and target parameters for a flash-driven leverage operation._
+
+```solidity
+struct FlashLoanParams {
+  uint256 collateralAmount;
+  uint256 debtAmount;
+  uint256 floatingAmount;
+  uint256 collateralPriceInRay;
+  uint64 targetLtvInWad;
+  uint64 maxSlippageInWad;
+}
+```
+
+## FlashExecuteData
+
+_Data routed to the flash callback describing module addresses and amounts to settle the flash._
+
+```solidity
+struct FlashExecuteData {
+  address flashModule;
+  address swapModule;
+  address pairedToken;
+  uint256 pairedTokenAmount;
+  uint256 floatingAmount;
+  uint256 payBackAmount;
+  bool isSupplyLoop;
+  bool isAllocation;
+}
+```
+
+## FlashQuote
+
+_Snapshot of flash liquidity, position figures, premium, and whether the request equals max withdrawal._
+
+```solidity
+struct FlashQuote {
+  uint256 depthOfLiquidity;
+  uint256 collateralAmount;
+  uint256 debtAmount;
+  uint64 flashPremiumQuoteInWad;
+  bool isMaxWithdraw;
+}
+```
+
+## LeverageData
+
+_Result of sizing a leverage adjustment: flash amount, paired token amount, deltas, and any error info._
+
+```solidity
+struct LeverageData {
+  uint256 flashAmount;
+  uint256 pairedTokenAmount;
+  uint256 floatingAmount;
+  uint256 collateralDiff;
+  uint256 debtDiff;
+  uint256 newEquity;
+  uint64 flashPremiumQuoteInWad;
+  ErrorInfo errorInfo;
+}
+```
+
+## LenderPosition
+
+_Aggregated view of a lender position: collateral, debt, floating amount, equity, and price._
+
+```solidity
+struct LenderPosition {
+  uint256 collateralAmount;
+  uint256 debtAmount;
+  uint256 floatingAmount;
+  uint256 equity;
+  uint256 collateralPriceInRay;
+}
+```
+
+## LtvBounds
+
+_LTV configuration for a looping strategy: target, max, min, and additive deviation, all in wad._
+
+```solidity
+struct LtvBounds {
+  uint64 target;
+  uint64 max;
+  uint64 min;
+  uint64 deviation;
+}
+```
+
+## NewLtvResult
+
+_Result of computing a candidate new LTV: the value in wad and a flag indicating invalidity._
+
+```solidity
+struct NewLtvResult {
+  uint64 ltvInWad;
+  bool isInvalid;
+}
+```
+
+## FlashOperationParams
+
+Parameters for executing flash loan operations.
+
+```solidity
+struct FlashOperationParams {
+  address flashToken;
+  uint256 flashAmount;
+  uint256 flashPremiumAmount;
+  LoopModality loopModality;
+  address pairedToken;
+  uint256 pairedTokenAmount;
+  uint256 floatingAmount;
+}
+```
+
+## ILoopingPrimitive
+
+Interface implemented by looping strategy primitives that receive flash callbacks and
+        expose the wired flash and swap module addresses.
+
+_TODO: improve this interface (preserved from original source)._
+
+### ExecuteFlash
+
+```solidity
+event ExecuteFlash(LoopModality loopModality, uint256 flashAmount, uint256 flashPremiumAmount, uint256 pairedTokenAmount, uint256 floatingAmount, uint256 floatingAmountUnused)
+```
+
+Emitted when a flash-driven looping operation finishes.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| loopModality | LoopModality | The loop modality of the executed operation. |
+| flashAmount | uint256 | The amount that was flash borrowed. |
+| flashPremiumAmount | uint256 | The premium paid on the flash loan. |
+| pairedTokenAmount | uint256 | The amount of the paired token involved in the operation. |
+| floatingAmount | uint256 | The amount of principal tokens added to reduce the flash amount. |
+| floatingAmountUnused | uint256 | The portion of the floating amount that was not consumed by the operation. |
+
+### FlashModuleSet
+
+```solidity
+event FlashModuleSet(address previousFlashModule, address newFlashModule)
+```
+
+Emitted when the flash module address is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| previousFlashModule | address | Address of the previous flash module. |
+| newFlashModule | address | Address of the new flash module. |
+
+### SwapModuleSet
+
+```solidity
+event SwapModuleSet(address previousSwapModule, address newSwapModule)
+```
+
+Emitted when the swap module address is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| previousSwapModule | address | Address of the previous swap module. |
+| newSwapModule | address | Address of the new swap module. |
+
+### executeFlash
+
+```solidity
+function executeFlash(address token, uint256 amountInToken, uint256 premiumInToken, address requester, LoopModality loopModality, bytes data) external returns (bool)
+```
+
+Callback invoked by the flash module to execute the looping operation.
+
+_Only the registered flash module may call this, and the requester must be this contract._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The address of the flash-borrowed token. |
+| amountInToken | uint256 | The amount of `token` that was flash borrowed. |
+| premiumInToken | uint256 | The premium owed on top of `amountInToken`. |
+| requester | address | The address that initiated the flash (must equal this contract). |
+| loopModality | LoopModality | The loop modality identifying which operation to perform. |
+| data | bytes | ABI-encoded operation payload (paired token, paired amount, floating amount). |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | True when the operation executed successfully. |
+
+### flashModule
+
+```solidity
+function flashModule() external view returns (address)
+```
+
+Returns the configured flash module address.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The flash module address. |
+
+### swapModule
+
+```solidity
+function swapModule() external view returns (address)
+```
+
+Returns the configured swap module address.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The swap module address. |
+

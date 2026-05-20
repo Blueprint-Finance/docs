@@ -1,0 +1,141 @@
+---
+id: 'sc-lendermoduleaavev3'
+title: 'LenderModuleAaveV3'
+audience: 'public'
+module: 'periphery'
+scope: 'auxiliary'
+source_refs:
+  - 'src/periphery/auxiliary/LenderModuleAaveV3.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'lending-integration'
+---
+
+## LenderModuleAaveV3
+
+Upgradeable Aave V3 lender module that extends `AaveV3LenderAdapter` with a
+        two-step staging flow. Strategies (or the module owner) can park collateral
+        on this contract via `stage`, then either `engage` it (supply to Aave V3) or
+        `send` it back to the strategy's vault.
+Inherits Aave V3 supply/withdraw/borrow/repay primitives and access control
+        from `AaveV3LenderAdapter`, and adds UUPS upgradeability guarded by the owner.
+
+_NOTE: This file is missing the `// SPDX-License-Identifier` and `pragma solidity`
+     headers. Both directives are normally inherited from compiler defaults in the
+     build pipeline, but the file is not self-describing._
+
+### InsufficientStagedAmount
+
+```solidity
+error InsufficientStagedAmount()
+```
+
+_Thrown by `engage` or `send` when the requested amount exceeds the currently staged balance._
+
+### constructor
+
+```solidity
+constructor(address collateralToken, address borrowToken, address dataProvider) public
+```
+
+Sets the immutable token pair and Aave data provider via the parent adapter.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralToken | address | ERC-20 collateral token address (immutable). |
+| borrowToken | address | ERC-20 borrow token address (immutable). |
+| dataProvider | address | Aave V3 data provider used by the parent adapter. |
+
+### initialize
+
+```solidity
+function initialize(address admin_, uint256 interestRateMode_) external
+```
+
+Initializes the upgradeable lender module and seeds the staged amount with the current balance.
+
+_The initial staged value is captured from this contract's collateral token balance so any
+     pre-existing collateral is treated as already staged._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| admin_ | address | Account granted admin/owner privileges by the parent adapter initializer. |
+| interestRateMode_ | uint256 | Aave V3 interest rate mode used when borrowing (1 = stable, 2 = variable). |
+
+### stage
+
+```solidity
+function stage(uint256 amount) external
+```
+
+Stages collateral on this contract for later use by `engage` or `send`.
+
+_Pulls `amount` of `COLLATERAL_TOKEN` from `msg.sender` via `safeTransferFrom`
+     and increases the staged accounting. No-op when `amount` is zero._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Amount of collateral token to stage. |
+
+### staged
+
+```solidity
+function staged() external view returns (uint256)
+```
+
+Returns the amount of collateral currently staged but not yet engaged or sent.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The staged collateral amount tracked in module storage. |
+
+### engage
+
+```solidity
+function engage(uint256 amount) external
+```
+
+Engages staged collateral by supplying it to Aave V3.
+
+_Decreases the staged accounting and routes the deposit through the parent
+     adapter's internal `_supply`. Restricted to the strategy or the module owner._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Amount of staged collateral to supply. |
+
+### send
+
+```solidity
+function send(uint256 amount) external
+```
+
+Sends staged collateral to the strategy's vault instead of engaging at Aave.
+
+_Decreases the staged accounting and transfers the tokens to
+     `IStrategyTemplate(strategy).getVault()`. Restricted to the strategy or owner._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Amount of staged collateral to forward to the vault. |
+
+### _authorizeUpgrade
+
+```solidity
+function _authorizeUpgrade(address newImplementation) internal
+```
+
+_UUPS upgrade authorization: restricted to the module owner._
+

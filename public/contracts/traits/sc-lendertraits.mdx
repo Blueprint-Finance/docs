@@ -1,0 +1,144 @@
+---
+id: 'sc-lendertraits'
+title: 'LenderTraits'
+audience: 'public'
+module: 'periphery'
+scope: 'traits'
+source_refs:
+  - 'src/periphery/traits/LenderTraits.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'lending-integration'
+---
+
+## LenderOpTraits
+
+Trait that defines the four core lender operations (supply, withdraw,
+        repay, borrow) parameterised by token address. Implementers wire
+        each hook to the underlying protocol (e.g. Aave, Morpho) and let
+        shared library code drive the position without protocol-specific
+        coupling.
+
+### _supply
+
+```solidity
+function _supply(address token, uint256 amount) internal virtual
+```
+
+Supplies `amount` of `token` to the lender on behalf of the implementer.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | ERC-20 token to supply. |
+| amount | uint256 | Amount to supply, in `token` units. |
+
+### _withdraw
+
+```solidity
+function _withdraw(address token, uint256 amount) internal virtual
+```
+
+Withdraws `amount` of `token` from the lender.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | ERC-20 token to withdraw. |
+| amount | uint256 | Amount to withdraw, in `token` units. |
+
+### _repay
+
+```solidity
+function _repay(address token, uint256 amount) internal virtual
+```
+
+Repays `amount` of `token` debt at the lender.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | ERC-20 token to repay. |
+| amount | uint256 | Amount to repay, in `token` units. |
+
+### _borrow
+
+```solidity
+function _borrow(address token, uint256 amount) internal virtual
+```
+
+Borrows `amount` of `token` from the lender.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | ERC-20 token to borrow. |
+| amount | uint256 | Amount to borrow, in `token` units. |
+
+## SimpleLenderOpTraits
+
+Token-fixed variant of `LenderOpTraits` for contexts where the
+        collateral and borrow tokens are immutably configured (e.g. a
+        single-position helper bound to one market). Implementers only need
+        to supply the amount; the token is resolved internally.
+
+### _supply
+
+```solidity
+function _supply(uint256 amount) internal virtual
+```
+
+Supplies `amount` of the implementer's configured collateral token.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Amount to supply, in collateral token units. |
+
+### _withdraw
+
+```solidity
+function _withdraw(uint256 amount) internal virtual
+```
+
+Withdraws `amount` of the implementer's configured collateral token.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Amount to withdraw, in collateral token units. |
+
+### _repay
+
+```solidity
+function _repay(uint256 amount) internal virtual
+```
+
+Repays `amount` of the implementer's configured borrow token.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Amount to repay, in borrow token units. |
+
+### _borrow
+
+```solidity
+function _borrow(uint256 amount) internal virtual
+```
+
+Borrows `amount` of the implementer's configured borrow token.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Amount to borrow, in borrow token units. |
+

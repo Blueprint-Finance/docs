@@ -1,0 +1,160 @@
+---
+id: 'sc-ipredepostvaultoapp'
+title: 'IPredepostVaultOApp'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/periphery/interface/IPredepostVaultOApp.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'cross-chain'
+  - 'predeposit'
+---
+
+## IPredepostVaultOApp
+
+Interface for the predeposit vault's LayerZero OApp adapter.
+        Exposes send and fee-quote functions used by an authorized vault to dispatch
+        cross-chain messages (e.g. claim notifications) via LayerZero, plus the configured
+        destination endpoint setter and getter.
+
+_Package references such as `@layerzerolabs/lz-evm-protocol-v2/...` are import paths, not NatSpec tags._
+
+### vault
+
+```solidity
+function vault() external view returns (address)
+```
+
+Returns the vault address
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The address of the authorized vault |
+
+### dstEid
+
+```solidity
+function dstEid() external view returns (uint32)
+```
+
+Returns the destination endpoint ID
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint32 | The destination endpoint ID |
+
+### setDstEid
+
+```solidity
+function setDstEid(uint32 _dstEid) external
+```
+
+Set the destination endpoint ID
+
+_Only callable by owner_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _dstEid | uint32 | The destination endpoint ID |
+
+### send
+
+```solidity
+function send(bytes payload, bytes options, address refundAddress) external payable returns (struct MessagingReceipt receipt)
+```
+
+Send a LayerZero message (only callable by vault)
+
+_Quotes the fee internally and validates msg.value is sufficient
+Uses the stored dstEid_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| payload | bytes | Message payload |
+| options | bytes | LayerZero options |
+| refundAddress | address | Address to refund excess fee |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| receipt | struct MessagingReceipt | The LayerZero messaging receipt for the dispatched message. |
+
+### quote
+
+```solidity
+function quote(bytes payload, bytes options, bool payInLzToken) external view returns (struct MessagingFee fee)
+```
+
+Quote the fee for sending a message (view function - no vault restriction)
+
+_Uses the stored dstEid_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| payload | bytes | Message payload |
+| options | bytes | LayerZero options |
+| payInLzToken | bool | Whether to pay in LZ token |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fee | struct MessagingFee | The estimated messaging fee |
+
+### quoteClaimOnTargetChain
+
+```solidity
+function quoteClaimOnTargetChain(address user, bytes options, bool payInLzToken) external view returns (struct MessagingFee fee)
+```
+
+Quote the fee for claiming shares on target chain
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The user address to claim for |
+| options | bytes | LayerZero messaging options |
+| payInLzToken | bool | Whether to pay in LZ token |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fee | struct MessagingFee | The estimated messaging fee |
+
+### quoteBatchClaimOnTargetChain
+
+```solidity
+function quoteBatchClaimOnTargetChain(bytes addressesData, bytes options, bool payInLzToken) external view returns (struct MessagingFee fee)
+```
+
+Quote the fee for batch claiming shares on target chain
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| addressesData | bytes | Encoded array of addresses to claim for |
+| options | bytes | LayerZero messaging options |
+| payInLzToken | bool | Whether to pay in LZ token |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fee | struct MessagingFee | The estimated messaging fee |
+

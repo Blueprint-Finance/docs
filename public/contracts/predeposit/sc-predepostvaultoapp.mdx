@@ -1,0 +1,260 @@
+---
+id: 'sc-predepostvaultoapp'
+title: 'PredepostVaultOApp'
+audience: 'public'
+module: 'periphery'
+scope: 'predeposit'
+source_refs:
+  - 'src/periphery/predeposit/PredepostVaultOApp.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'cross-chain'
+  - 'predeposit'
+---
+
+## PredepostVaultOApp
+
+Standalone OApp contract that lets `ConcretePredepositVaultImpl` send
+        cross-chain share-claim messages over LayerZero. Only the authorised
+        vault address may invoke the send path.
+
+### MSG_TYPE_CLAIM
+
+```solidity
+uint16 MSG_TYPE_CLAIM
+```
+
+Message type identifier for a single-user claim payload.
+
+### MSG_TYPE_BATCH_CLAIM
+
+```solidity
+uint16 MSG_TYPE_BATCH_CLAIM
+```
+
+Message type identifier for a batched multi-user claim payload.
+
+### NotAuthorizedVault
+
+```solidity
+error NotAuthorizedVault()
+```
+
+_Fires when a caller other than the configured vault invokes `send`._
+
+### EmptyAddressesArray
+
+```solidity
+error EmptyAddressesArray()
+```
+
+_Fires when an empty addresses array is supplied for fee quoting._
+
+### InsufficientFee
+
+```solidity
+error InsufficientFee(uint256 required, uint256 provided)
+```
+
+_Fires when `msg.value` is below the LayerZero native fee quote._
+
+### VaultSet
+
+```solidity
+event VaultSet(address vault)
+```
+
+Emitted when the authorised vault address is set during initialization.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | The vault permitted to call `send`. |
+
+### DstEidSet
+
+```solidity
+event DstEidSet(uint32 dstEid)
+```
+
+Emitted when the destination LayerZero endpoint ID is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| dstEid | uint32 | The new destination endpoint ID. |
+
+### constructor
+
+```solidity
+constructor(address lzEndpoint) public
+```
+
+Deploys the implementation and disables initializers.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| lzEndpoint | address | The address of the LayerZero endpoint for this chain. |
+
+### initialize
+
+```solidity
+function initialize(address vaultAddress, address owner) external
+```
+
+Initialises the OApp with the authorised vault and owner.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vaultAddress | address | The address of the vault that will use this OApp. |
+| owner | address | The owner / LayerZero delegate of the OApp. |
+
+### vault
+
+```solidity
+function vault() external view returns (address)
+```
+
+Returns the vault address authorised to call `send`.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The address of the authorised vault. |
+
+### dstEid
+
+```solidity
+function dstEid() external view returns (uint32)
+```
+
+Returns the configured destination LayerZero endpoint ID.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint32 | The destination endpoint ID. |
+
+### setDstEid
+
+```solidity
+function setDstEid(uint32 _dstEid) external
+```
+
+Sets the destination LayerZero endpoint ID. Only callable by the owner.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _dstEid | uint32 | The destination endpoint ID. |
+
+### send
+
+```solidity
+function send(bytes payload, bytes options, address refundAddress) external payable returns (struct MessagingReceipt receipt)
+```
+
+Sends a LayerZero message using the stored destination endpoint ID.
+        Only callable by the configured vault. Quotes the fee internally and
+        validates that `msg.value` covers it before dispatching.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| payload | bytes | Encoded message payload. |
+| options | bytes | LayerZero execution options. |
+| refundAddress | address | Address that receives any excess native fee. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| receipt | struct MessagingReceipt | LayerZero `MessagingReceipt` for the dispatched message. |
+
+### quote
+
+```solidity
+function quote(bytes payload, bytes options, bool payInLzToken) external view returns (struct MessagingFee fee)
+```
+
+Quotes the LayerZero fee for sending a message with the stored destination endpoint ID.
+
+_View-only; not restricted to the vault._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| payload | bytes | Encoded message payload. |
+| options | bytes | LayerZero execution options. |
+| payInLzToken | bool | Whether to pay in LZ token instead of native gas. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fee | struct MessagingFee | The estimated messaging fee. |
+
+### quoteClaimOnTargetChain
+
+```solidity
+function quoteClaimOnTargetChain(address user, bytes options, bool payInLzToken) external view returns (struct MessagingFee fee)
+```
+
+Quotes the LayerZero fee for a single-user claim message on the target chain.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The user address whose shares would be claimed. |
+| options | bytes | LayerZero execution options. |
+| payInLzToken | bool | Whether to pay in LZ token instead of native gas. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fee | struct MessagingFee | The estimated messaging fee. |
+
+### quoteBatchClaimOnTargetChain
+
+```solidity
+function quoteBatchClaimOnTargetChain(bytes addressesData, bytes options, bool payInLzToken) external view returns (struct MessagingFee fee)
+```
+
+Quotes the LayerZero fee for a batched multi-user claim message on the target chain.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| addressesData | bytes | ABI-encoded `address[]` of recipients to claim for. |
+| options | bytes | LayerZero execution options. |
+| payInLzToken | bool | Whether to pay in LZ token instead of native gas. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fee | struct MessagingFee | The estimated messaging fee. |
+
+### _lzReceive
+
+```solidity
+function _lzReceive(struct Origin, bytes32, bytes, address, bytes) internal virtual
+```
+
+_Internal function to handle incoming LayerZero messages
+This OApp only sends messages and does not expect to receive any_
+

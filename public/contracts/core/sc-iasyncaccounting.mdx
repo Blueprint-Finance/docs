@@ -1,0 +1,191 @@
+---
+id: 'sc-iasyncaccounting'
+title: 'IAsyncAccounting'
+audience: 'public'
+module: 'interfaces'
+scope: 'core'
+source_refs:
+  - 'src/interface/IAsyncAccounting.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'async-withdrawals'
+---
+
+## IAsyncAccounting
+
+Interface for strategies whose accounting is updated asynchronously by an off-chain
+        operator instead of being derived atomically from on-chain state.
+
+_Strategies whose reported `totalAllocatedValue()` depends on an off-chain accounting
+     update (e.g. a multisig-managed position) should implement this interface. It exposes
+     two `adjustTotalAssets` overloads (one vault-initiated and trusted, one operator-initiated
+     with nonce/threshold/cooldown validation), an admin emergency recovery entry point, and
+     configuration setters/getters for the validation parameters._
+
+### adjustTotalAssets
+
+```solidity
+function adjustTotalAssets(int256 diff) external
+```
+
+Vault-initiated accounting adjustment (e.g. recording an unwind cost).
+
+_MUST only be callable by the bound vault.  Bypasses nonce / threshold /
+     cooldown checks because the vault is a trusted caller.  MUST bump the
+     accounting nonce to prevent race conditions with operator adjustments._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| diff | int256 | Signed delta to apply to the strategy's internal position value. |
+
+### adjustTotalAssets
+
+```solidity
+function adjustTotalAssets(int256 diff, uint256 nonce) external
+```
+
+Operator-initiated accounting adjustment with validation.
+
+_Subject to nonce ordering, cooldown period, and max-change-threshold
+     checks.  If validation fails the strategy SHOULD pause itself._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| diff | int256 | Signed delta to apply. |
+| nonce | uint256 | The expected next accounting nonce (prevents replay / ordering issues). |
+
+### unpauseAndAdjustTotalAssets
+
+```solidity
+function unpauseAndAdjustTotalAssets(int256 diff) external
+```
+
+Emergency admin function: unpause the strategy and apply an adjustment
+        in a single transaction, bypassing threshold / cooldown checks.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| diff | int256 | Signed delta to apply after unpausing. |
+
+### setMaxAccountingChangeThreshold
+
+```solidity
+function setMaxAccountingChangeThreshold(uint64 maxAccountingChangeThreshold) external
+```
+
+Set the maximum allowed single-adjustment change, expressed in basis points
+        (10000 = 100%) of the current position.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| maxAccountingChangeThreshold | uint64 | New threshold in basis points. |
+
+### setAccountingValidityPeriod
+
+```solidity
+function setAccountingValidityPeriod(uint64 accountingValidityPeriod) external
+```
+
+Set the validity window for accounting data.  If no adjustment is
+        made within this period the strategy's `totalAllocatedValue` will
+        revert, signalling stale data.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| accountingValidityPeriod | uint64 | New validity period in seconds. |
+
+### setCooldownPeriod
+
+```solidity
+function setCooldownPeriod(uint64 cooldownPeriod) external
+```
+
+Set the minimum time that must elapse between two successive
+        operator-initiated adjustments.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| cooldownPeriod | uint64 | New cooldown period in seconds. |
+
+### getNextAccountingNonce
+
+```solidity
+function getNextAccountingNonce() external view returns (uint256)
+```
+
+Returns the nonce the next operator-initiated adjustment must supply.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The next expected accounting nonce. |
+
+### getLastUpdatedTimestamp
+
+```solidity
+function getLastUpdatedTimestamp() external view returns (uint64)
+```
+
+Returns the timestamp of the most recent accounting adjustment.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The unix timestamp of the last successful accounting update. |
+
+### getMaxAccountingChangeThreshold
+
+```solidity
+function getMaxAccountingChangeThreshold() external view returns (uint64)
+```
+
+Returns the current max-change threshold in basis points.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The configured maximum single-adjustment delta in basis points. |
+
+### getAccountingValidityPeriod
+
+```solidity
+function getAccountingValidityPeriod() external view returns (uint64)
+```
+
+Returns the current accounting validity period in seconds.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The validity window in seconds after which accounting data becomes stale. |
+
+### getCooldownPeriod
+
+```solidity
+function getCooldownPeriod() external view returns (uint64)
+```
+
+Returns the current cooldown period in seconds.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The cooldown in seconds enforced between consecutive operator adjustments. |
+

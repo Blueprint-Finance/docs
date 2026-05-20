@@ -1,0 +1,390 @@
+---
+id: 'sc-positionhelperaavev3'
+title: 'PositionHelperAaveV3'
+audience: 'public'
+module: 'periphery'
+scope: 'position-helper'
+source_refs:
+  - 'src/periphery/positionhelper/PositionHelperAaveV3.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'lending-integration'
+---
+
+## PositionHelperAaveV3
+
+Concrete, clonable implementation of `PositionHelperBase` that
+        integrates Aave V3 as the lender. Each clone manages one leveraged
+        supply/borrow position on behalf of a single `positionOwner`.
+
+_Clone lifecycle:
+  1. Deploy this implementation once with Aave infrastructure addresses.
+     The constructor calls `_disableInitializers()` — the bare implementation
+     cannot be used directly and is intended for cloning only.
+  2. For each position, deploy a clone using `ClonesWithImmutableArgs.clone`
+     with the same immutable-arg encoding as `PositionHelperBase` (62 bytes):
+       `[positionOwner (20)][collateralToken (20)][borrowToken (20)]`
+       `[collateralDecimals (1)][borrowDecimals (1)]`
+     i.e. `abi.encodePacked(positionOwner, collateralToken, borrowToken, collateralDecimals, borrowDecimals)`.
+  3. Call `initialize(...)` on the clone to set per-position state.
+
+Pre-approved allowances set in `initialize` (no per-call approvals needed):
+  • collateralToken → pool        : MAX  (supply)
+  • collateralToken → swapModule  : MAX  (self-liq swap)
+  • borrowToken     → pool        : MAX  (repay)
+  • borrowToken     → target      : MAX  (depositOnTarget)
+  • borrowToken     → flashModule : MAX  (flash repayment)
+  • yieldVault shares → yieldVault: MAX  (only relevant if the helper ever holds vault shares)
+
+Required positionOwner approvals (one-time setup):
+  | Operation           | Token                       | Mechanism                        |
+  |---------------------|-----------------------------|----------------------------------|
+  | supply              | collateralToken             | approve(helper, MAX)             |
+  | withdraw / selfLiq  | aToken (collateral reserve) | approve(helper, MAX)             |
+  | borrow              | debtToken (var or stable)   | approveDelegation(helper, MAX)   |
+  | repay               | borrowToken                 | approve(helper, MAX)             |
+  | requestRedemption   | target vault shares         | approve(helper, MAX)             |
+  | cancelRedemption /  |                             | helper must hold                 |
+  | claimRedemption     | —                           | WITHDRAWAL_MANAGER_ROLE on vault |_
+
+### INTEREST_RATE_MODE
+
+```solidity
+uint256 INTEREST_RATE_MODE
+```
+
+### AaveReserveNotFound
+
+```solidity
+error AaveReserveNotFound(address asset)
+```
+
+_Fires when the provided token is not a configured Aave V3 reserve in this pool._
+
+### AaveReserveMissingVariableDebtToken
+
+```solidity
+error AaveReserveMissingVariableDebtToken(address asset)
+```
+
+_Fires when the provided borrow token reserve has no variable debt token configured._
+
+### OracleZeroPrice
+
+```solidity
+error OracleZeroPrice(address asset)
+```
+
+_Fires when the oracle returns a zero price for the given asset._
+
+### DATA_PROVIDER
+
+```solidity
+contract IPoolDataProvider DATA_PROVIDER
+```
+
+Aave V3 PoolDataProvider used to read per-reserve configuration.
+
+### ADDRESSES_PROVIDER
+
+```solidity
+contract IPoolAddressesProvider ADDRESSES_PROVIDER
+```
+
+Aave V3 PoolAddressesProvider resolved from the data provider.
+
+### POOL
+
+```solidity
+contract IPool POOL
+```
+
+Aave V3 lending pool used for supply, withdraw, borrow, and repay.
+
+### PRICE_ORACLE
+
+```solidity
+contract IPriceOracleGetter PRICE_ORACLE
+```
+
+Aave V3 price oracle used for collateral and borrow token pricing.
+
+### ID
+
+```solidity
+function ID() public pure virtual returns (uint64)
+```
+
+Returns the encoded contract identifier for this implementation.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Packed contractType/flavour/version identifier. |
+
+### constructor
+
+```solidity
+constructor(address dataProvider_) public
+```
+
+Deploys the implementation contract used as the cloning target.
+
+_Sets all immutable Aave V3 infrastructure addresses derived from the data provider.
+     `_disableInitializers()` is called here so the bare implementation
+     contract cannot be initialized — clones must call `initialize(...)`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| dataProvider_ | address | Aave V3 PoolDataProvider address. |
+
+### initialize
+
+```solidity
+function initialize(address admin_, address operator_, address yieldVault_, address flashModule_, address swapModule_, uint64 healthyLtvInWad_, uint64 healthyLtvDeviationInWad_, uint64 selfLiqThrBufferInWad_) external
+```
+
+Initializes a freshly cloned instance. Must be called exactly once.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| admin_ | address | Address granted `POSITION_ADMIN_ROLE`. |
+| operator_ | address | Address granted `POSITION_OPERATOR_ROLE`. |
+| yieldVault_ | address | Async ERC4626 vault (asset must equal borrowToken). |
+| flashModule_ | address | Flash loan module address (IFlashModule). |
+| swapModule_ | address | Swap module address (ISwapModule). |
+| healthyLtvInWad_ | uint64 | Centre of the desired healthy LTV band, in WAD (1e18 = 100%). |
+| healthyLtvDeviationInWad_ | uint64 | Half-width of the healthy LTV band, in WAD. Must be > 0. |
+| selfLiqThrBufferInWad_ | uint64 | WAD buffer below liq threshold that triggers self-liq. Must be > 0. |
+
+### __PositionHelperAaveV3_init
+
+```solidity
+function __PositionHelperAaveV3_init() internal
+```
+
+_Sets MAX token allowances for the lifetime of this clone.
+     Called once from `initialize`; eliminates per-operation approval calls._
+
+### _getLenderApprovals
+
+```solidity
+function _getLenderApprovals() internal view returns (bool lenderCollateralApproved, bool lenderDebtDelegated)
+```
+
+_Returns Aave-specific approvals: aToken allowance and debt-token delegation._
+
+### _supply
+
+```solidity
+function _supply(uint256 collateralAmount, bool transferFromOwner, bool transferToOwner) internal
+```
+
+_Supplies `collateralAmount` of collateralToken to Aave on behalf of positionOwner,
+     minting aTokens directly to positionOwner.
+     Requires: positionOwner.approve(collateralToken, address(this), MAX)_
+
+### _withdraw
+
+```solidity
+function _withdraw(uint256 collateralAmount, bool transferFromOwner, bool transferToOwner) internal
+```
+
+_Pulls aTokens from positionOwner → redeems underlying via POOL.withdraw.
+     Requires: positionOwner.approve(aToken, address(this), MAX)_
+
+### _borrow
+
+```solidity
+function _borrow(uint256 borrowAmount, bool transferToOwner) internal
+```
+
+_Borrows from Aave on behalf of positionOwner via credit delegation.
+     Borrowed tokens arrive in this contract.
+     Requires: debtToken.approveDelegation(address(this), MAX) from positionOwner_
+
+### _repayLender
+
+```solidity
+function _repayLender(uint256 borrowAmount, bool transferFromOwner) internal
+```
+
+_Repays `borrowAmount` of borrowToken debt for positionOwner at Aave.
+     Requires: positionOwner.approve(borrowToken, address(this), MAX)_
+
+### getPosition
+
+```solidity
+function getPosition() public view returns (uint256 collateralAmount, uint256 debtAmount)
+```
+
+Returns the current collateral and debt balances at the lender.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| collateralAmount | uint256 | Collateral balance in collateral token units. |
+| debtAmount | uint256 | Outstanding debt in borrow token units (with rounding buffer). |
+
+### getCollateralAmount
+
+```solidity
+function getCollateralAmount() public view returns (uint256)
+```
+
+Returns the aToken balance of positionOwner (collateral in token units).
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The collateral balance in collateral token units. |
+
+### getDebtAmount
+
+```solidity
+function getDebtAmount() public view returns (uint256)
+```
+
+Returns the debt token balance of positionOwner in borrow token units.
+
+_Includes a small RAY rounding buffer to make full-repay flows clean._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The outstanding debt in borrow token units. |
+
+### getCurrentLtvInWad
+
+```solidity
+function getCurrentLtvInWad() public view returns (uint64)
+```
+
+Returns the current LTV of the position in WAD.
+
+_Computed from Aave's USD-denominated account data._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Current LTV in WAD (1e18 = 100%). |
+
+### getLiquidationThresholdInWad
+
+```solidity
+function getLiquidationThresholdInWad() public view returns (uint64)
+```
+
+Returns the liquidation threshold for the collateral token in WAD.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Liquidation threshold in WAD (1e18 = 100%). |
+
+### getMaxLtvInWad
+
+```solidity
+function getMaxLtvInWad() public view returns (uint64)
+```
+
+Returns the maximum LTV for the collateral token in WAD.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Maximum LTV in WAD (1e18 = 100%). |
+
+### getBorrowRateInWad
+
+```solidity
+function getBorrowRateInWad() public view returns (uint64)
+```
+
+Returns the current variable borrow rate in WAD.
+
+_Converted from Aave reserve data, which stores rates in RAY._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Variable borrow rate in WAD (1e18 = 100% APY). |
+
+### getSupplyRateInWad
+
+```solidity
+function getSupplyRateInWad() public view returns (uint64)
+```
+
+Returns the current supply rate in WAD for the collateral token.
+
+_Converted from Aave reserve data, which stores rates in RAY._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | Supply rate in WAD (1e18 = 100% APY). |
+
+### collateralPriceInBorrowTokensInRay
+
+```solidity
+function collateralPriceInBorrowTokensInRay() public view returns (uint256)
+```
+
+Returns the price of one collateralToken expressed in borrowToken units, in RAY.
+
+_Formula: price = (collateralPriceUSD / borrowPriceUSD)
+                    * (10 ** borrowDecimals / 10 ** collateralDecimals)
+                    * RAY._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | Collateral price expressed in borrow tokens, in RAY (1e27 = 1.0). |
+
+### getAvailablePoolLiquidity
+
+```solidity
+function getAvailablePoolLiquidity() public view returns (uint256)
+```
+
+Returns the idle borrow-token liquidity sitting in the Aave lending pool.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | Borrow token balance held by the corresponding aToken contract. |
+
+### _validateAaveReserves
+
+```solidity
+function _validateAaveReserves(address collateral, address borrow) internal view
+```
+
+### _getATokenAddress
+
+```solidity
+function _getATokenAddress(address asset) internal view returns (address)
+```
+
+### _getDebtTokenAddress
+
+```solidity
+function _getDebtTokenAddress() internal view returns (address)
+```
+

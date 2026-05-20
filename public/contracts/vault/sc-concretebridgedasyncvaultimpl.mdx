@@ -1,0 +1,71 @@
+---
+id: 'sc-concretebridgedasyncvaultimpl'
+title: 'ConcreteBridgedAsyncVaultImpl'
+audience: 'public'
+module: 'core'
+scope: 'vault'
+source_refs:
+  - 'src/implementation/ConcreteBridgedAsyncVaultImpl.sol'
+last_reviewed: '2026-05-15'
+mechanics:
+  - 'async-withdrawals'
+  - 'cross-chain'
+  - 'vault-core'
+---
+
+## ConcreteBridgedAsyncVaultImpl
+
+Async vault implementation that extends `ConcreteAsyncVaultImpl` with unbacked-mint
+        capability, used as the destination of cross-chain vault migrations (typically from a
+        predeposit phase). It allows an initial mint of shares without depositing underlying
+        assets; the backing assets are expected to be allocated directly to a strategy on this
+        chain. Once the migration phase ends the vault can itself be migrated to a standard
+        vault. Designed to pair with `ConcretePredepositVaultImpl`.
+
+### ID
+
+```solidity
+function ID() public pure virtual returns (uint64)
+```
+
+Returns the encoded contract identifier for this bridged async vault implementation.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint64 | The encoded contract ID for the async bridged vault flavour. |
+
+### constructor
+
+```solidity
+constructor(address factory) public
+```
+
+Disables initializers on the implementation contract.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| factory | address | The address of the `ConcreteFactory` that will manage proxies for this implementation. |
+
+### unbackedMint
+
+```solidity
+function unbackedMint(uint256 shares) external
+```
+
+Mints vault shares without depositing any underlying assets, for the initial mint of a migration.
+
+_Caller must hold `VAULT_MANAGER`. Reverts when `shares` is zero, when `totalSupply()` is
+     non-zero (only valid as the initial mint), or when deposit limits are still configured.
+     No assets are transferred in; the backing for the minted shares is expected to be
+     allocated directly on the strategy._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 | Amount of shares to mint to the caller for later distribution. |
+
