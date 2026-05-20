@@ -25,10 +25,10 @@ The lifecycle is strictly sequential per epoch:
 
 1. **Start.** The epoch opens and begins accepting requests.
 2. **Cutoff.** This vault's cutoff runs on the cron schedule
-   `—`. Requests submitted after the cutoff
+   `0 4 12 * * 1`. Requests submitted after the cutoff
    roll into the next epoch instead.
 3. **Payout.** Closed-pending requests are settled on-chain and become
-   claimable on the cron schedule `—`.
+   claimable on the cron schedule `0 4 12 * * 2`.
 4. **Next epoch start.** A fresh epoch opens to receive new requests.
 
 The cutoff and payout dates surfaced to users are computed from the
