@@ -499,11 +499,6 @@ function isUsableCron(cron) {
   return s !== '' && s !== '-';
 }
 
-function parseTwoNext(cron) {
-  const interval = CronExpressionParser.parse(cron, { tz: 'UTC' });
-  return { first: interval.next().toDate(), second: interval.next().toDate() };
-}
-
 // Worst-case queue wait in days = the span first→third cutoff occurrence
 // (= 7 for Mon+Thu, 14 for weekly Thu). Mirrors FE computeFullCycleDays.
 function computeFullCycleDays(cutoffCron) {
@@ -520,15 +515,49 @@ function computeFullCycleDays(cutoffCron) {
 }
 
 // Number of cron occurrences per week (1 for weekly, 2 for Mon+Thu, …).
-// Mirrors FE getCronCyclesPerWeek; returns null when the cadence doesn't
-// fit a sub-week window.
+//
+// FE's original implementation samples a single first→second gap and divides
+// WEEK_MS by it. That misbehaves for uneven schedules — Mon+Wed+Fri has
+// gaps of 2/2/3 days, so the first-pair sample yields Math.round(7/2)=4
+// regardless of when the run starts, when the correct answer is 3. It also
+// floats on supra-weekly cadences (monthly cron looks weekly).
+//
+// Worker uses a deterministic anchor (a Sunday at 23:59:59 UTC) and counts
+// occurrences strictly inside the next 7-day window, then verifies weekly
+// periodicity by checking that the first occurrence outside the window
+// sits exactly 7 days after the first inside it. Monthly / other non-
+// weekly-periodic crons return null and fall through to the next step.
 function getCronCyclesPerWeek(cron) {
   if (!isUsableCron(cron)) return null;
   try {
-    const { first, second } = parseTwoNext(cron);
-    const diffMs = second.getTime() - first.getTime();
-    if (diffMs <= 0) return null;
-    const n = Math.round(WEEK_MS / diffMs);
+    // 2023-12-31 23:59:59 UTC = the second before Mon 2024-01-01 00:00 UTC.
+    // Any cron is parsed relative to this fixed point so the count is the
+    // same across worker runs.
+    const anchor = new Date(Date.UTC(2023, 11, 31, 23, 59, 59));
+    const interval = CronExpressionParser.parse(cron, {
+      tz: 'UTC',
+      currentDate: anchor,
+    });
+    const cutoffMs = anchor.getTime() + WEEK_MS;
+    let n = 0;
+    let firstOccurrence = null;
+    while (n < 100) {
+      const next = interval.next().toDate();
+      if (next.getTime() >= cutoffMs) {
+        // Periodicity check: the next-week first occurrence must land
+        // exactly 7 days after the in-window first. Rules out monthly
+        // crons that happen to fire once inside the sample window.
+        if (
+          firstOccurrence &&
+          Math.abs(next.getTime() - firstOccurrence.getTime() - WEEK_MS) > 1000
+        ) {
+          return null;
+        }
+        break;
+      }
+      if (firstOccurrence === null) firstOccurrence = next;
+      n += 1;
+    }
     return n > 0 && n <= 7 ? n : null;
   } catch {
     return null;
@@ -702,21 +731,30 @@ function buildVaultContext(vault) {
 
 const PLACEHOLDER_RE = /\{\{\s*([\w.]+)\s*\}\}/g;
 
+// Placeholder paths whose computed value may legitimately be "" — the rule
+// template wants the surrounding paragraph to collapse cleanly when no data
+// is available (e.g. `cycle_summary` per the FE handoff: a vault with no
+// usable cron + no RC + no queue delay + no eta renders blank). For any
+// other placeholder, "" is treated the same as null/undefined and routed
+// through the unresolved-warning path so a BE field that comes back empty
+// doesn't silently produce broken prose ("processed on a  schedule").
+const ALLOWED_EMPTY_PLACEHOLDERS = new Set([
+  'vault.withdrawal.cycle_summary',
+  'vault.withdrawalRc.cycle_summary',
+]);
+
 // Replace {{ vault.* }} placeholders with per-vault values.
-//   - `null`/`undefined`/object/array  → "—" + end-of-run warning. The path
-//      doesn't resolve to a leaf scalar; leaving a literal {{ }} would break
-//      MDX parsing downstream.
-//   - empty string                     → "" (no warning). A computed field
-//      may legitimately have nothing to render this run (e.g.
-//      `cycle_summary` per the FE handoff: cron missing + all fallbacks
-//      empty → "" so the surrounding paragraph collapses cleanly).
+//   - "" + path in ALLOWED_EMPTY_PLACEHOLDERS → "" (no warning).
+//   - `null`/`undefined`/object/array/other "" → "—" + end-of-run warning.
+//      Path doesn't resolve to a leaf scalar; leaving a literal {{ }} would
+//      break MDX parsing downstream.
 function substitutePlaceholders(src, context, file, slug) {
   return src.replace(PLACEHOLDER_RE, (_match, dotted) => {
     const value = dotted
       .split('.')
       .reduce((node, key) => (node == null ? undefined : node[key]), context);
-    if (value === '') return '';
-    if (value == null || typeof value === 'object') {
+    if (value === '' && ALLOWED_EMPTY_PLACEHOLDERS.has(dotted)) return '';
+    if (value == null || value === '' || typeof value === 'object') {
       unresolvedPlaceholders.push({
         file: path.relative(STAGING, file),
         slug,
