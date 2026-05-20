@@ -1,69 +1,61 @@
 ---
 title: "Understanding NAV and Exchange Rate in Concrete Vaults"
 sidebarTitle: "NAV & eRate"
-description: "NAV is the total dollar value of everything the vault holds. The eRate tells you what one vault share is worth in your deposited asset, updated daily."
+description: "NAV is the total value of everything the vault holds, denominated in the vault's underlying asset. The Exchange Rate is the per-share value derived from NAV and is updated daily."
 ---
 
-Two figures on your Concrete vault dashboard tell you how the vault is performing and what your position is worth: **NAV** (Net Asset Value) and **eRate** (exchange rate). Both concepts explain how yield accumulates in your vault and why your `ct[Asset]` token value changes over time.
+Two concepts explain how yield accumulates in a Concrete vault and why your `ct[Asset]` shares are worth more over time: **NAV** (Net Asset Value) and the **exchange rate**. NAV measures the total value held by the vault; the exchange rate is the per-share value derived from it.
 
 ## NAV: the vault's total value
 
-NAV stands for **Net Asset Value**. It is the total dollar value of everything the vault currently holds across all of its positions and strategies — lending market deposits, liquidity positions, restaking allocations, and any other holdings.
+NAV stands for **Net Asset Value**. It is the total value of everything the vault currently holds across all of its positions and strategies, denominated in the vault's underlying asset (for example, USDT for a USDT vault, WBTC for a WBTC vault). When the vault's strategies generate yield, NAV increases. When strategies report losses, NAV decreases. 
 
-NAV is the vault's scoreboard. When the vault earns yield from any strategy, NAV goes up. When costs are incurred entering or rebalancing positions, NAV may temporarily dip before recovering through earned returns.
+Your shares represent a proportional piece of the vault's NAV. For example, if a USDT vault holds 1,100,000 USDT in total and there are 1,000,000 shares outstanding, each share is redeemable for 1.10 USDT.
 
-Your shares represent a proportional piece of the vault's total NAV. If the vault's NAV is $1,100,000 and there are 1,000,000 shares outstanding, each share is worth $1.10 in underlying assets.
+## **Exchange rate: what one vault share is worth**
 
-## eRate: what one vault share is worth
+The **exchange rate** tells you how much one `ct[Asset]` vault share is worth in the underlying asset — for example, how many USDT one share of a USDT vault can be redeemed for. The exchange rate is calculated as:
 
-The **eRate** (exchange rate) tells you how much one `ct[Asset]` vault share is worth in your original deposited asset — for example, how many USDT one `ctDefiUSDT` token can be redeemed for.
-
-**A concrete example:** Imagine ten people each deposit $100 into a vault. The vault holds $1,000 total, and each person holds a 1/10 share. The vault's strategies earn yield and the total grows to $1,100. Nobody added money. Nobody received extra shares. But now each 1/10 share is worth $110. The eRate has moved from 1.0 to 1.1 — each share buys 10% more of the underlying asset than it did at the start.
-
-The eRate is calculated the same way as share price:
-
-```
-eRate = total vault assets ÷ total shares outstanding
+```text
+exchange rate = total vault assets ÷ total shares outstanding
 ```
 
-As the vault earns yield, total assets increase, and the eRate rises. When you withdraw, the vault redeems your `ct[Asset]` tokens at the current eRate, returning you the accumulated value.
+**A simple example:** Ten depositors each deposit 100 USDT into a vault. The vault holds 1,000 USDT total, and each depositor holds a 1/10 share. The vault's strategies earn yield and the total grows to 1,100 USDT. Nobody added funds. Nobody received extra shares. But each 1/10 share is now worth 110 USDT. The exchange rate has moved from 1.00 to 1.10 — each share is redeemable for 10% more of the underlying asset than at the start. When you withdraw, your `ct[Asset]` shares are redeemed against the exchange rate that applies at settlement. For vaults using an asynchronous withdrawal queue (the most common configuration), this is the exchange rate locked at the time the epoch containing your request is processed.
 
 ## How daily NAV updates work
 
-Concrete Earn V2 uses an automated three-party system to update the vault's NAV every day. This makes Concrete the only vault platform with daily NAV updates, keeping share prices accurate and `ct[Asset]` tokens liquid and composable at all times.
+Concrete Earn V2 uses an automated three-party model to update vault NAV daily. No single party can unilaterally change the vault's reported value.
 
 The three parties are:
 
 <AccordionGroup>
   <Accordion title="Transaction Proposer">
-    Tracks the real-time value of strategist wallets and all vault positions, then proposes an asset update to the vault contract based on verified on-chain data.
+    An automation bot that tracks strategist wallet balances and on-chain positions, computes the current portfolio value, and proposes an update to the vault contract. The proposer does not execute the transaction — it submits the proposal and requests validation from an independent signer.
   </Accordion>
+
   <Accordion title="Independent Signer">
-    Operates a separate, isolated system and independently confirms that the proposed update is accurate before countersigning. This prevents any single party from manipulating vault accounting.
+    A separate policy engine that does not trust the proposer. It independently re-calculates the expected exchange rate from its own data sources, validates the structural and business-logic correctness of the proposed update, simulates the transaction, and only then countersigns.
   </Accordion>
+
   <Accordion title="Smart Contract Safeguards">
-    The vault contract accepts the update only if it falls within a realistic range based on the vault's target APY. Updates that exceed those bounds are rejected and require owner-level intervention before proceeding.
+    The vault's underlying strategy contract enforces on-chain bounds on every accounting update — including a maximum allowed change per update (derived from the vault's target annualized yield), a minimum cooldown between updates, and a validity window after which operations dependent on accounting will revert. Updates exceeding these bounds auto-pause the strategy and require administrator intervention to resume.
   </Accordion>
 </AccordionGroup>
 
-This system transforms vault accounting from manual, governance-heavy processes — historically done bi-weekly or weekly — into a daily automated operation that runs without manual oversight while maintaining institutional-grade controls.
+Together, these layers replace manual bookkeeping with daily, verified accounting that runs on a scheduled lifecycle without manual oversight.
 
 ## Frequently asked questions
 
 <AccordionGroup>
-  <Accordion title="Why does the eRate sometimes move slowly or dip?">
-    The vault incurs execution costs when entering yield-generating positions — gas, bridging, and protocol interaction fees. These costs are absorbed by the vault, not charged to depositors directly, but they are reflected temporarily in the eRate before being recovered through strategy returns. Over time, earned yield offsets these costs and the eRate trends upward.
-  </Accordion>
   <Accordion title="How often is NAV updated?">
-    Concrete updates vault NAV daily through its automated three-party accounting system. This frequency keeps share prices accurate and ensures `ct[Asset]` tokens reflect the vault's true current value for composability across DeFi.
+    Concrete's automation updates vault NAV daily on a scheduled lifecycle. Each update flows through the three-party model above before being applied to the vault.
   </Accordion>
-  <Accordion title="What is the difference between NAV and eRate?">
-    NAV is the total dollar value of the entire vault — the sum of all positions across all strategies. The eRate is the per-share value derived from NAV: total assets divided by total shares outstanding. NAV tells you the size of the pool; eRate tells you what your individual slice is worth.
+
+  <Accordion title="How does NAV relate to TVL?">
+    TVL (Total Value Locked) is the figure displayed in the Concrete app for the size of a vault, and it is derived from the vault's NAV. NAV is the on-chain accounting measure of total assets in the underlying asset; TVL is the same value expressed for display purposes (often in a USD equivalent). When NAV rises or falls, the TVL shown in the app reflects the change once the next daily update is applied.
   </Accordion>
-  <Accordion title="Can the eRate decrease?">
-    Yes. If vault strategy losses reduce total assets, the eRate falls. The eRate can also temporarily dip when the vault incurs costs entering new positions before those positions begin generating returns. Day-to-day fluctuations are normal; the underlying yield trend becomes the dominant factor over longer holding periods.
-  </Accordion>
-  <Accordion title="How does active management affect the eRate over time?">
-    Concrete vaults continuously move capital toward the best risk-adjusted opportunities and away from underperforming ones. Yield earned in early periods is redeployed into strategies in subsequent periods, compounding over time. Depositors who remain in the vault longer capture more of these compounding cycles and more rebalancing rotations, which the eRate reflects as it rises over months rather than days.
+
+  <Accordion title="How does the exchange rate relate to APY?">
+    APY (Annual Percentage Yield) is an annualized expression of how the exchange rate changes over time. The exchange rate is the raw, point-in-time measurement of share value; APY translates the rate of change in the exchange rate across a measurement window into a standardized yearly percentage, making it easier to compare vault performance against other yield sources. The APY shown in the Concrete app is computed from daily vault snapshots.
   </Accordion>
 </AccordionGroup>
