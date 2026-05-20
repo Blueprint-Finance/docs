@@ -79,11 +79,14 @@ async function main() {
 
   const referencedGates = new Set();
 
-  // FE earn → per-vault composition: group rules by theme, then per vault
-  // compose each theme's surviving rules into a single themed page.
+  // FE earn → split by `emit` front-matter: class-A files (emit: once) ship
+  // once into concepts/earn/<theme>/<rule>.mdx; class-B files (default) feed
+  // the per-vault themed composition.
   const earnFiles = (await collectMdx([FE_EARN])).filter(notInternal);
-  const themedRules = await groupEarnRulesByTheme(earnFiles);
-  rewriteEarnLinks(themedRules);
+  const { themed: themedRules, classA: classAFiles } =
+    await groupEarnRulesByTheme(earnFiles);
+  const classAPages = await emitClassAEarnPages(classAFiles);
+  rewriteEarnLinks(themedRules, classAFiles);
   const composedByVault = new Map();
   for (const vault of vaults) {
     await composeVaultThemes(
@@ -121,7 +124,7 @@ async function main() {
   }
 
   await copyMetaArtifacts();
-  await emitDocsJson(vaults, composedByVault, sdkPages.sort());
+  await emitDocsJson(vaults, composedByVault, sdkPages.sort(), classAPages);
 
   if (unresolvedPlaceholders.length > 0) {
     const sample = unresolvedPlaceholders
@@ -565,10 +568,18 @@ const EARN_THEMES = [
   { dir: 'cross-chain', page: 'cross-chain', title: 'Cross-chain' },
 ];
 
-// Group earn rule files by their theme folder, reading each source once.
+// Group earn rule files by their theme folder, reading each source once and
+// routing by the `emit` front-matter field:
+//   - `emit: once`        → class A, written once to concepts/earn/ (see
+//                           emitClassAEarnPages); the per-vault composer
+//                           never sees these files.
+//   - `emit: per_vault`   → class B, the existing per-vault composition path.
+//   - absent              → class B (default — backwards-compatible).
+//   - anything else       → throw.
 async function groupEarnRulesByTheme(earnFiles) {
   const known = new Set(EARN_THEMES.map((t) => t.dir));
   const themed = new Map(EARN_THEMES.map((t) => [t.dir, []]));
+  const classA = [];
   for (const file of [...earnFiles].sort()) {
     const theme = path.relative(FE_EARN, file).split(path.sep)[0];
     if (!known.has(theme)) {
@@ -578,9 +589,55 @@ async function groupEarnRulesByTheme(earnFiles) {
       );
       continue;
     }
-    themed.get(theme).push({ file, src: await fs.readFile(file, 'utf8') });
+    const src = await fs.readFile(file, 'utf8');
+    const { data: fm } = parseFrontmatter(src);
+    const emit = fm.emit;
+    if (emit === 'once') {
+      classA.push({ file, src, theme });
+    } else if (emit == null || emit === 'per_vault') {
+      themed.get(theme).push({ file, src });
+    } else {
+      throw new Error(
+        `Invalid \`emit\` value ${JSON.stringify(emit)} in ` +
+          `${path.relative(STAGING, file)}; expected "once" or "per_vault".`,
+      );
+    }
   }
-  return themed;
+  return { themed, classA };
+}
+
+// Class-A vault placeholder check — `{{ vault.* }}` is per-vault by
+// construction, so it is meaningless on a write-once concept page. The check
+// runs before emission so a misclassified file fails loudly instead of being
+// shipped with a literal placeholder.
+const VAULT_PLACEHOLDER_RE = /\{\{\s*vault\.[^}]+\s*\}\}/;
+
+function assertNoVaultPlaceholders(src, file) {
+  const m = VAULT_PLACEHOLDER_RE.exec(src);
+  if (!m) return;
+  throw new Error(
+    `${path.relative(STAGING, file)} is \`emit: once\` (class A) but contains ` +
+      `the per-vault placeholder ${m[0]}. Class-A files are vault-invariant — ` +
+      `remove the placeholder or change \`emit\` to \`per_vault\`.`,
+  );
+}
+
+// Emit each class-A earn rule once into concepts/earn/<theme>/<rule>.mdx. The
+// file is copied verbatim (front-matter preserved so Mintlify reads title /
+// sidebarTitle). Returns the page refs grouped by theme, for the nav builder.
+async function emitClassAEarnPages(classA) {
+  const pages = [];
+  for (const { file, src, theme } of classA) {
+    assertNoConditionals(src, file);
+    assertNoVaultPlaceholders(src, file);
+    const rule = path.basename(file, '.mdx');
+    const dest = path.join(OUTPUT, 'concepts', 'earn', theme, `${rule}.mdx`);
+    await fs.mkdir(path.dirname(dest), { recursive: true });
+    claimPath(dest, 'FE-earn-concept');
+    await fs.writeFile(dest, src);
+    pages.push({ theme, page: `concepts/earn/${theme}/${rule}` });
+  }
+  return pages;
 }
 
 const MD_LINK_RE = /\[([^\]]*)\]\(([^)\s]+)\)/g;
@@ -613,19 +670,31 @@ function extractH1(src) {
 }
 
 // FE earn rules cross-link by relative path (../vaults/versions, ./caps).
-// Composition collapses rules into theme pages, so each such link is rewritten
-// to <themePage>#<rule-anchor>. Vault-independent — mutates themedRules once.
-function rewriteEarnLinks(themedRules) {
+// Composition collapses class-B rules into theme pages, so a link to a class-B
+// rule is rewritten to <themePage>#<rule-anchor>. A link to a class-A rule
+// (emit: once, lives at concepts/earn/<theme>/<rule>) is rewritten to that
+// absolute path instead. Vault-independent — mutates themedRules once.
+function rewriteEarnLinks(themedRules, classA) {
   const themePageOf = new Map(EARN_THEMES.map((t) => [t.dir, t.page]));
   const index = new Map();
   for (const [themeDir, rules] of themedRules) {
     for (const { file, src } of rules) {
       const h1 = extractH1(src);
       index.set(`${themeDir}/${path.basename(file, '.mdx')}`, {
+        kind: 'classB',
         themePage: themePageOf.get(themeDir),
         anchor: h1 ? slugify(h1) : '',
       });
     }
+  }
+  for (const { file, src, theme } of classA) {
+    const h1 = extractH1(src);
+    const rule = path.basename(file, '.mdx');
+    index.set(`${theme}/${rule}`, {
+      kind: 'classA',
+      page: `/concepts/earn/${theme}/${rule}`,
+      anchor: h1 ? slugify(h1) : '',
+    });
   }
   for (const [themeDir, rules] of themedRules) {
     const ownThemePage = themePageOf.get(themeDir);
@@ -638,6 +707,9 @@ function rewriteEarnLinks(themedRules) {
           .replace(/\.mdx?$/, '');
         const hit = index.get(resolved);
         if (!hit) return whole;
+        if (hit.kind === 'classA') {
+          return `[${text}](${hit.page}#${frag || hit.anchor})`;
+        }
         const page = hit.themePage === ownThemePage ? '' : hit.themePage;
         return `[${text}](${page}#${frag || hit.anchor})`;
       });
@@ -648,6 +720,19 @@ function rewriteEarnLinks(themedRules) {
 function stripFrontmatter(src) {
   const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(src);
   return m ? src.slice(m[0].length) : src;
+}
+
+// Parse YAML front-matter into { data, body }. Files without front-matter
+// return { data: {}, body: src }.
+function parseFrontmatter(src) {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(src);
+  if (!m) return { data: {}, body: src };
+  try {
+    const data = yaml.load(m[1]) ?? {};
+    return { data, body: src.slice(m[0].length) };
+  } catch (err) {
+    throw new Error(`Malformed YAML front-matter: ${err.message}`);
+  }
 }
 
 // Shift ATX headings down one level (# → ##) so a rule's H1 sits under the
@@ -782,19 +867,57 @@ async function copyMetaArtifacts() {
 // under the single-branch publish model) does not produce duplicate tabs.
 const CLASS_B_TABS = new Set(['Vaults', 'SDK', 'Backend API', 'Smart Contracts']);
 
-async function emitDocsJson(vaults, composedByVault, sdkPages) {
+// Groups inside otherwise-class-A tabs that the worker also regenerates. Same
+// stripping logic as CLASS_B_TABS — keep the class-A tab from the base but
+// drop these groups before re-appending the freshly generated versions. The
+// publish-time merge in scripts/merge-docs-json.mjs MUST stay in sync with
+// this map.
+const CLASS_B_GROUPS_IN_CLASS_A_TABS = new Map([
+  ['Documentation', new Set(['Earn concepts'])],
+]);
+
+async function emitDocsJson(vaults, composedByVault, sdkPages, classAPages = []) {
   const base = JSON.parse(await fs.readFile(BASE_DOCS_JSON, 'utf8'));
 
   // Class A — preserve the base repo's conceptual navigation verbatim,
-  // dropping any class-B tab (regenerated below) and stray empty groups.
+  // dropping any class-B tab (regenerated below), any class-B group inside
+  // a class-A tab (also regenerated below), and stray empty groups.
   const tabs = (base.navigation?.tabs ?? [])
     .filter((tab) => !CLASS_B_TABS.has(tab.tab))
-    .map((tab) => ({
-      ...tab,
-      groups: (tab.groups ?? []).filter(
-        (g) => !Array.isArray(g.pages) || g.pages.length > 0,
-      ),
-    }));
+    .map((tab) => {
+      const ownedGroups = CLASS_B_GROUPS_IN_CLASS_A_TABS.get(tab.tab);
+      const groups = (tab.groups ?? []).filter((g) => {
+        if (ownedGroups && ownedGroups.has(g.group)) return false;
+        return !Array.isArray(g.pages) || g.pages.length > 0;
+      });
+      return { ...tab, groups };
+    });
+
+  // Class A — "Earn concepts" group: append the emit:once FE earn rules to
+  // the Documentation tab, sub-grouped by theme in EARN_THEMES order. Skipped
+  // entirely when no rule is marked emit: once (backwards-compatible).
+  if (classAPages.length > 0) {
+    const byTheme = new Map();
+    for (const { theme, page } of classAPages) {
+      if (!byTheme.has(theme)) byTheme.set(theme, []);
+      byTheme.get(theme).push(page);
+    }
+    const themeSubGroups = EARN_THEMES
+      .filter((t) => byTheme.has(t.dir))
+      .map((t) => ({ group: t.title, pages: byTheme.get(t.dir).sort() }));
+    const earnConcepts = { group: 'Earn concepts', pages: themeSubGroups };
+    const docsIdx = tabs.findIndex((t) => t.tab === 'Documentation');
+    if (docsIdx >= 0) {
+      tabs[docsIdx] = {
+        ...tabs[docsIdx],
+        groups: [...(tabs[docsIdx].groups ?? []), earnConcepts],
+      };
+    } else {
+      // Base has no Documentation tab — emit a minimal one so the concepts
+      // are still reachable in the published nav.
+      tabs.push({ tab: 'Documentation', groups: [earnConcepts] });
+    }
+  }
 
   // Class B — "Vaults" tab. Active vaults keep their Storyblok-group → vault
   // hierarchy (each vault a collapsed nested group of its theme pages; Mintlify

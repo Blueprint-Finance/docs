@@ -17,8 +17,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-// MUST stay in sync with CLASS_B_TABS in scripts/preprocess-docs.mjs.
+// Both constants MUST stay in sync with their counterparts in
+// scripts/preprocess-docs.mjs.
 const CLASS_B_TABS = new Set(['Vaults', 'SDK', 'Backend API', 'Smart Contracts']);
+const CLASS_B_GROUPS_IN_CLASS_A_TABS = new Map([
+  ['Documentation', new Set(['Earn concepts'])],
+]);
 
 const OUTPUT_DIR = process.env.OUTPUT_DIR;
 if (!OUTPUT_DIR) {
@@ -32,8 +36,32 @@ const workerPath = path.join(OUTPUT_DIR, 'docs.json');
 const fresh = JSON.parse(fs.readFileSync(freshPath, 'utf8'));
 const worker = JSON.parse(fs.readFileSync(workerPath, 'utf8'));
 
-const classA = (fresh.navigation?.tabs ?? []).filter((t) => !CLASS_B_TABS.has(t.tab));
-const classB = (worker.navigation?.tabs ?? []).filter((t) => CLASS_B_TABS.has(t.tab));
+const workerTabsByName = new Map(
+  (worker.navigation?.tabs ?? []).map((t) => [t.tab, t]),
+);
+
+// Class A: take the tab from fresh main, but strip any worker-owned group
+// (e.g. "Earn concepts" inside Documentation) and re-append the worker's
+// fresh version. Without this, a generated group inside a class-A tab would
+// be silently dropped by the merge (fresh main doesn't carry it).
+let workerOwnedGroupCount = 0;
+const classA = (fresh.navigation?.tabs ?? [])
+  .filter((t) => !CLASS_B_TABS.has(t.tab))
+  .map((tab) => {
+    const ownedGroups = CLASS_B_GROUPS_IN_CLASS_A_TABS.get(tab.tab);
+    if (!ownedGroups) return tab;
+    const stripped = (tab.groups ?? []).filter((g) => !ownedGroups.has(g.group));
+    const workerVersion = workerTabsByName.get(tab.tab);
+    const workerOwned = (workerVersion?.groups ?? []).filter((g) =>
+      ownedGroups.has(g.group),
+    );
+    workerOwnedGroupCount += workerOwned.length;
+    return { ...tab, groups: [...stripped, ...workerOwned] };
+  });
+
+const classB = (worker.navigation?.tabs ?? []).filter((t) =>
+  CLASS_B_TABS.has(t.tab),
+);
 
 const merged = {
   ...fresh,
@@ -43,5 +71,6 @@ const merged = {
 fs.writeFileSync(workerPath, JSON.stringify(merged, null, 2) + '\n');
 console.log(
   `Merged docs.json against fresh main: ${classA.length} class-A tab(s) + ` +
-    `${classB.length} class-B tab(s) (${[...CLASS_B_TABS].join(', ')}).`,
+    `${classB.length} class-B tab(s) (${[...CLASS_B_TABS].join(', ')}) + ` +
+    `${workerOwnedGroupCount} worker-owned group(s) inside class-A tabs.`,
 );
