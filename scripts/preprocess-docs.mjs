@@ -738,9 +738,12 @@ const PLACEHOLDER_RE = /\{\{\s*([\w.]+)\s*\}\}/g;
 // other placeholder, "" is treated the same as null/undefined and routed
 // through the unresolved-warning path so a BE field that comes back empty
 // doesn't silently produce broken prose ("processed on a  schedule").
+//
+// The FE handoff also mentions `vault.withdrawalRc.cycle_summary` as an
+// optional symmetry field — buildVaultContext doesn't compute it (nothing
+// on the FE side references it yet), so it doesn't belong here either.
 const ALLOWED_EMPTY_PLACEHOLDERS = new Set([
   'vault.withdrawal.cycle_summary',
-  'vault.withdrawalRc.cycle_summary',
 ]);
 
 // Replace {{ vault.* }} placeholders with per-vault values.
