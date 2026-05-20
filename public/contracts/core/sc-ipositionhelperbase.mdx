@@ -113,7 +113,7 @@ _`swapModule` is zero or not a deployed contract._
 error InvalidMaxSlippageInWad()
 ```
 
-_maxSlippageInWad is invalid (must be < 1e18)._
+_maxSlippageInWad is invalid (must be `< 1e18`)._
 
 ### MaxSlippageTooHigh
 
@@ -705,7 +705,7 @@ function deploy(uint256 collateralAmount, uint64 targetLtvInWad) external
 ```
 
 Supply collateral, borrow to `targetLtvInWad`, and deploy borrowed funds into target.
-        If targetLtv <= post-supply LTV (no additional borrowing capacity), the borrow
+        If `targetLtv <= post-supply LTV` (no additional borrowing capacity), the borrow
         and deposit steps are skipped.
 
 #### Parameters
