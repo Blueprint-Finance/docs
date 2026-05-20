@@ -31,6 +31,7 @@ import fs from 'node:fs/promises';
 import { existsSync as fsExistsSync } from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
+import { CronExpressionParser } from 'cron-parser';
 
 const STAGING = path.resolve(process.env.STAGING_DIR ?? './.staging');
 const OUTPUT = path.resolve(process.env.OUTPUT_DIR ?? './.output');
@@ -259,6 +260,11 @@ async function fetchVaults() {
       if (!story?.content) continue;
       const slug = String(story.content.slug ?? '').trim();
       if (!slug || seenSlugs.has(slug)) continue;
+      // `hiddenCard` excludes the vault from the FE Earn surface (it never
+      // appears as a card). Mirror that here so the docs don't expose a
+      // vault that isn't user-facing in the product. This mechanic is an
+      // operational control, not documented to readers.
+      if (story.content.hiddenCard === true) continue;
       seenSlugs.add(slug);
       vaults.push({
         slug,
@@ -468,6 +474,241 @@ async function fetchVaultPerformance(vaults) {
   return result;
 }
 
+// --- Cron translation -------------------------------------------------------
+// Ported from Concrete-app/src/core/utils/cron.ts so the doc rendering of a
+// vault's withdrawal cycle matches what the Earn app surfaces. Worker-side
+// translation lets FE templates use a `{{ vault.withdrawal.cycle_summary }}`
+// placeholder instead of leaking raw cron strings into reader-facing prose.
+const CRON_WEEKDAY_FMT =
+  new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' });
+const CRON_TIME_FMT = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+  timeZone: 'UTC',
+});
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
+
+// Some BE callers emit "-" for "no cron set". Treat that and the obvious
+// empty values the same — an unusable cron skips the schedule-pane primary
+// path entirely.
+function isUsableCron(cron) {
+  if (cron == null) return false;
+  const s = String(cron).trim();
+  return s !== '' && s !== '-';
+}
+
+// Worst-case queue wait in days = the span first→third cutoff occurrence
+// (= 7 for Mon+Thu, 14 for weekly Thu). Mirrors FE computeFullCycleDays.
+function computeFullCycleDays(cutoffCron) {
+  if (!isUsableCron(cutoffCron)) return null;
+  try {
+    const interval = CronExpressionParser.parse(cutoffCron, { tz: 'UTC' });
+    const first = interval.next().toDate();
+    interval.next();
+    const third = interval.next().toDate();
+    return Math.round((third.getTime() - first.getTime()) / DAY_MS);
+  } catch {
+    return null;
+  }
+}
+
+// Number of cron occurrences per week (1 for weekly, 2 for Mon+Thu, …).
+//
+// FE's original implementation samples a single first→second gap and divides
+// WEEK_MS by it. That misbehaves for uneven schedules — Mon+Wed+Fri has
+// gaps of 2/2/3 days, so the first-pair sample yields Math.round(7/2)=4
+// regardless of when the run starts, when the correct answer is 3. It also
+// floats on supra-weekly cadences (monthly cron looks weekly).
+//
+// Worker uses a deterministic anchor (a Sunday at 23:59:59 UTC) and counts
+// occurrences strictly inside the next 7-day window, then verifies weekly
+// periodicity by checking that the first occurrence outside the window
+// sits exactly 7 days after the first inside it. Monthly / other non-
+// weekly-periodic crons return null and fall through to the next step.
+function getCronCyclesPerWeek(cron) {
+  if (!isUsableCron(cron)) return null;
+  try {
+    // 2023-12-31 23:59:59 UTC = the second before Mon 2024-01-01 00:00 UTC.
+    // Any cron is parsed relative to this fixed point so the count is the
+    // same across worker runs.
+    const anchor = new Date(Date.UTC(2023, 11, 31, 23, 59, 59));
+    const interval = CronExpressionParser.parse(cron, {
+      tz: 'UTC',
+      currentDate: anchor,
+    });
+    const cutoffMs = anchor.getTime() + WEEK_MS;
+    let n = 0;
+    let firstOccurrence = null;
+    while (n < 100) {
+      const next = interval.next().toDate();
+      if (next.getTime() >= cutoffMs) {
+        // Periodicity check: the next-week first occurrence must land
+        // exactly 7 days after the in-window first. Rules out monthly
+        // crons that happen to fire once inside the sample window.
+        if (
+          firstOccurrence &&
+          Math.abs(next.getTime() - firstOccurrence.getTime() - WEEK_MS) > 1000
+        ) {
+          return null;
+        }
+        break;
+      }
+      if (firstOccurrence === null) firstOccurrence = next;
+      n += 1;
+    }
+    return n > 0 && n <= 7 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function getCronDates(cron, count = 2) {
+  if (!isUsableCron(cron)) return [];
+  try {
+    const interval = CronExpressionParser.parse(cron, { tz: 'UTC' });
+    return Array.from({ length: count }, () => interval.next().toDate());
+  } catch {
+    return [];
+  }
+}
+
+function getNextCronOccurrence(cron, after) {
+  if (!isUsableCron(cron)) return null;
+  try {
+    const interval = CronExpressionParser.parse(cron, {
+      tz: 'UTC',
+      currentDate: after,
+    });
+    return interval.next().toDate();
+  } catch {
+    return null;
+  }
+}
+
+function formatCronDate(date) {
+  return {
+    weekday: CRON_WEEKDAY_FMT.format(date),
+    time: CRON_TIME_FMT.format(date),
+  };
+}
+
+// `withdrawals_config_rc` carries a pending release-candidate schedule when
+// non-empty (mirrors FE isWithdrawalsRcActive). Treat a `cutoff_cron` field
+// as the activation signal — RC config without it is meaningless.
+function isWithdrawalsRcActive(wcRc) {
+  return Boolean(wcRc && typeof wcRc === 'object' && wcRc.cutoff_cron);
+}
+
+// Single source of truth for "can the primary schedule-pane step resolve?"
+// Both cycle_summary and cycle_days call this so they fire at the same step
+// for the same vault — adding a precondition here automatically aligns both
+// placeholders. `cycles` is also returned so callers don't re-parse.
+function canDerivePrimaryCycle(content, wc) {
+  if (content?.disableWithdrawalCron) return null;
+  if (!isUsableCron(wc?.cutoff_cron) || !isUsableCron(wc?.payout_cron)) {
+    return null;
+  }
+  const cycles = getCronCyclesPerWeek(wc.cutoff_cron);
+  if (!cycles) return null;
+  return cycles;
+}
+
+// Primary cycle-summary derivation — one full sentence per cron cycle.
+// Mirrors src/modules/earn/pages/EarnVaultPage/components/vault-withdrawal-cycle/schedule-pane.tsx
+// so the doc prose matches the in-app schedule explanation: "Withdrawals
+// requested between Mondays 12:00 PM and Thursdays 12:00 PM are processed
+// and made available for claiming the following Friday at 9:00 AM UTC."
+// Returns "" when no sentence can be formed (preconditions covered by
+// canDerivePrimaryCycle; this still recomputes cycles for symmetry).
+function derivePrimaryCycleSummary(cutoffCron, payoutCron) {
+  if (!isUsableCron(cutoffCron) || !isUsableCron(payoutCron)) return '';
+  const cycles = getCronCyclesPerWeek(cutoffCron);
+  if (!cycles) return '';
+  const closes = getCronDates(cutoffCron, cycles)
+    .sort((a, b) => a.getUTCDay() - b.getUTCDay());
+  if (closes.length < cycles) return '';
+  const lines = [];
+  for (let i = 0; i < cycles; i += 1) {
+    const open = closes[i];
+    const close = closes[(i + 1) % cycles];
+    const claim = getNextCronOccurrence(payoutCron, close);
+    if (!claim) continue;
+    const o = formatCronDate(open);
+    const c = formatCronDate(close);
+    const p = formatCronDate(claim);
+    const window = cycles === 1
+      ? `by ${o.weekday}s ${o.time}`
+      : `between ${o.weekday}s ${o.time} and ${c.weekday}s ${c.time}`;
+    lines.push(
+      `Withdrawals requested ${window} are processed and made available ` +
+      `for claiming the following ${p.weekday} at ${p.time} UTC.`,
+    );
+  }
+  // \n\n so each sentence is its own paragraph in the rendered MDX.
+  return lines.join('\n\n');
+}
+
+// FE handoff (2026-05-20 spec) for the `cycle_summary` placeholder:
+// primary = schedule-pane prose against `withdrawals_config.{cutoff,payout}_cron`;
+// fallback = RC days → queue delay → eta → empty. Order differs from
+// queue-warning/index.tsx because in a prose context the live RC schedule
+// is more informative than a one-shot eta date.
+function computeWithdrawalCycleSummary(vault) {
+  const c = vault.content || {};
+  const wc = vault.performance?.withdrawals_config ?? {};
+  const wcRc = vault.performance?.withdrawals_config_rc ?? {};
+
+  if (canDerivePrimaryCycle(c, wc)) {
+    const primary = derivePrimaryCycleSummary(wc.cutoff_cron, wc.payout_cron);
+    if (primary) return primary;
+  }
+  if (isWithdrawalsRcActive(wcRc)) {
+    const days = computeFullCycleDays(wcRc.cutoff_cron);
+    if (days) return `${days} ${days === 1 ? 'day' : 'days'}`;
+  }
+  const delay = Number(c.withdrawalQueueDelay);
+  if (Number.isFinite(delay) && delay > 0 && c.withdrawalQueueInitialDate) {
+    return `Up to ${delay} ${delay === 1 ? 'day' : 'days'}`;
+  }
+  if (c.withdrawalEta) {
+    const d = new Date(c.withdrawalEta);
+    if (!Number.isNaN(d.getTime())) {
+      return `Available ${d.toISOString().slice(0, 10)}`;
+    }
+  }
+  return '';
+}
+
+// Worst-case days the user could wait. Step-for-step aligned with
+// `cycle_summary`: both gate the primary step on canDerivePrimaryCycle and
+// fall through to RC → queue delay → null in the same order. The numeric
+// and the prose resolve at the same step for the same vault — an author
+// dropping both into the same paragraph won't see a "Thursdays, 12:30 PM"
+// sentence next to an RC-derived day count or vice-versa.
+// Authors reach for this when they want a numeric value to slot into prose
+// ("up to {{ vault.withdrawal.cycle_days }} days").
+function computeWithdrawalCycleDays(vault) {
+  const c = vault.content || {};
+  const wc = vault.performance?.withdrawals_config ?? {};
+  const wcRc = vault.performance?.withdrawals_config_rc ?? {};
+
+  if (canDerivePrimaryCycle(c, wc)) {
+    const d = computeFullCycleDays(wc.cutoff_cron);
+    if (d) return d;
+  }
+  if (isWithdrawalsRcActive(wcRc)) {
+    const d = computeFullCycleDays(wcRc.cutoff_cron);
+    if (d) return d;
+  }
+  const delay = Number(c.withdrawalQueueDelay);
+  if (Number.isFinite(delay) && delay > 0 && c.withdrawalQueueInitialDate) {
+    return delay;
+  }
+  return null;
+}
+
 // The {{ }} substitution context exposed to FE earn templates.
 function buildVaultContext(vault) {
   const perf = vault.performance;
@@ -478,7 +719,11 @@ function buildVaultContext(vault) {
       version: vault.version,
       network: vault.network,
       implementation: perf?.implementation ?? null,
-      withdrawal: perf?.withdrawals_config ?? {},
+      withdrawal: {
+        ...(perf?.withdrawals_config ?? {}),
+        cycle_summary: computeWithdrawalCycleSummary(vault),
+        cycle_days: computeWithdrawalCycleDays(vault),
+      },
       withdrawalRc: perf?.withdrawals_config_rc ?? {},
     },
   };
@@ -486,16 +731,32 @@ function buildVaultContext(vault) {
 
 const PLACEHOLDER_RE = /\{\{\s*([\w.]+)\s*\}\}/g;
 
-// Replace {{ vault.* }} placeholders with per-vault values. An unresolved
-// placeholder renders as "—" and is collected for an end-of-run warning —
-// leaving a literal {{ }} would break MDX parsing downstream.
+// Placeholder paths whose computed value may legitimately be "" — the rule
+// template wants the surrounding paragraph to collapse cleanly when no data
+// is available (e.g. `cycle_summary` per the FE handoff: a vault with no
+// usable cron + no RC + no queue delay + no eta renders blank). For any
+// other placeholder, "" is treated the same as null/undefined and routed
+// through the unresolved-warning path so a BE field that comes back empty
+// doesn't silently produce broken prose ("processed on a  schedule").
+//
+// The FE handoff also mentions `vault.withdrawalRc.cycle_summary` as an
+// optional symmetry field — buildVaultContext doesn't compute it (nothing
+// on the FE side references it yet), so it doesn't belong here either.
+const ALLOWED_EMPTY_PLACEHOLDERS = new Set([
+  'vault.withdrawal.cycle_summary',
+]);
+
+// Replace {{ vault.* }} placeholders with per-vault values.
+//   - "" + path in ALLOWED_EMPTY_PLACEHOLDERS → "" (no warning).
+//   - `null`/`undefined`/object/array/other "" → "—" + end-of-run warning.
+//      Path doesn't resolve to a leaf scalar; leaving a literal {{ }} would
+//      break MDX parsing downstream.
 function substitutePlaceholders(src, context, file, slug) {
   return src.replace(PLACEHOLDER_RE, (_match, dotted) => {
     const value = dotted
       .split('.')
       .reduce((node, key) => (node == null ? undefined : node[key]), context);
-    // Objects/arrays (e.g. `{{ vault.withdrawal }}` with no leaf field) would
-    // stringify to "[object Object]" — treat them as unresolved instead.
+    if (value === '' && ALLOWED_EMPTY_PLACEHOLDERS.has(dotted)) return '';
     if (value == null || value === '' || typeof value === 'object') {
       unresolvedPlaceholders.push({
         file: path.relative(STAGING, file),
@@ -917,16 +1178,35 @@ function renderStoryblokOverview(overview) {
 // additionally prepends the vault's CMS Overview rich text (Storyblok) above
 // the FE-rule-generated content, so the page reads as "what this vault is"
 // before "how its earn rules work".
+// Slug-only URL; FE Earn-app routing handles per-vault landing.
+function earnAppUrl(slug) {
+  return `https://app.concrete.xyz/vault/${slug}`;
+}
+
 async function composeVaultThemes(vault, themedRules, gates, referencedGates, composedByVault) {
   const context = buildVaultContext(vault);
   const pages = [];
   for (const theme of EARN_THEMES) {
     const sections = [];
     if (theme.dir === 'vaults') {
+      // Direct hand-off to the live app. Mintlify keeps the click in-place
+      // (no JS routing) so users reading vault docs can jump straight to
+      // the vault page on the Earn surface.
+      sections.push(`**[View ${vault.name} on the Earn app →](${earnAppUrl(vault.slug)})**`);
       const cmsOverview = renderStoryblokOverview(vault.content?.overview);
       if (cmsOverview) sections.push(cmsOverview);
     }
-    for (const { file, src } of themedRules.get(theme.dir) ?? []) {
+    // Fully-sunsetted (disable_withdraw=true) vaults render only the
+    // `disable` rule on the Withdrawing page — epoch/queue/caps content
+    // doesn't apply to a vault that can't be withdrawn from. Active vaults
+    // and deprecated-with-withdrawals-on vaults are unaffected.
+    const isSunsetted = vault.deprecated &&
+      Boolean(vault.content?.disableWithdraw);
+    let rules = themedRules.get(theme.dir) ?? [];
+    if (isSunsetted && theme.dir === 'withdrawals') {
+      rules = rules.filter((r) => path.basename(r.file, '.mdx') === 'disable');
+    }
+    for (const { file, src } of rules) {
       const expanded = expandConditionals(src, vault, gates, referencedGates, file);
       const rendered = substitutePlaceholders(expanded, context, file, vault.slug);
       const body = stripFrontmatter(rendered).trim();
@@ -1071,34 +1351,41 @@ async function emitDocsJson(vaults, composedByVault, sdkPages, classAPages = [])
     earnConceptsGroup = { group: 'Earn concepts', pages: themeSubGroups };
   }
 
-  // Class B — "Vaults" tab. Active vaults are grouped by Storyblok `network`
-  // (the canonical chain label — "Ethereum", "Arbitrum", "Base", …); a vault
-  // with no network falls back to "Other". Each vault appears as a collapsed
-  // nested group of its theme pages (Mintlify only collapses nested groups —
-  // top-level groups always expand). Network groups are sorted alphabetically
-  // so the order is deterministic regardless of Storyblok group order.
-  // Deprecated vaults are pulled into a single flat "Deprecated vaults" group
-  // at the tail — they matter much less and the burial-ground stays compact.
-  const activeByNetwork = new Map();
-  const deprecatedVaultGroups = [];
+  // Class B — "Vaults" tab. Vaults group by Storyblok `network` (the
+  // canonical chain label — "Ethereum", "Arbitrum", "Base", …); a vault with
+  // a blank `network` falls back to Ethereum (the FE Earn app applies the
+  // same default — empty → Ethereum). Each Network group is rendered
+  // collapsed (expanded:false) so the sidebar isn't a wall of names; each
+  // vault inside is also a collapsed nested group of its theme pages.
+  // Network groups are sorted alphabetically. Deprecated vaults sit under
+  // a "Deprecated vaults" parent at the tail, with the same per-Network
+  // sub-grouping (mirrors active layout; keeps the sunsetted set browsable).
+  const groupByNetwork = (entries) => {
+    const byNet = new Map();
+    for (const e of entries) {
+      if (!byNet.has(e.network)) byNet.set(e.network, []);
+      byNet.get(e.network).push(e.entry);
+    }
+    return [...byNet]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([net, vgs]) => ({ group: net, expanded: false, pages: vgs }));
+  };
+  const activeEntries = [];
+  const deprecatedEntries = [];
   for (const vault of vaults) {
     const pages = composedByVault.get(vault.slug) ?? [];
     if (pages.length === 0) continue;
     const entry = { group: vault.name, expanded: false, pages };
-    if (vault.deprecated) {
-      deprecatedVaultGroups.push(entry);
-      continue;
-    }
-    const network = (vault.network && String(vault.network).trim()) || 'Other';
-    if (!activeByNetwork.has(network)) activeByNetwork.set(network, []);
-    activeByNetwork.get(network).push(entry);
+    const network = (vault.network && String(vault.network).trim()) || 'Ethereum';
+    (vault.deprecated ? deprecatedEntries : activeEntries).push({ network, entry });
   }
-  const vaultsTabGroups = [...activeByNetwork]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([network, vgs]) => ({ group: network, pages: vgs }));
-  if (deprecatedVaultGroups.length > 0) {
-    deprecatedVaultGroups.sort((a, b) => a.group.localeCompare(b.group));
-    vaultsTabGroups.push({ group: 'Deprecated vaults', pages: deprecatedVaultGroups });
+  const vaultsTabGroups = groupByNetwork(activeEntries);
+  if (deprecatedEntries.length > 0) {
+    vaultsTabGroups.push({
+      group: 'Deprecated vaults',
+      expanded: false,
+      pages: groupByNetwork(deprecatedEntries),
+    });
   }
   if (earnConceptsGroup) {
     vaultsTabGroups.unshift(earnConceptsGroup);
