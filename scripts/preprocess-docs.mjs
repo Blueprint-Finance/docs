@@ -796,19 +796,26 @@ function escapeMdxText(s) {
 }
 
 function renderRichTextMarks(text, marks) {
-  let out = escapeMdxText(text);
+  // `code` is handled up-front rather than inside the loop because (a) marks
+  // array order is not guaranteed by Storyblok, so an in-loop branch that
+  // discards `out` and reads `text` would silently drop any mark applied in
+  // an earlier iteration (e.g. a `link` that happens to come before `code`),
+  // and (b) inside a Markdown code span MDX expression syntax does not
+  // apply, so we deliberately skip escapeMdxText() for the contents.
+  const hasCode = (marks ?? []).some((m) => m?.type === 'code');
+  let out = hasCode ? `\`${text}\`` : escapeMdxText(text);
   for (const mark of marks ?? []) {
     switch (mark.type) {
       case 'bold':   out = `**${out}**`; break;
       case 'italic': out = `*${out}*`; break;
-      case 'code':   out = `\`${text}\``; break; // raw inside code
       case 'strike': out = `~~${out}~~`; break;
       case 'link': {
         const href = mark.attrs?.href ?? '';
         out = `[${out}](${href})`;
         break;
       }
-      // underline/anchor/highlight: drop the mark, keep the text.
+      // code is already wrapped above; underline/anchor/highlight: drop the
+      // mark, keep the text.
     }
   }
   return out;
