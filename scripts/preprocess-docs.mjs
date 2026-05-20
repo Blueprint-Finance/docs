@@ -55,6 +55,24 @@ const STORYBLOK_API = 'https://api-us.storyblok.com/v2/cdn';
 const RESOLVE_RELATIONS =
   'VaultGroupContent.vaults,VaultsContent.auditors,VaultsContent.vaultOwner';
 
+// Worker is a production build — it MUST NOT pull unpublished CMS content.
+// Storyblok's CDN with a public token defaults to `published`, but the param
+// is set explicitly here so the intent is visible at the call site and a
+// future accidental switch to `draft` is impossible without changing this
+// constant. assertPublishedOnly() runs on every Storyblok request URL.
+const STORYBLOK_VERSION = 'published';
+
+function assertPublishedOnly(url) {
+  const version = url.searchParams.get('version');
+  if (version !== STORYBLOK_VERSION) {
+    throw new Error(
+      `Storyblok request must carry version=${STORYBLOK_VERSION} ` +
+        `(got version=${version ?? '<unset>'}). The production worker is ` +
+        `forbidden from pulling drafts — fix the call site.`,
+    );
+  }
+}
+
 const IF_GATE_RE =
   /<IfGate\s+flag=(?:"([^"]+)"|'([^']+)')(\s+inverse)?\s*>([\s\S]*?)<\/IfGate>/g;
 
@@ -203,8 +221,10 @@ async function fetchVaults() {
 
   const url = new URL(`${STORYBLOK_API}/stories/earn`);
   url.searchParams.set('token', STORYBLOK_TOKEN);
+  url.searchParams.set('version', STORYBLOK_VERSION);
   url.searchParams.set('resolve_relations', RESOLVE_RELATIONS);
   if (cv) url.searchParams.set('cv', cv);
+  assertPublishedOnly(url);
 
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) {
@@ -319,12 +339,14 @@ async function hydrateMissingRelations(missing, relsMap, token, cv) {
     const batch = missing.slice(i, i + BATCH);
     const url = new URL(`${STORYBLOK_API}/stories`);
     url.searchParams.set('token', token);
+    url.searchParams.set('version', STORYBLOK_VERSION);
     url.searchParams.set('by_uuids', batch.join(','));
     // by_uuids defaults to per_page=25 and silently drops the rest — match
     // the batch size explicitly. See FE storyblok.ts for the same fix.
     url.searchParams.set('per_page', String(batch.length));
     url.searchParams.set('resolve_relations', RESOLVE_RELATIONS);
     if (cv) url.searchParams.set('cv', cv);
+    assertPublishedOnly(url);
 
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) {
@@ -762,13 +784,129 @@ function isEffectivelyEmpty(body) {
   return body.replace(/^#{1,6}\s.*$/gm, '').trim() === '';
 }
 
+// Storyblok rich-text → MDX-safe Markdown. Authored CMS prose for the vault
+// Overview — handles the node types vault overviews actually use (paragraph,
+// heading, list, link, bold/italic/code marks, hard_break, blockquote,
+// horizontal_rule, image). Unknown nodes are skipped silently — the renderer
+// stays forgiving rather than failing the worker over a one-off CMS shape.
+// Plain text is MDX-escaped: a literal `{` would start an expression and a
+// literal `<` would start a tag.
+function escapeMdxText(s) {
+  return String(s).replace(/([{}<])/g, '\\$1');
+}
+
+function renderRichTextMarks(text, marks) {
+  let out = escapeMdxText(text);
+  for (const mark of marks ?? []) {
+    switch (mark.type) {
+      case 'bold':   out = `**${out}**`; break;
+      case 'italic': out = `*${out}*`; break;
+      case 'code':   out = `\`${text}\``; break; // raw inside code
+      case 'strike': out = `~~${out}~~`; break;
+      case 'link': {
+        const href = mark.attrs?.href ?? '';
+        out = `[${out}](${href})`;
+        break;
+      }
+      // underline/anchor/highlight: drop the mark, keep the text.
+    }
+  }
+  return out;
+}
+
+function renderRichTextInline(nodes) {
+  if (!Array.isArray(nodes)) return '';
+  let out = '';
+  for (const n of nodes) {
+    if (!n || typeof n !== 'object') continue;
+    if (n.type === 'text') out += renderRichTextMarks(n.text ?? '', n.marks);
+    else if (n.type === 'hard_break') out += '  \n';
+  }
+  return out;
+}
+
+function renderRichTextBlocks(nodes, depth = 0) {
+  if (!Array.isArray(nodes)) return '';
+  const blocks = [];
+  for (const n of nodes) {
+    if (!n || typeof n !== 'object') continue;
+    switch (n.type) {
+      case 'paragraph':
+        blocks.push(renderRichTextInline(n.content));
+        break;
+      case 'heading': {
+        const level = Math.min(6, Math.max(1, Number(n.attrs?.level) || 2));
+        blocks.push(`${'#'.repeat(level)} ${renderRichTextInline(n.content)}`);
+        break;
+      }
+      case 'bullet_list':
+      case 'ordered_list': {
+        const ordered = n.type === 'ordered_list';
+        const items = (n.content ?? [])
+          .filter((c) => c?.type === 'list_item')
+          .map((c, i) => {
+            const inner = renderRichTextBlocks(c.content ?? [], depth + 1);
+            const marker = ordered ? `${i + 1}.` : '-';
+            const indent = '  '.repeat(depth);
+            return inner
+              .split('\n\n')
+              .map((para, idx) =>
+                idx === 0 ? `${indent}${marker} ${para}` : `${indent}  ${para}`,
+              )
+              .join('\n');
+          })
+          .join('\n');
+        if (items) blocks.push(items);
+        break;
+      }
+      case 'blockquote': {
+        const inner = renderRichTextBlocks(n.content ?? [], depth);
+        if (inner) blocks.push(inner.split('\n').map((l) => `> ${l}`).join('\n'));
+        break;
+      }
+      case 'horizontal_rule':
+        blocks.push('---');
+        break;
+      case 'code_block': {
+        const lang = (n.attrs?.class ?? '').replace(/^language-/, '');
+        const body = (n.content ?? [])
+          .map((c) => (c?.type === 'text' ? c.text ?? '' : ''))
+          .join('');
+        blocks.push(`\`\`\`${lang}\n${body}\n\`\`\``);
+        break;
+      }
+      case 'image': {
+        const src = n.attrs?.src ?? '';
+        const alt = n.attrs?.alt ?? '';
+        if (src) blocks.push(`![${escapeMdxText(alt)}](${src})`);
+        break;
+      }
+      // Unknown nodes are skipped.
+    }
+  }
+  return blocks.filter((b) => b && b.trim()).join('\n\n');
+}
+
+function renderStoryblokOverview(overview) {
+  if (!overview || typeof overview !== 'object') return '';
+  if (overview.type !== 'doc' || !Array.isArray(overview.content)) return '';
+  return renderRichTextBlocks(overview.content).trim();
+}
+
 // Compose one vault's earn docs: per theme, expand + fill each rule, drop the
-// empties, and write the survivors as a single themed page.
+// empties, and write the survivors as a single themed page. The Overview theme
+// additionally prepends the vault's CMS Overview rich text (Storyblok) above
+// the FE-rule-generated content, so the page reads as "what this vault is"
+// before "how its earn rules work".
 async function composeVaultThemes(vault, themedRules, gates, referencedGates, composedByVault) {
   const context = buildVaultContext(vault);
   const pages = [];
   for (const theme of EARN_THEMES) {
     const sections = [];
+    if (theme.dir === 'vaults') {
+      const cmsOverview = renderStoryblokOverview(vault.content?.overview);
+      if (cmsOverview) sections.push(cmsOverview);
+    }
     for (const { file, src } of themedRules.get(theme.dir) ?? []) {
       const expanded = expandConditionals(src, vault, gates, referencedGates, file);
       const rendered = substitutePlaceholders(expanded, context, file, vault.slug);
@@ -867,11 +1005,15 @@ async function copyMetaArtifacts() {
 // under the single-branch publish model) does not produce duplicate tabs.
 const CLASS_B_TABS = new Set(['Vaults', 'SDK', 'Backend API', 'Smart Contracts']);
 
-// Groups inside otherwise-class-A tabs that the worker also regenerates. Same
-// stripping logic as CLASS_B_TABS — keep the class-A tab from the base but
-// drop these groups before re-appending the freshly generated versions. The
-// publish-time merge in scripts/merge-docs-json.mjs MUST stay in sync with
-// this map.
+// Group names inside otherwise-class-A tabs that the worker controls — i.e.
+// the worker strips them from the base nav before re-emitting (so a stale
+// entry left on main from a previous run does not survive). The publish-time
+// merge in scripts/merge-docs-json.mjs MUST stay in sync with this map.
+//
+// "Earn concepts" used to live inside the Documentation tab (PR #13); it now
+// emits at the head of the Vaults tab. The entry stays so any pre-existing
+// "Earn concepts" group on main (from a pre-this-PR run) gets cleaned up on
+// the first aggregation. Safe to remove once main carries no such group.
 const CLASS_B_GROUPS_IN_CLASS_A_TABS = new Map([
   ['Documentation', new Set(['Earn concepts'])],
 ]);
@@ -893,9 +1035,11 @@ async function emitDocsJson(vaults, composedByVault, sdkPages, classAPages = [])
       return { ...tab, groups };
     });
 
-  // Class A — "Earn concepts" group: append the emit:once FE earn rules to
-  // the Documentation tab, sub-grouped by theme in EARN_THEMES order. Skipped
-  // entirely when no rule is marked emit: once (backwards-compatible).
+  // Class B — "Earn concepts" group sits at the head of the Vaults tab so
+  // shared concept pages (emit:once FE rules) read as the introduction to
+  // the per-vault docs underneath. Sub-grouped by theme in EARN_THEMES order;
+  // null when no rule is marked emit:once (backwards-compatible).
+  let earnConceptsGroup = null;
   if (classAPages.length > 0) {
     const byTheme = new Map();
     for (const { theme, page } of classAPages) {
@@ -905,26 +1049,18 @@ async function emitDocsJson(vaults, composedByVault, sdkPages, classAPages = [])
     const themeSubGroups = EARN_THEMES
       .filter((t) => byTheme.has(t.dir))
       .map((t) => ({ group: t.title, pages: byTheme.get(t.dir).sort() }));
-    const earnConcepts = { group: 'Earn concepts', pages: themeSubGroups };
-    const docsIdx = tabs.findIndex((t) => t.tab === 'Documentation');
-    if (docsIdx >= 0) {
-      tabs[docsIdx] = {
-        ...tabs[docsIdx],
-        groups: [...(tabs[docsIdx].groups ?? []), earnConcepts],
-      };
-    } else {
-      // Base has no Documentation tab — emit a minimal one so the concepts
-      // are still reachable in the published nav.
-      tabs.push({ tab: 'Documentation', groups: [earnConcepts] });
-    }
+    earnConceptsGroup = { group: 'Earn concepts', pages: themeSubGroups };
   }
 
-  // Class B — "Vaults" tab. Active vaults keep their Storyblok-group → vault
-  // hierarchy (each vault a collapsed nested group of its theme pages; Mintlify
-  // only collapses nested groups, top-level always expand). Deprecated vaults
-  // are pulled out into a single flat "Deprecated vaults" group at the tail —
-  // they matter much less and the burial-ground stays visually compact.
-  const activeByGroup = new Map();
+  // Class B — "Vaults" tab. Active vaults are grouped by Storyblok `network`
+  // (the canonical chain label — "Ethereum", "Arbitrum", "Base", …); a vault
+  // with no network falls back to "Other". Each vault appears as a collapsed
+  // nested group of its theme pages (Mintlify only collapses nested groups —
+  // top-level groups always expand). Network groups are sorted alphabetically
+  // so the order is deterministic regardless of Storyblok group order.
+  // Deprecated vaults are pulled into a single flat "Deprecated vaults" group
+  // at the tail — they matter much less and the burial-ground stays compact.
+  const activeByNetwork = new Map();
   const deprecatedVaultGroups = [];
   for (const vault of vaults) {
     const pages = composedByVault.get(vault.slug) ?? [];
@@ -934,17 +1070,19 @@ async function emitDocsJson(vaults, composedByVault, sdkPages, classAPages = [])
       deprecatedVaultGroups.push(entry);
       continue;
     }
-    const gname = vault.group || 'Vaults';
-    if (!activeByGroup.has(gname)) activeByGroup.set(gname, []);
-    activeByGroup.get(gname).push(entry);
+    const network = (vault.network && String(vault.network).trim()) || 'Other';
+    if (!activeByNetwork.has(network)) activeByNetwork.set(network, []);
+    activeByNetwork.get(network).push(entry);
   }
-  const vaultsTabGroups = [...activeByGroup].map(([gname, vgs]) => ({
-    group: gname,
-    pages: vgs,
-  }));
+  const vaultsTabGroups = [...activeByNetwork]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([network, vgs]) => ({ group: network, pages: vgs }));
   if (deprecatedVaultGroups.length > 0) {
     deprecatedVaultGroups.sort((a, b) => a.group.localeCompare(b.group));
     vaultsTabGroups.push({ group: 'Deprecated vaults', pages: deprecatedVaultGroups });
+  }
+  if (earnConceptsGroup) {
+    vaultsTabGroups.unshift(earnConceptsGroup);
   }
   if (vaultsTabGroups.length > 0) {
     tabs.push({ tab: 'Vaults', groups: vaultsTabGroups });
