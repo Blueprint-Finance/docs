@@ -572,7 +572,7 @@ function computeWithdrawalCycleSummary(vault) {
   }
   if (isWithdrawalsRcActive(wcRc)) {
     const days = computeFullCycleDays(wcRc.cutoff_cron);
-    if (days) return `${days} days`;
+    if (days) return `${days} ${days === 1 ? 'day' : 'days'}`;
   }
   if (!c.disableWithdrawalCron && wc.payout_cron) {
     const s = formatCronSchedule(wc.payout_cron, {
