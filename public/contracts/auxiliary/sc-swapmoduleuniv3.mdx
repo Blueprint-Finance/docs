@@ -13,14 +13,14 @@ mechanics:
 
 ## SwapModuleUniV3
 
-Uniswap V3 swap module bound to a single token pair (`COLLATERAL` <-> `BORROW`),
+Uniswap V3 swap module bound to a single token pair (`COLLATERAL` \<-> `BORROW`),
         optionally routed through an `INTERMEDIARY` token. Implements `ISwapModule` so it
         can be wired into looping strategies that need exact-in or exact-out swaps in
         either direction.
 Pool topology is fixed at construction time:
         - If `INTERMEDIARY == address(0)`: a single direct pool between collateral and
           borrow with `FEE1` as the pool fee (same in both directions). `FEE2` must be 0.
-        - Otherwise: two pools, collateral <-> intermediary at `FEE1` and borrow <->
+        - Otherwise: two pools, collateral \<-> intermediary at `FEE1` and borrow \<->
           intermediary at `FEE2`. Both fees must be non-zero.
         The constructor approves the configured router for max on both tokens; the module
         itself never holds balances outside the swap call.
