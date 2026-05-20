@@ -157,29 +157,9 @@
             ]
           },
           {
-            "group": "Arbitrum",
+            "group": "Ethereum",
+            "expanded": false,
             "pages": [
-              {
-                "group": "Earn V2 Demo",
-                "expanded": false,
-                "pages": [
-                  "public/demo/arbitrum/overview",
-                  "public/demo/arbitrum/withdrawing"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Other",
-            "pages": [
-              {
-                "group": "TAC Withdrawals",
-                "expanded": false,
-                "pages": [
-                  "public/tac/withdrawals/overview",
-                  "public/tac/withdrawals/depositing"
-                ]
-              },
               {
                 "group": "WBTC Vault",
                 "expanded": false,
@@ -205,33 +185,11 @@
                 ]
               },
               {
-                "group": "Royco USDC",
-                "expanded": false,
-                "pages": [
-                  "public/waymont/royco-usdc/overview",
-                  "public/waymont/royco-usdc/withdrawing"
-                ]
-              },
-              {
-                "group": "WBTC Vault",
-                "expanded": false,
-                "pages": [
-                  "public/isolated/isolated-wbtc-balance-placeholder/overview"
-                ]
-              },
-              {
                 "group": "Concrete DeFi USDT",
                 "expanded": false,
                 "pages": [
                   "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/overview",
                   "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/withdrawing"
-                ]
-              },
-              {
-                "group": "USDC Yield",
-                "expanded": false,
-                "pages": [
-                  "public/test/usdc-yield/overview"
                 ]
               },
               {
@@ -246,263 +204,284 @@
           },
           {
             "group": "Deprecated vaults",
+            "expanded": false,
             "pages": [
               {
-                "group": "Arbitrum Drip Vault",
+                "group": "Arbitrum",
                 "expanded": false,
                 "pages": [
-                  "public/isolated/isolated-arbitrum/overview"
+                  {
+                    "group": "USDai DEX & MM",
+                    "expanded": false,
+                    "pages": [
+                      "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/overview"
+                    ]
+                  },
+                  {
+                    "group": "Arbitrum Drip Vault",
+                    "expanded": false,
+                    "pages": [
+                      "public/isolated/isolated-arbitrum/overview"
+                    ]
+                  },
+                  {
+                    "group": "Theo USDC Arbitrum",
+                    "expanded": false,
+                    "pages": [
+                      "public/theo/theo-usdc-arbitrum/overview",
+                      "public/theo/theo-usdc-arbitrum/withdrawing"
+                    ]
+                  },
+                  {
+                    "group": "Theo thBILL Arbitrum",
+                    "expanded": false,
+                    "pages": [
+                      "public/theo/theo-thbill-arbitrum/overview",
+                      "public/theo/theo-thbill-arbitrum/withdrawing"
+                    ]
+                  }
                 ]
               },
               {
-                "group": "Berabaddies Earn",
+                "group": "Berachain",
                 "expanded": false,
                 "pages": [
-                  "public/berabaddies/earn/overview",
-                  "public/berabaddies/earn/depositing"
+                  {
+                    "group": "Berachain Stables",
+                    "expanded": false,
+                    "pages": [
+                      "public/berachain/stables/overview"
+                    ]
+                  },
+                  {
+                    "group": "Berachain Ethereum",
+                    "expanded": false,
+                    "pages": [
+                      "public/berachain/ethereum/overview"
+                    ]
+                  },
+                  {
+                    "group": "Berachain Bitcoin",
+                    "expanded": false,
+                    "pages": [
+                      "public/berachain/bitcoin/overview",
+                      "public/berachain/bitcoin/depositing"
+                    ]
+                  },
+                  {
+                    "group": "Berachain BERA",
+                    "expanded": false,
+                    "pages": [
+                      "public/berachain/bera/overview"
+                    ]
+                  },
+                  {
+                    "group": "Berabaddies Earn",
+                    "expanded": false,
+                    "pages": [
+                      "public/berabaddies/earn/overview",
+                      "public/berabaddies/earn/depositing"
+                    ]
+                  }
                 ]
               },
               {
-                "group": "Berachain BERA",
+                "group": "Ethereum",
                 "expanded": false,
                 "pages": [
-                  "public/berachain/bera/overview"
+                  {
+                    "group": "Morpho Bitcoin",
+                    "expanded": false,
+                    "pages": [
+                      "public/morpho/btc/overview"
+                    ]
+                  },
+                  {
+                    "group": "Morpho Ethereum",
+                    "expanded": false,
+                    "pages": [
+                      "public/morpho/eth/overview"
+                    ]
+                  },
+                  {
+                    "group": "Morpho USD",
+                    "expanded": false,
+                    "pages": [
+                      "public/morpho/usd/overview"
+                    ]
+                  },
+                  {
+                    "group": "Corn Bitcoin",
+                    "expanded": false,
+                    "pages": [
+                      "public/corn/btc/overview",
+                      "public/corn/btc/depositing"
+                    ]
+                  },
+                  {
+                    "group": "Corn Stables",
+                    "expanded": false,
+                    "pages": [
+                      "public/corn/usdt/overview",
+                      "public/corn/usdt/depositing"
+                    ]
+                  },
+                  {
+                    "group": "Movement Bitcoin",
+                    "expanded": false,
+                    "pages": [
+                      "public/movement/btc/overview",
+                      "public/movement/btc/depositing",
+                      "public/movement/btc/withdrawing"
+                    ]
+                  },
+                  {
+                    "group": "Movement Ethereum",
+                    "expanded": false,
+                    "pages": [
+                      "public/movement/eth/overview",
+                      "public/movement/eth/depositing",
+                      "public/movement/eth/withdrawing"
+                    ]
+                  },
+                  {
+                    "group": "Movement Stables",
+                    "expanded": false,
+                    "pages": [
+                      "public/movement/stables/overview",
+                      "public/movement/stables/depositing",
+                      "public/movement/stables/withdrawing"
+                    ]
+                  },
+                  {
+                    "group": "Bitcoin Bera",
+                    "expanded": false,
+                    "pages": [
+                      "public/berachain/lombard/overview",
+                      "public/berachain/lombard/depositing",
+                      "public/berachain/lombard/withdrawing"
+                    ]
+                  },
+                  {
+                    "group": "Ethena Bera",
+                    "expanded": false,
+                    "pages": [
+                      "public/berachain/ethena/overview",
+                      "public/berachain/ethena/depositing",
+                      "public/berachain/ethena/withdrawing"
+                    ]
+                  },
+                  {
+                    "group": "Dinero Bera",
+                    "expanded": false,
+                    "pages": [
+                      "public/berachain/dinero/overview",
+                      "public/berachain/dinero/depositing",
+                      "public/berachain/dinero/withdrawing"
+                    ]
+                  },
+                  {
+                    "group": "Stable Pre-Deposit",
+                    "expanded": false,
+                    "pages": [
+                      "public/isolated/isolated-stable/overview",
+                      "public/isolated/isolated-stable/withdrawing"
+                    ]
+                  },
+                  {
+                    "group": "Theo USDC",
+                    "expanded": false,
+                    "pages": [
+                      "public/theo/theo-usdc/overview",
+                      "public/theo/theo-usdc/withdrawing"
+                    ]
+                  },
+                  {
+                    "group": "sEIGEN",
+                    "expanded": false,
+                    "pages": [
+                      "public/seigen/seigen-vault/overview"
+                    ]
+                  }
                 ]
               },
               {
-                "group": "Berachain Bitcoin",
+                "group": "Katana",
                 "expanded": false,
                 "pages": [
-                  "public/berachain/bitcoin/overview",
-                  "public/berachain/bitcoin/depositing"
+                  {
+                    "group": "Katana AUSD",
+                    "expanded": false,
+                    "pages": [
+                      "public/katana/ausd/overview",
+                      "public/katana/ausd/depositing"
+                    ]
+                  }
                 ]
               },
               {
-                "group": "Berachain Ethereum",
+                "group": "Morph",
                 "expanded": false,
                 "pages": [
-                  "public/berachain/ethereum/overview"
-                ]
-              },
-              {
-                "group": "Berachain Stables",
-                "expanded": false,
-                "pages": [
-                  "public/berachain/stables/overview"
-                ]
-              },
-              {
-                "group": "Bitcoin Bera",
-                "expanded": false,
-                "pages": [
-                  "public/berachain/lombard/overview",
-                  "public/berachain/lombard/depositing",
-                  "public/berachain/lombard/withdrawing"
-                ]
-              },
-              {
-                "group": "Boyco Withdrawals ",
-                "expanded": false,
-                "pages": [
-                  "public/berachain/boyco/overview",
-                  "public/berachain/boyco/depositing"
-                ]
-              },
-              {
-                "group": "Corn Bitcoin",
-                "expanded": false,
-                "pages": [
-                  "public/corn/btc/overview",
-                  "public/corn/btc/depositing"
-                ]
-              },
-              {
-                "group": "Corn Stables",
-                "expanded": false,
-                "pages": [
-                  "public/corn/usdt/overview",
-                  "public/corn/usdt/depositing"
-                ]
-              },
-              {
-                "group": "Dinero Bera",
-                "expanded": false,
-                "pages": [
-                  "public/berachain/dinero/overview",
-                  "public/berachain/dinero/depositing",
-                  "public/berachain/dinero/withdrawing"
-                ]
-              },
-              {
-                "group": "Ethena Bera",
-                "expanded": false,
-                "pages": [
-                  "public/berachain/ethena/overview",
-                  "public/berachain/ethena/depositing",
-                  "public/berachain/ethena/withdrawing"
-                ]
-              },
-              {
-                "group": "Frax Movement Withdrawals",
-                "expanded": false,
-                "pages": [
-                  "public/movement/frax/overview",
-                  "public/movement/frax/depositing"
-                ]
-              },
-              {
-                "group": "Katana AUSD",
-                "expanded": false,
-                "pages": [
-                  "public/katana/ausd/overview",
-                  "public/katana/ausd/depositing"
-                ]
-              },
-              {
-                "group": "Morph AUSD",
-                "expanded": false,
-                "pages": [
-                  "public/morph/ausd/overview"
-                ]
-              },
-              {
-                "group": "Morph BGB",
-                "expanded": false,
-                "pages": [
-                  "public/morph/bgb/overview"
-                ]
-              },
-              {
-                "group": "Morph Ethena",
-                "expanded": false,
-                "pages": [
-                  "public/morph/ethena/overview"
-                ]
-              },
-              {
-                "group": "Morph Majors",
-                "expanded": false,
-                "pages": [
-                  "public/morph/majors/overview",
-                  "public/morph/majors/depositing"
-                ]
-              },
-              {
-                "group": "Morph weETH",
-                "expanded": false,
-                "pages": [
-                  "public/morph/weeth/overview",
-                  "public/morph/weeth/depositing"
-                ]
-              },
-              {
-                "group": "Morpho Bitcoin",
-                "expanded": false,
-                "pages": [
-                  "public/morpho/btc/overview"
-                ]
-              },
-              {
-                "group": "Morpho Ethereum",
-                "expanded": false,
-                "pages": [
-                  "public/morpho/eth/overview"
-                ]
-              },
-              {
-                "group": "Morpho USD",
-                "expanded": false,
-                "pages": [
-                  "public/morpho/usd/overview"
-                ]
-              },
-              {
-                "group": "Movement Bitcoin",
-                "expanded": false,
-                "pages": [
-                  "public/movement/btc/overview",
-                  "public/movement/btc/depositing",
-                  "public/movement/btc/withdrawing"
-                ]
-              },
-              {
-                "group": "Movement Ethereum",
-                "expanded": false,
-                "pages": [
-                  "public/movement/eth/overview",
-                  "public/movement/eth/depositing",
-                  "public/movement/eth/withdrawing"
-                ]
-              },
-              {
-                "group": "Movement Stables",
-                "expanded": false,
-                "pages": [
-                  "public/movement/stables/overview",
-                  "public/movement/stables/depositing",
-                  "public/movement/stables/withdrawing"
-                ]
-              },
-              {
-                "group": "sEIGEN",
-                "expanded": false,
-                "pages": [
-                  "public/seigen/seigen-vault/overview"
+                  {
+                    "group": "Morph BGB",
+                    "expanded": false,
+                    "pages": [
+                      "public/morph/bgb/overview"
+                    ]
+                  },
+                  {
+                    "group": "Morph AUSD",
+                    "expanded": false,
+                    "pages": [
+                      "public/morph/ausd/overview"
+                    ]
+                  },
+                  {
+                    "group": "Morph Ethena",
+                    "expanded": false,
+                    "pages": [
+                      "public/morph/ethena/overview"
+                    ]
+                  },
+                  {
+                    "group": "Morph Majors",
+                    "expanded": false,
+                    "pages": [
+                      "public/morph/majors/overview",
+                      "public/morph/majors/depositing"
+                    ]
+                  },
+                  {
+                    "group": "Morph weETH",
+                    "expanded": false,
+                    "pages": [
+                      "public/morph/weeth/overview",
+                      "public/morph/weeth/depositing"
+                    ]
+                  }
                 ]
               },
               {
                 "group": "Stable",
                 "expanded": false,
                 "pages": [
-                  "public/stable/usdt/overview",
-                  "public/stable/usdt/withdrawing"
-                ]
-              },
-              {
-                "group": "Stable Pre-Deposit",
-                "expanded": false,
-                "pages": [
-                  "public/isolated/isolated-stable/overview",
-                  "public/isolated/isolated-stable/withdrawing"
-                ]
-              },
-              {
-                "group": "Theo thBILL Arbitrum",
-                "expanded": false,
-                "pages": [
-                  "public/theo/theo-thbill-arbitrum/overview",
-                  "public/theo/theo-thbill-arbitrum/withdrawing"
-                ]
-              },
-              {
-                "group": "Theo thBILL Stable",
-                "expanded": false,
-                "pages": [
-                  "public/theo/theo-thbill-stable/overview",
-                  "public/theo/theo-thbill-stable/withdrawing"
-                ]
-              },
-              {
-                "group": "Theo USDC",
-                "expanded": false,
-                "pages": [
-                  "public/theo/theo-usdc/overview",
-                  "public/theo/theo-usdc/withdrawing"
-                ]
-              },
-              {
-                "group": "Theo USDC Arbitrum",
-                "expanded": false,
-                "pages": [
-                  "public/theo/theo-usdc-arbitrum/overview",
-                  "public/theo/theo-usdc-arbitrum/withdrawing"
-                ]
-              },
-              {
-                "group": "USDai DEX & MM",
-                "expanded": false,
-                "pages": [
-                  "public/usdai/susdai-hidden-o7810bf18729nmhiw'jdew/overview"
+                  {
+                    "group": "Stable",
+                    "expanded": false,
+                    "pages": [
+                      "public/stable/usdt/overview",
+                      "public/stable/usdt/withdrawing"
+                    ]
+                  },
+                  {
+                    "group": "Theo thBILL Stable",
+                    "expanded": false,
+                    "pages": [
+                      "public/theo/theo-thbill-stable/overview",
+                      "public/theo/theo-thbill-stable/withdrawing"
+                    ]
+                  }
                 ]
               }
             ]

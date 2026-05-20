@@ -72,14 +72,6 @@
     "deprecated": true
   },
   {
-    "slug": "movement/frax",
-    "name": "Frax Movement Withdrawals",
-    "version": "v1",
-    "network": "",
-    "implementation": 1,
-    "deprecated": true
-  },
-  {
     "slug": "morph/bgb",
     "name": "Morph BGB",
     "version": "v1",
@@ -176,28 +168,12 @@
     "deprecated": true
   },
   {
-    "slug": "berachain/boyco",
-    "name": "Boyco Withdrawals ",
-    "version": "v1",
-    "network": "Berachain",
-    "implementation": 1,
-    "deprecated": true
-  },
-  {
     "slug": "berabaddies/earn",
     "name": "Berabaddies Earn",
     "version": "v1",
     "network": "Berachain",
     "implementation": 1,
     "deprecated": true
-  },
-  {
-    "slug": "tac/withdrawals",
-    "name": "TAC Withdrawals",
-    "version": "v1",
-    "network": "",
-    "implementation": 1,
-    "deprecated": false
   },
   {
     "slug": "usdai/susdai-hidden-o7810bf18729nmhiw'jdew",
@@ -228,7 +204,7 @@
     "name": "Stable Pre-Deposit",
     "version": "v2",
     "network": "",
-    "implementation": 3,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -250,14 +226,6 @@
   {
     "slug": "concrete/delta-weeth",
     "name": "WeETH Vault",
-    "version": "v2",
-    "network": "",
-    "implementation": null,
-    "deprecated": false
-  },
-  {
-    "slug": "waymont/royco-usdc",
-    "name": "Royco USDC",
     "version": "v2",
     "network": "",
     "implementation": null,
@@ -296,14 +264,6 @@
     "deprecated": true
   },
   {
-    "slug": "isolated/isolated-wbtc-balance-placeholder",
-    "name": "WBTC Vault",
-    "version": "v1",
-    "network": "",
-    "implementation": null,
-    "deprecated": false
-  },
-  {
     "slug": "seigen/seigen-vault",
     "name": "sEIGEN",
     "version": "v1",
@@ -312,25 +272,9 @@
     "deprecated": true
   },
   {
-    "slug": "demo/arbitrum",
-    "name": "Earn V2 Demo",
-    "version": "v2",
-    "network": "Arbitrum",
-    "implementation": null,
-    "deprecated": false
-  },
-  {
     "slug": "concrete/concrete-decentralized-finance-usdt-isolated-apy",
     "name": "Concrete DeFi USDT",
     "version": "v2",
-    "network": "",
-    "implementation": null,
-    "deprecated": false
-  },
-  {
-    "slug": "test/usdc-yield",
-    "name": "USDC Yield",
-    "version": "v1",
     "network": "",
     "implementation": null,
     "deprecated": false
