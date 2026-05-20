@@ -10,9 +10,8 @@ Depositing into a Concrete vault is a single transaction. After you confirm, the
 
 Each vault accepts a specific asset:
 
-- **WBTC Vault** — Wrapped Bitcoin (WBTC)
-- **sEIGEN Vault** — EIGEN
-- **Stable Vault** — USDT and other supported stablecoins
+- **WBTC Vault** — accepts WBTC
+- **Concrete DeFi USDT** — accepts USDT
 
 ## Deposit steps
 
@@ -24,7 +23,7 @@ Each vault accepts a specific asset:
     Click **Connect Wallet** and approve the connection request in your wallet. Concrete supports standard Web3 wallets.
   </Step>
   <Step title="Select a vault">
-    Review the available vaults — WBTC, sEIGEN, and Stable. Choose the one that matches the asset you want to deposit. Each vault card shows the current strategy and historical performance.
+    Review the available vaults. Choose the one that matches the asset you want to deposit. 
   </Step>
   <Step title="Enter the amount">
     Type the amount you want to deposit, or click **Max** to deposit your full available balance.
@@ -33,7 +32,7 @@ Each vault accepts a specific asset:
     If this is your first deposit with this token, you will need to submit an approval transaction allowing the vault contract to spend your tokens. Confirm this in your wallet.
   </Step>
   <Step title="Confirm the deposit">
-    Review the deposit summary and click **Deposit**. Confirm the transaction in your wallet. Gas costs for entering vault positions are absorbed by the vault and not charged to you directly.
+    Review the deposit summary and click **Deposit**. Confirm the transaction in your wallet. 
   </Step>
   <Step title="Receive ct[Asset] tokens">
     Once the transaction confirms, you receive `ct[Asset]` tokens (for example, `ctDefiUSDT` or `ctWBTC`) in your wallet. These tokens represent your proportional share of the vault and appreciate in value as the vault earns yield. See [Vault Shares](/vaults/vault-shares) for more detail.
