@@ -490,14 +490,6 @@ const CRON_TIME_FMT = new Intl.DateTimeFormat('en-US', {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 
-function frequencyFromInterval(ms) {
-  if (ms <= DAY_MS * 1.5) return 'Daily';
-  if (ms <= WEEK_MS * 1.5) return 'Weekly';
-  if (ms <= WEEK_MS * 2.5) return 'Biweekly';
-  if (ms <= DAY_MS * 32) return 'Monthly';
-  return null;
-}
-
 // Some BE callers emit "-" for "no cron set". Treat that and the obvious
 // empty values the same — an unusable cron skips the schedule-pane primary
 // path entirely.
@@ -573,33 +565,6 @@ function formatCronDate(date) {
   };
 }
 
-// Human-readable schedule string. Same shape FE uses on the vault page:
-// {includeWeekday: true, omitFrequency: true} → "Thursdays, 12:30 PM UTC".
-function formatCronSchedule(cron, options = {}) {
-  if (!cron) return null;
-  try {
-    const { first, second } = parseTwoNext(cron);
-    const diffMs = second.getTime() - first.getTime();
-    const frequency = frequencyFromInterval(diffMs);
-    if (!frequency) return null;
-    const time = CRON_TIME_FMT.format(first);
-    if (frequency === 'Daily') {
-      return options.omitFrequency ? `${time} UTC` : `Daily, ${time} UTC`;
-    }
-    const weekday = options.includeWeekday
-      ? `${CRON_WEEKDAY_FMT.format(first)}s`
-      : null;
-    if (options.omitFrequency) {
-      return weekday ? `${weekday}, ${time} UTC` : `${time} UTC`;
-    }
-    return weekday
-      ? `${frequency}, ${weekday}, ${time} UTC`
-      : `${frequency}, ${time} UTC`;
-  } catch {
-    return null;
-  }
-}
-
 // `withdrawals_config_rc` carries a pending release-candidate schedule when
 // non-empty (mirrors FE isWithdrawalsRcActive). Treat a `cutoff_cron` field
 // as the activation signal — RC config without it is meaningless.
@@ -657,7 +622,7 @@ function computeWithdrawalCycleSummary(vault) {
   }
   if (isWithdrawalsRcActive(wcRc)) {
     const days = computeFullCycleDays(wcRc.cutoff_cron);
-    if (days) return `${days} ${days === 1 ? 'Day' : 'Days'}`;
+    if (days) return `${days} ${days === 1 ? 'day' : 'days'}`;
   }
   const delay = Number(c.withdrawalQueueDelay);
   if (Number.isFinite(delay) && delay > 0 && c.withdrawalQueueInitialDate) {
@@ -672,20 +637,23 @@ function computeWithdrawalCycleSummary(vault) {
   return '';
 }
 
-// Worst-case days the user could wait, using the same precedence chain as
-// the summary. `null` when nothing is known. Authors reach for this when
-// they want a numeric value to drop into prose ("up to {{ … }} days").
+// Worst-case days the user could wait. Matches `cycle_summary`'s precedence
+// (primary cron → RC → queue delay → null) so the numeric and the prose stay
+// consistent — an author dropping both into the same paragraph won't see a
+// "Thursdays, 12:30 PM UTC" sentence next to a queue-delay-derived day count.
+// Authors reach for this when they want a numeric value to slot into prose
+// ("up to {{ vault.withdrawal.cycle_days }} days").
 function computeWithdrawalCycleDays(vault) {
   const c = vault.content || {};
   const wc = vault.performance?.withdrawals_config ?? {};
   const wcRc = vault.performance?.withdrawals_config_rc ?? {};
 
-  if (isWithdrawalsRcActive(wcRc)) {
-    const d = computeFullCycleDays(wcRc.cutoff_cron);
+  if (!c.disableWithdrawalCron && isUsableCron(wc.cutoff_cron)) {
+    const d = computeFullCycleDays(wc.cutoff_cron);
     if (d) return d;
   }
-  if (!c.disableWithdrawalCron && wc.cutoff_cron) {
-    const d = computeFullCycleDays(wc.cutoff_cron);
+  if (isWithdrawalsRcActive(wcRc)) {
+    const d = computeFullCycleDays(wcRc.cutoff_cron);
     if (d) return d;
   }
   const delay = Number(c.withdrawalQueueDelay);
