@@ -705,7 +705,7 @@ function deploy(uint256 collateralAmount, uint64 targetLtvInWad) external
 ```
 
 Supply collateral, borrow to `targetLtvInWad`, and deploy borrowed funds into target.
-        If targetLtv <= post-supply LTV (no additional borrowing capacity), the borrow
+        If `targetLtv <= post-supply LTV` (no additional borrowing capacity), the borrow
         and deposit steps are skipped.
 
 #### Parameters
