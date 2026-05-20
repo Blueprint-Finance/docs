@@ -204,7 +204,7 @@
     "name": "USDai DEX & MM",
     "version": "v1",
     "network": "Arbitrum",
-    "implementation": 1,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -212,7 +212,7 @@
     "name": "Arbitrum Drip Vault",
     "version": "v1",
     "network": "Arbitrum",
-    "implementation": 1,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -220,7 +220,7 @@
     "name": "WBTC Vault",
     "version": "v2",
     "network": "",
-    "implementation": 6,
+    "implementation": null,
     "deprecated": false
   },
   {
@@ -228,7 +228,7 @@
     "name": "Stable Pre-Deposit",
     "version": "v2",
     "network": "",
-    "implementation": 3,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -236,7 +236,7 @@
     "name": "Concrete DeFi USDT",
     "version": "v2",
     "network": "",
-    "implementation": 6,
+    "implementation": null,
     "deprecated": false
   },
   {
@@ -252,7 +252,7 @@
     "name": "WeETH Vault",
     "version": "v2",
     "network": "",
-    "implementation": 5,
+    "implementation": null,
     "deprecated": false
   },
   {
@@ -332,7 +332,7 @@
     "name": "USDC Yield",
     "version": "v1",
     "network": "",
-    "implementation": null,
+    "implementation": 1,
     "deprecated": false
   },
   {
@@ -340,7 +340,7 @@
     "name": "frxUSD+",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 5,
     "deprecated": false
   }
 ]

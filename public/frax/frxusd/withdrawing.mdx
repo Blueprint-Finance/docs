@@ -50,10 +50,10 @@ The lifecycle is strictly sequential per epoch:
 
 1. **Start.** The epoch opens and begins accepting requests.
 2. **Cutoff.** This vault's cutoff runs on the cron schedule
-   `—`. Requests submitted after the cutoff
+   `0 4 12 * * 1`. Requests submitted after the cutoff
    roll into the next epoch instead.
 3. **Payout.** Closed-pending requests are settled on-chain and become
-   claimable on the cron schedule `—`.
+   claimable on the cron schedule `0 4 12 * * 2`.
 4. **Next epoch start.** A fresh epoch opens to receive new requests.
 
 The cutoff and payout dates surfaced to users are computed from the
@@ -122,12 +122,7 @@ What the user is promised:
 - The schedule never changes mid-epoch: the boundary is always the start
   of an epoch, never inside one.
 
-<IfRc>
-A schedule change is pending for this vault. From
-`—` onward, epochs follow the new
-schedule: cutoff `—`, payout
-`—`.
-</IfRc>
+
 
 A "Learn more" link can be attached via `withdrawalRcLearnMoreLink` to
 explain a specific schedule change to users; it is shown in the queue card
