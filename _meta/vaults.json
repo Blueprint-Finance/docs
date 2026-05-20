@@ -204,7 +204,7 @@
     "name": "USDai DEX & MM",
     "version": "v1",
     "network": "Arbitrum",
-    "implementation": null,
+    "implementation": 1,
     "deprecated": true
   },
   {
@@ -212,7 +212,7 @@
     "name": "Arbitrum Drip Vault",
     "version": "v1",
     "network": "Arbitrum",
-    "implementation": null,
+    "implementation": 1,
     "deprecated": true
   },
   {
@@ -316,7 +316,7 @@
     "name": "Earn V2 Demo",
     "version": "v2",
     "network": "Arbitrum",
-    "implementation": 4,
+    "implementation": null,
     "deprecated": false
   },
   {
@@ -324,7 +324,7 @@
     "name": "Concrete DeFi USDT",
     "version": "v2",
     "network": "",
-    "implementation": 6,
+    "implementation": null,
     "deprecated": false
   },
   {
@@ -332,7 +332,7 @@
     "name": "USDC Yield",
     "version": "v1",
     "network": "",
-    "implementation": 1,
+    "implementation": null,
     "deprecated": false
   },
   {
@@ -340,7 +340,7 @@
     "name": "frxUSD+",
     "version": "v2",
     "network": "",
-    "implementation": 5,
+    "implementation": null,
     "deprecated": false
   }
 ]

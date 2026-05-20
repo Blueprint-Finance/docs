@@ -70,7 +70,43 @@
               "enterprise/assetcx",
               "enterprise/vault-setup"
             ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": [
+              "api-reference/introduction"
+            ]
           },
+          {
+            "group": "Metrics",
+            "pages": [
+              "api-reference/metrics/get-metrics"
+            ]
+          },
+          {
+            "group": "Strategy",
+            "pages": [
+              "api-reference/strategy/get-strategy"
+            ]
+          },
+          {
+            "group": "Vault",
+            "pages": [
+              "api-reference/vault/get-vault-performance",
+              "api-reference/vault/get-all-vault-performance",
+              "api-reference/vault/get-all-vaults-tvl"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Vaults",
+        "groups": [
           {
             "group": "Earn concepts",
             "pages": [
@@ -119,45 +155,22 @@
                 ]
               }
             ]
-          }
-        ]
-      },
-      {
-        "tab": "API Reference",
-        "groups": [
+          },
           {
-            "group": "Get started",
+            "group": "Arbitrum",
             "pages": [
-              "api-reference/introduction"
+              {
+                "group": "Earn V2 Demo",
+                "expanded": false,
+                "pages": [
+                  "public/demo/arbitrum/overview",
+                  "public/demo/arbitrum/withdrawing"
+                ]
+              }
             ]
           },
           {
-            "group": "Metrics",
-            "pages": [
-              "api-reference/metrics/get-metrics"
-            ]
-          },
-          {
-            "group": "Strategy",
-            "pages": [
-              "api-reference/strategy/get-strategy"
-            ]
-          },
-          {
-            "group": "Vault",
-            "pages": [
-              "api-reference/vault/get-vault-performance",
-              "api-reference/vault/get-all-vault-performance",
-              "api-reference/vault/get-all-vaults-tvl"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Vaults",
-        "groups": [
-          {
-            "group": "TAC",
+            "group": "Other",
             "pages": [
               {
                 "group": "TAC Withdrawals",
@@ -166,12 +179,7 @@
                   "public/tac/withdrawals/overview",
                   "public/tac/withdrawals/depositing"
                 ]
-              }
-            ]
-          },
-          {
-            "group": "Partner Vaults",
-            "pages": [
+              },
               {
                 "group": "WBTC Vault",
                 "expanded": false,
@@ -210,19 +218,6 @@
                 "pages": [
                   "public/isolated/isolated-wbtc-balance-placeholder/overview"
                 ]
-              }
-            ]
-          },
-          {
-            "group": "Demo Vaults",
-            "pages": [
-              {
-                "group": "Earn V2 Demo",
-                "expanded": false,
-                "pages": [
-                  "public/demo/arbitrum/overview",
-                  "public/demo/arbitrum/withdrawing"
-                ]
               },
               {
                 "group": "Concrete DeFi USDT",
@@ -238,12 +233,7 @@
                 "pages": [
                   "public/test/usdc-yield/overview"
                 ]
-              }
-            ]
-          },
-          {
-            "group": "Frax",
-            "pages": [
+              },
               {
                 "group": "frxUSD+",
                 "expanded": false,
