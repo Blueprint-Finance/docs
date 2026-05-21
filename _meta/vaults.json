@@ -260,7 +260,7 @@
     "name": "Theo thBILL Stable",
     "version": "v2",
     "network": "Stable",
-    "implementation": null,
+    "implementation": 1,
     "deprecated": true
   },
   {
@@ -270,14 +270,6 @@
     "network": "",
     "implementation": null,
     "deprecated": true
-  },
-  {
-    "slug": "concrete/concrete-decentralized-finance-usdt-isolated-apy",
-    "name": "Concrete DeFi USDT",
-    "version": "v2",
-    "network": "",
-    "implementation": null,
-    "deprecated": false
   },
   {
     "slug": "frax/frxusd",

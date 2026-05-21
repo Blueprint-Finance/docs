@@ -185,14 +185,6 @@
                 ]
               },
               {
-                "group": "Concrete DeFi USDT",
-                "expanded": false,
-                "pages": [
-                  "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/overview",
-                  "public/concrete/concrete-decentralized-finance-usdt-isolated-apy/withdrawing"
-                ]
-              },
-              {
                 "group": "frxUSD+",
                 "expanded": false,
                 "pages": [
