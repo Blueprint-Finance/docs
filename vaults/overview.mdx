@@ -1,25 +1,29 @@
 ---
 title: "Concrete Earn Vaults: Automated DeFi Yield Strategies"
 sidebarTitle: "Overview"
-description: "Deposit once and earn institutional-grade, risk-adjusted yield. Concrete vaults automate allocation, rebalancing, and compounding across DeFi."
+description: "Deposit once and earn yield through an automated vault that handles allocation and accounting on your behalf."
 ---
 
-Concrete Earn Vaults are automated yield strategies that put your crypto assets to work across DeFi without requiring you to monitor markets, rebalance positions, or understand protocol mechanics. You deposit once. Concrete's vault engine then handles allocation across lending markets, liquidity pools, and restaking layers, continuous rebalancing toward the best risk-adjusted opportunities, and automated compounding of rewards. Three vaults are live today, each built on the same audited, institutional-grade infrastructure.
+Concrete Earn Vaults are automated yield strategies that put your crypto assets to work across DeFi without requiring you to monitor markets, rebalance positions, or interact with individual protocols. You deposit once. From that point, the vault's automation and underlying strategies manage allocation and accounting on your behalf.
 
 ## Why Concrete vaults differ from manual DeFi farming
 
-Manual yield farming requires searching dozens of protocols, monitoring APYs, rebalancing positions, paying gas on every action, managing impermanent loss, and reacting to risk around the clock. Concrete replaces that entire workflow with a single deposit.
+Manual yield farming requires searching across protocols, monitoring APYs, rebalancing positions, paying gas on every action, managing impermanent loss, and reacting to risk around the clock. Concrete consolidates the workflow behind a single deposit.
 
-**Audited, modular architecture.** All vaults run on a fully modular smart-contract system audited by Halborn and Zellic. The architecture avoids storage collisions and upgrade risks common in legacy contract patterns.
+**Audited, modular architecture.** All vault smart contract code is audited by Halborn (primary retainer) and Cantina (additional audits for core contracts) before deployment, with an ongoing bug bounty program operated by Cantina. The contract system uses EIP-7201 storage and UUPS proxies for safe upgrades.
 
-**Active management.** Vaults don't park capital in one place. Capital moves continuously between yield strategies as conditions change — shifting toward better opportunities and pulling back from underperforming ones.
+**Role-based automation.** Concrete vaults separate responsibilities across distinct on-chain roles — Vault Manager, Strategy Manager, Hook Manager, Allocator, and (for async vaults) Withdrawal Manager — each with its own admin role. High-impact governance decisions remain under the vault owner's control while routine operations are handled by Concrete's automation.
 
-**Role-based automation (Earn V2).** Vault Manager, Allocator, Strategy Manager, and Hook Manager roles separate high-impact governance decisions from routine daily operations, so withdrawals and rebalancing execute without delay while large structural changes remain under tighter oversight.
+**Underlying strategies.** Each vault is configured at deployment with a set of yield-generating strategies — for example, lending markets, liquidity pools, or restaking layers — together with allocation caps and risk parameters. The Allocator role moves capital between the vault and these strategies within the configured rules.
 
-**Independent oversight.** TRES provides continuous accounting reconciliation. Hypernative delivers real-time monitoring and policy enforcement across all vault operations.
+**Independent monitoring and incident response.** Concrete integrates with external systems for accounting verification and security monitoring: 
+
+- **TRES** — off-chain accounting verification for institutional reporting and compliance.
+- **Hypernative** — real-time monitoring of vault addresses with alerts on anomalous activity and unexpected transactions. 
+- **ZeroShadow** — retained incident response partner with standing authorization to pause vaults when unwind risks are detected.
 
 <Note>
-  Yield rates are not guaranteed and may fluctuate based on market conditions, strategy allocations, and protocol performance. Past performance is not indicative of future results. All strategies involve risk, including possible loss of principal.
+  Yield rates are not guaranteed and may fluctuate based on market conditions, strategy performance, and fee accrual. Past performance is not indicative of future results. All vault strategies involve risk, including possible loss of principal.
 </Note>
 
 ## How to get started
