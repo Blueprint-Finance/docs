@@ -1,12 +1,15 @@
 ---
-id: "earn.withdrawals.overflow-concept"
-title: "Withdrawal overflow"
-audience: "public"
-module: "earn"
-scope: "withdrawals"
-emit: "once"
-source_refs: [".claude/rules/withdrawal-overflow.mdc", "src/modules/earn/api/withdrawal-overflow.ts", "src/modules/earn/hooks/useEarnUserOverflowSlices.ts"]
-last_reviewed: "2026-05-20T00:00:00.000Z"
+id: earn.withdrawals.overflow-concept
+title: Withdrawal overflow
+audience: public
+module: earn
+scope: withdrawals
+emit: once
+source_refs:
+  - .claude/rules/withdrawal-overflow.mdc
+  - src/modules/earn/api/withdrawal-overflow.ts
+  - src/modules/earn/hooks/useEarnUserOverflowSlices.ts
+last_reviewed: 2026-05-20
 ---
 
 Withdrawal overflow is how a capped Earn V2 Vault settles queued requests
