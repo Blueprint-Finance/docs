@@ -1,10 +1,10 @@
 ---
 title: "How Concrete Earn Vaults Generate Yield Automatically"
 sidebarTitle: "How it works"
-description: "Follow the end-to-end flow from connecting your wallet to earning automated yield — and understand the active management engine running underneath."
+description: "Follow the end-to-end flow from connecting your wallet to earning yield and understand the systems running underneath."
 ---
 
-Concrete turns a fragmented, multi-step DeFi process into a single action. You choose a vault, deposit your assets, and receive yield-bearing vault share tokens in return. From that point, an institutional-grade infrastructure stack handles allocation, risk management, rebalancing, compounding, and accounting — all without requiring any further action from you.
+When you deposit into a Concrete Earn vault, you receive vault share tokens in return. From that point, the vault's automation and underlying strategies manage capital allocation, accounting, and withdrawal processing on your behalf.
 
 ## The deposit flow
 
@@ -13,19 +13,19 @@ Concrete turns a fragmented, multi-step DeFi process into a single action. You c
     Visit [app.concrete.xyz/earn](https://app.concrete.xyz/earn) and connect a compatible Web3 wallet. No account registration is required.
   </Step>
   <Step title="Choose a vault">
-    Browse the available vaults and select one that matches your asset and risk preference — for example, the WBTC Vault for Bitcoin holders, or a stablecoin vault for lower-volatility yield. Each vault displays its supported asset, active strategies, and current exchange rate (eRate).
+    Browse the available vaults and select one that matches your asset and  preferences. The Earn page displays vaults, their TVL (Total Value Locked) APY, and any rewards. 
   </Step>
   <Step title="Deposit your assets">
-    Enter the amount you want to deposit and confirm the transaction. Concrete accepts the vault's underlying asset directly — you do not need to bridge, swap, or interact with any other protocol yourself.
+    Enter the amount you want to deposit and confirm the transaction. Concrete accepts the vault's underlying asset directly — you do not need to bridge, swap, or interact with any other protocol yourself. Some vaults have the ability to swap and deposit using the Enso service. 
   </Step>
   <Step title="Receive ct[Asset] tokens">
-    After your deposit is confirmed, you receive **ct[Asset]** tokens (e.g. ctDefiUSDT, ctWBTC) to your wallet. These are your vault shares. They represent your proportional claim on the vault's total holdings and appreciate in value as the vault earns yield.
+    After your deposit is confirmed, you receive `ct[Asset]` shares to your wallet. The exact symbol depends on the specific vault you deposited into. These shares represent your proportional claim on the vault's underlying assets. Their share-to-asset exchange rate rises as the vault earns yield.
   </Step>
-  <Step title="Earn yield automatically">
-    Concrete's vault engine deploys your capital across a bundle of yield strategies — lending markets, liquidity pools, restaking layers, and more. The vault continuously rebalances between strategies based on current market conditions and risk parameters. Your ct[Asset] tokens increase in value as the vault's Net Asset Value (NAV) grows. You do not need to claim, compound, or monitor anything.
+  <Step title="Earn yield ">
+    Your deposit is allocated to the vault's configured yield strategies — such as lending markets, liquidity pools, or restaking layers — under the rules set at the vault's deployment. As the vault's underlying strategies generate yield, the share-to-asset exchange rate rises and your `ct[Asset]` shares become redeemable for more of the underlying asset. You do not need to claim, compound, or monitor anything.
   </Step>
   <Step title="Request a withdrawal">
-    When you are ready to exit, submit a withdrawal request. Your request enters a daily processing cycle rather than executing instantly. This orderly queue protects all depositors by allowing the vault to unwind positions carefully rather than selling at unfavorable prices. Typical processing completes within 7 days, though timing may vary based on market conditions.
+    When you are ready to exit, submit a withdrawal request. For vaults that use an asynchronous withdrawal queue (the most common configuration), your request enters an epoch-based processing cycle rather than settling instantly. The cadence depends on the vault and is shown in the Earn app, on the vault page. 
   </Step>
 </Steps>
 
@@ -43,18 +43,16 @@ Concrete vaults do not park your capital in a single protocol. The vault engine 
 
 ### Role-based automation
 
-Concrete's architecture separates responsibilities across distinct roles to prevent any single point of control:
+Concrete vaults separate responsibilities across distinct on-chain roles, each with its own admin role. Operational roles are typically held by Concrete's automation; governance roles are typically held by the vault's partner:
 
-- **Vault Manager** — oversees the overall vault configuration and access controls.
-- **Allocator** — executes capital movements between whitelisted protocols within encoded allocation caps.
-- **Strategy Manager** (Curator) — manages strategy selection and risk parameters within programmable limits enforced by the vault contract.
+- **Vault Manager** — sets vault parameters, including fees and deposit / withdrawal limits.
+- **Strategy Manager** — adds, removes, and toggles the status of strategies attached to the vault.
+- **Hook Manager** — configures optional hook contracts (for example, per-user deposit caps or compliance checks).
+- **Allocator** — moves capital between the vault and its strategies and sets the deallocation order used to source liquidity for withdrawals.
+- **Withdrawal Manager** (async vaults only) — closes and processes withdrawal epochs, and can claim withdrawals on behalf of users.
 
-Curators manage strategy but not custody. Withdrawals remain under protocol control, not human discretion. Every position is traceable to real, verifiable on-chain holdings.
+This separation keeps high-impact configuration changes under governance oversight while letting routine operations run on automation.
 
 ### Daily NAV updates
 
-Each day, Concrete's systems calculate the vault's Net Asset Value (NAV) — the total dollar value of all positions the vault holds. This figure is recorded on-chain and determines the price of each vault share (eRate). As the NAV rises, your ct[Asset] tokens are worth more.
-
-<Tip>
-  The longer you remain deposited, the more rebalancing cycles and compounding periods you capture. A depositor who stays for 12 months benefits from compounding cycles that a 30-day depositor may never see.
-</Tip>
+Each day, Concrete's automation calculates the vault's Net Asset Value (NAV) — the total value of everything the vault holds across all positions and strategies, denominated in the vault's underlying asset. This figure feeds the share-to-asset exchange rate that determines how much each `ct[Asset]` share is redeemable for. As NAV rises, each share is worth more of the underlying asset. NAV updates flow through a three-party model — a transaction proposer, an independent signer, and on-chain safeguards in the underlying strategy contract — so that no single party can unilaterally change the vault's reported value.

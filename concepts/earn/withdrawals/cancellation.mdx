@@ -1,18 +1,14 @@
 ---
-id: earn.withdrawals.cancellation
-title: Cancelling a queued withdrawal
-audience: public
-module: earn
-scope: withdrawals
+id: "earn.withdrawals.cancellation"
+title: "Cancelling a queued withdrawal"
+audience: "public"
+module: "earn"
+scope: "withdrawals"
 gates: []
-related:
-  - earn.withdrawals.queue-and-delay
-  - earn.withdrawals.queue-position
-  - earn.withdrawals.overflow
-source_refs:
-  - .claude/rules/withdrawal-epoch-cycles.mdc
-emit: once
-last_reviewed: 2026-05-20
+related: ["earn.withdrawals.queue-and-delay", "earn.withdrawals.queue-position", "earn.withdrawals.overflow"]
+source_refs: [".claude/rules/withdrawal-epoch-cycles.mdc"]
+emit: "once"
+last_reviewed: "2026-05-20T00:00:00.000Z"
 ---
 
 A queued withdrawal can be **cancelled by the requester at any time
