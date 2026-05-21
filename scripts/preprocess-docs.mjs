@@ -260,11 +260,17 @@ async function fetchVaults() {
       if (!story?.content) continue;
       const slug = String(story.content.slug ?? '').trim();
       if (!slug || seenSlugs.has(slug)) continue;
-      // `hiddenCard` excludes the vault from the FE Earn surface (it never
-      // appears as a card). Mirror that here so the docs don't expose a
-      // vault that isn't user-facing in the product. This mechanic is an
-      // operational control, not documented to readers.
+      // Mirror the FE Earn-app exclusion rules so the docs don't expose a
+      // vault that isn't user-facing in production:
+      //   - `hiddenCard`               → never renders as a card on the
+      //                                  Earn surface (vault-level hide).
+      //   - `excludeFromMainEnvironment` → vault is restricted to non-
+      //                                  production environments (isolated
+      //                                  builds / staging), so its slug
+      //                                  doesn't exist on the public app.
+      // Both are operational controls, not mechanics readers learn about.
       if (story.content.hiddenCard === true) continue;
+      if (story.content.excludeFromMainEnvironment === true) continue;
       seenSlugs.add(slug);
       vaults.push({
         slug,
