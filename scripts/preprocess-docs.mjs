@@ -320,8 +320,9 @@ function extractStoryblokLinkUrl(field) {
 // `VaultsContent.auditors` is in resolve_relations, so each entry on the
 // vault content is normally a fully-resolved story object. Some Storyblok
 // shapes still leave them as uuids — fall back to the relsMap in that case.
-// Returns [{ name, url }] with the link extracted from the auditor story's
-// own link field (typical Storyblok auditor schema: content.link.url).
+// Returns [{ name }]; auditor links in per-vault docs route to the internal
+// `/security/audits#<slug>` page rather than each auditor's external site,
+// so the Storyblok link field is intentionally not read here.
 function resolveAuditors(refs, relsMap) {
   if (!Array.isArray(refs)) return [];
   const out = [];
@@ -332,10 +333,7 @@ function resolveAuditors(refs, relsMap) {
       story.content.name ?? story.name ?? '',
     ).trim();
     if (!name) continue;
-    const url = extractStoryblokLinkUrl(
-      story.content.link ?? story.content.url ?? story.content.website,
-    );
-    out.push({ name, url });
+    out.push({ name });
   }
   return out;
 }
@@ -1296,12 +1294,15 @@ function renderViewLink(vault) {
 }
 
 // Optional Audits section under the per-vault Overview. Stays absent when
-// no auditors are configured — the CMS doesn't always carry the list.
+// no auditors are configured — the CMS doesn't always carry the list. Each
+// auditor name links to `/security/audits#<slug>` so readers stay on the
+// docs site (the slug matches the auditor heading in security/audits.mdx;
+// Mintlify generates heading anchors from the same slugify algorithm).
 function renderAuditsSection(vault) {
   const auditors = vault.auditors ?? [];
   if (auditors.length === 0) return '';
-  const items = auditors.map(({ name, url }) =>
-    url ? `- [${name}](${url})` : `- ${name}`,
+  const items = auditors.map(
+    ({ name }) => `- [${name}](/security/audits#${slugify(name)})`,
   );
   return `## Audits\n\nThis vault has been audited by:\n\n${items.join('\n')}`;
 }
