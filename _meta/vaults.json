@@ -260,7 +260,7 @@
     "name": "Theo thBILL Stable",
     "version": "v2",
     "network": "Stable",
-    "implementation": 1,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -268,7 +268,7 @@
     "name": "sEIGEN",
     "version": "v1",
     "network": "",
-    "implementation": 1,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -276,7 +276,7 @@
     "name": "Concrete DeFi USDT",
     "version": "v2",
     "network": "",
-    "implementation": 6,
+    "implementation": null,
     "deprecated": false
   },
   {
@@ -284,7 +284,7 @@
     "name": "frxUSD+",
     "version": "v2",
     "network": "",
-    "implementation": 5,
+    "implementation": null,
     "deprecated": false
   }
 ]
