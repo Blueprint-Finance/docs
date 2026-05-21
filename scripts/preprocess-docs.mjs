@@ -274,6 +274,7 @@ async function fetchVaults() {
         network: story.content.network ?? null,
         addresses: parseAddresses(story.content.addresses),
         deprecated: Boolean(story.content.deprecated || group.deprecated),
+        auditors: resolveAuditors(story.content.auditors, relsMap),
         content: story.content,
       });
     }
@@ -289,6 +290,48 @@ function parseAddresses(raw) {
     .split(/[\n,]/)
     .map((a) => a.trim().toLowerCase())
     .filter((a) => /^0x[0-9a-f]{40}$/.test(a));
+}
+
+// Storyblok link fields render either as a plain string or an object
+// `{ url, target, cached_url, … }` depending on field configuration. Pull a
+// usable href out of both shapes; return null when nothing renderable.
+function extractStoryblokLinkUrl(field) {
+  if (!field) return null;
+  if (typeof field === 'string') {
+    const s = field.trim();
+    return s || null;
+  }
+  if (typeof field === 'object') {
+    const candidate = field.url ?? field.cached_url;
+    if (typeof candidate === 'string') {
+      const s = candidate.trim();
+      return s || null;
+    }
+  }
+  return null;
+}
+
+// `VaultsContent.auditors` is in resolve_relations, so each entry on the
+// vault content is normally a fully-resolved story object. Some Storyblok
+// shapes still leave them as uuids — fall back to the relsMap in that case.
+// Returns [{ name, url }] with the link extracted from the auditor story's
+// own link field (typical Storyblok auditor schema: content.link.url).
+function resolveAuditors(refs, relsMap) {
+  if (!Array.isArray(refs)) return [];
+  const out = [];
+  for (const ref of refs) {
+    const story = typeof ref === 'string' ? relsMap.get(ref) : ref;
+    if (!story?.content) continue;
+    const name = String(
+      story.content.name ?? story.name ?? '',
+    ).trim();
+    if (!name) continue;
+    const url = extractStoryblokLinkUrl(
+      story.content.link ?? story.content.url ?? story.content.website,
+    );
+    out.push({ name, url });
+  }
+  return out;
 }
 
 // The live Earn set is Storyblok ∩ FE earnWhitelist. FE emits the whitelist
@@ -940,7 +983,9 @@ function stripLeadingH1(src) {
   const body = src.slice(fm.length);
   // Optional leading blanks, then the H1 line, then an optional trailing
   // blank — matched as a single block so we don't mutate non-H1 inputs.
-  const m = /^([ \t]*\r?\n)*#\s+[^\n]*\r?\n([ \t]*\r?\n)?/.exec(body);
+  // Note `[ \t]+` (not `\s+`) inside the H1: \s would let an empty-content
+  // H1 (`# \n`) swallow the newline and chew into the next line.
+  const m = /^([ \t]*\r?\n)*#[ \t]+[^\n]*\r?\n([ \t]*\r?\n)?/.exec(body);
   if (!m) return src;
   const remaining = body.slice(m[0].length);
   // Reintroduce a blank line between frontmatter and body so the rendered
@@ -1225,9 +1270,45 @@ function renderStoryblokOverview(overview) {
 // additionally prepends the vault's CMS Overview rich text (Storyblok) above
 // the FE-rule-generated content, so the page reads as "what this vault is"
 // before "how its earn rules work".
-// Slug-only URL; FE Earn-app routing handles per-vault landing.
+// Default URL when a vault has no `externalLink` set in the CMS.
+// FE Earn-app routing handles per-vault landing from the slug.
 function earnAppUrl(slug) {
   return `https://app.concrete.xyz/vault/${slug}`;
+}
+
+// Top-of-Overview CTA. Mirrors the FE convention: an `externalLink` on the
+// vault (partner site or an isolated env's focused build) replaces the
+// Earn-app URL entirely AND drops the "on the Earn app" suffix because the
+// destination isn't always Concrete's main app surface.
+function renderViewLink(vault) {
+  const external = extractStoryblokLinkUrl(vault.content?.externalLink);
+  const href = external ?? earnAppUrl(vault.slug);
+  const label = external
+    ? `View ${vault.name} →`
+    : `View ${vault.name} on the Earn app →`;
+  return `**[${label}](${href})**`;
+}
+
+// Optional Audits section under the per-vault Overview. Stays absent when
+// no auditors are configured — the CMS doesn't always carry the list.
+function renderAuditsSection(vault) {
+  const auditors = vault.auditors ?? [];
+  if (auditors.length === 0) return '';
+  const items = auditors.map(({ name, url }) =>
+    url ? `- [${name}](${url})` : `- ${name}`,
+  );
+  return `## Audits\n\nThis vault has been audited by:\n\n${items.join('\n')}`;
+}
+
+// RC learn-more link: surfaces when the vault has a pending RC schedule
+// (BE-returned `withdrawals_config_rc`) AND a CMS-authored learn-more
+// URL. Same conditional FE uses next to the "{N} Days" pill in the
+// queue-warning area — readers on the docs surface get the same pointer.
+function renderRcLearnMoreLine(vault) {
+  if (!isWithdrawalsRcActive(vault.performance?.withdrawals_config_rc)) return '';
+  const href = extractStoryblokLinkUrl(vault.content?.withdrawalRcLearnMoreLink);
+  if (!href) return '';
+  return `[Learn more about the withdrawal schedule transition →](${href})`;
 }
 
 async function composeVaultThemes(vault, themedRules, gates, referencedGates, composedByVault) {
@@ -1236,12 +1317,15 @@ async function composeVaultThemes(vault, themedRules, gates, referencedGates, co
   for (const theme of EARN_THEMES) {
     const sections = [];
     if (theme.dir === 'vaults') {
-      // Direct hand-off to the live app. Mintlify keeps the click in-place
-      // (no JS routing) so users reading vault docs can jump straight to
-      // the vault page on the Earn surface.
-      sections.push(`**[View ${vault.name} on the Earn app →](${earnAppUrl(vault.slug)})**`);
+      // Direct hand-off to the vault destination — Earn app by default, or
+      // the partner / isolated env URL when content.externalLink is set.
+      sections.push(renderViewLink(vault));
       const cmsOverview = renderStoryblokOverview(vault.content?.overview);
       if (cmsOverview) sections.push(cmsOverview);
+      const rcLine = renderRcLearnMoreLine(vault);
+      if (rcLine) sections.push(rcLine);
+      const audits = renderAuditsSection(vault);
+      if (audits) sections.push(audits);
     }
     // Fully-sunsetted (disable_withdraw=true) vaults render only the
     // `disable` rule on the Withdrawing page — epoch/queue/caps content
