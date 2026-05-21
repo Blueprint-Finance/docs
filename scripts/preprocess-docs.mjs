@@ -779,6 +779,32 @@ function computeWithdrawalCycleDays(vault) {
   return null;
 }
 
+const HUMAN_DATE_FMT = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+  timeZone: 'UTC',
+});
+
+// Tense-aware announcement of the upcoming/past RC schedule transition.
+// Mirrors the FE `withdrawals_config_rc.starting_from` semantic: the BE
+// returns an ISO timestamp marking when the RC cron pair takes effect.
+// Worker compares to build time so a single FE template can announce both
+// future ("transitions on March 20, 2026") and post-activation cases
+// ("has transitioned as of March 20, 2026"). Falls back to a date-less
+// phrase if `starting_from` is missing or unparseable so the surrounding
+// FE sentence stays grammatical.
+function computeRcTransitionPhrase(vault, now = new Date()) {
+  const raw = vault.performance?.withdrawals_config_rc?.starting_from;
+  if (!raw) return 'transitions to a new schedule';
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return 'transitions to a new schedule';
+  const human = HUMAN_DATE_FMT.format(d);
+  return d.getTime() <= now.getTime()
+    ? `has transitioned as of ${human}`
+    : `transitions on ${human}`;
+}
+
 // The {{ }} substitution context exposed to FE earn templates.
 function buildVaultContext(vault) {
   const perf = vault.performance;
@@ -794,7 +820,10 @@ function buildVaultContext(vault) {
         cycle_summary: computeWithdrawalCycleSummary(vault),
         cycle_days: computeWithdrawalCycleDays(vault),
       },
-      withdrawalRc: perf?.withdrawals_config_rc ?? {},
+      withdrawalRc: {
+        ...(perf?.withdrawals_config_rc ?? {}),
+        transition_phrase: computeRcTransitionPhrase(vault),
+      },
     },
   };
 }
