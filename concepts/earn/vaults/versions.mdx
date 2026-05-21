@@ -1,14 +1,18 @@
 ---
-id: "earn.vaults.versions"
-title: "Vault Versions"
-audience: "public"
-module: "earn"
-scope: "vaults"
-emit: "once"
+id: earn.vaults.versions
+title: Vault Versions
+audience: public
+module: earn
+scope: vaults
+emit: once
 gates: []
-related: ["earn.withdrawals.queue-and-delay", "earn.withdrawals.epoch-cycle-concept"]
-source_refs: ["src/modules/earn/content/types.tsx", ".claude/rules/withdrawal-epoch-cycles.mdc"]
-last_reviewed: "2026-05-20T00:00:00.000Z"
+related:
+  - earn.withdrawals.queue-and-delay
+  - earn.withdrawals.epoch-cycle-concept
+source_refs:
+  - src/modules/earn/content/types.tsx
+  - .claude/rules/withdrawal-epoch-cycles.mdc
+last_reviewed: 2026-05-20
 ---
 
 Vaults exist in two contract generations. The CMS field `vaultVersion`

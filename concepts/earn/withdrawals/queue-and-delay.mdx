@@ -1,12 +1,15 @@
 ---
-id: "earn.withdrawals.queue-and-delay"
-title: "Withdrawal queue and delay"
-audience: "public"
-module: "earn"
-scope: "withdrawals"
-emit: "once"
-source_refs: ["src/core/utils/storyblok.ts", ".claude/rules/withdrawal-epoch-cycles.mdc", "src/modules/earn/hooks/useNextQueueDate.ts"]
-last_reviewed: "2026-05-20T00:00:00.000Z"
+id: earn.withdrawals.queue-and-delay
+title: Withdrawal queue and delay
+audience: public
+module: earn
+scope: withdrawals
+emit: once
+source_refs:
+  - src/core/utils/storyblok.ts
+  - .claude/rules/withdrawal-epoch-cycles.mdc
+  - src/modules/earn/hooks/useNextQueueDate.ts
+last_reviewed: 2026-05-20
 ---
 
 An Earn V2 Vault settles withdrawals asynchronously. When a user submits a
