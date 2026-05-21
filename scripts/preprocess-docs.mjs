@@ -601,18 +601,34 @@ function isWithdrawalsRcActive(wcRc) {
   return Boolean(wcRc && typeof wcRc === 'object' && wcRc.cutoff_cron);
 }
 
-// Single source of truth for "can the primary schedule-pane step resolve?"
-// Both cycle_summary and cycle_days call this so they fire at the same step
-// for the same vault — adding a precondition here automatically aligns both
-// placeholders. `cycles` is also returned so callers don't re-parse.
-function canDerivePrimaryCycle(content, wc) {
+// Single source of truth for "can the primary schedule-pane step resolve,
+// and against which cron pair?". Mirrors FE resolveEffectiveWithdrawalsConfig
+// at a high level: when an RC schedule is active and complete, the Earn
+// app's queue-warning area already shows it, so the docs should too — RC
+// takes precedence over the regular config. If neither source has both
+// crons usable, returns null and the caller falls through to the next
+// step. Both `cycle_summary` and `cycle_days` call this so they fire at
+// the same step against the same source for the same vault.
+function pickPrimaryCronSource(content, wc, wcRc) {
   if (content?.disableWithdrawalCron) return null;
-  if (!isUsableCron(wc?.cutoff_cron) || !isUsableCron(wc?.payout_cron)) {
+  const rcUsable =
+    isWithdrawalsRcActive(wcRc) &&
+    isUsableCron(wcRc.cutoff_cron) &&
+    isUsableCron(wcRc.payout_cron);
+  let cutoff;
+  let payout;
+  if (rcUsable) {
+    cutoff = wcRc.cutoff_cron;
+    payout = wcRc.payout_cron;
+  } else if (isUsableCron(wc?.cutoff_cron) && isUsableCron(wc?.payout_cron)) {
+    cutoff = wc.cutoff_cron;
+    payout = wc.payout_cron;
+  } else {
     return null;
   }
-  const cycles = getCronCyclesPerWeek(wc.cutoff_cron);
+  const cycles = getCronCyclesPerWeek(cutoff);
   if (!cycles) return null;
-  return cycles;
+  return { cutoff, payout, cycles };
 }
 
 // Primary cycle-summary derivation — one full sentence per cron cycle.
@@ -651,19 +667,24 @@ function derivePrimaryCycleSummary(cutoffCron, payoutCron) {
 }
 
 // FE handoff (2026-05-20 spec) for the `cycle_summary` placeholder:
-// primary = schedule-pane prose against `withdrawals_config.{cutoff,payout}_cron`;
-// fallback = RC days → queue delay → eta → empty. Order differs from
-// queue-warning/index.tsx because in a prose context the live RC schedule
-// is more informative than a one-shot eta date.
+// primary = schedule-pane prose; fallback = RC days → queue delay → eta →
+// empty. Primary uses the RC config when active and complete (matches the
+// Earn-app queue-warning rendering); else the regular config. Order in
+// the fallback chain differs from queue-warning/index.tsx because in a
+// prose context the live RC schedule is more informative than a one-shot
+// eta date.
 function computeWithdrawalCycleSummary(vault) {
   const c = vault.content || {};
   const wc = vault.performance?.withdrawals_config ?? {};
   const wcRc = vault.performance?.withdrawals_config_rc ?? {};
 
-  if (canDerivePrimaryCycle(c, wc)) {
-    const primary = derivePrimaryCycleSummary(wc.cutoff_cron, wc.payout_cron);
-    if (primary) return primary;
+  const primary = pickPrimaryCronSource(c, wc, wcRc);
+  if (primary) {
+    const summary = derivePrimaryCycleSummary(primary.cutoff, primary.payout);
+    if (summary) return summary;
   }
+  // RC days fallback — still applies when RC is active but only
+  // cutoff_cron is usable (so the primary step couldn't form a sentence).
   if (isWithdrawalsRcActive(wcRc)) {
     const days = computeFullCycleDays(wcRc.cutoff_cron);
     if (days) return `${days} ${days === 1 ? 'day' : 'days'}`;
@@ -682,11 +703,12 @@ function computeWithdrawalCycleSummary(vault) {
 }
 
 // Worst-case days the user could wait. Step-for-step aligned with
-// `cycle_summary`: both gate the primary step on canDerivePrimaryCycle and
-// fall through to RC → queue delay → null in the same order. The numeric
-// and the prose resolve at the same step for the same vault — an author
-// dropping both into the same paragraph won't see a "Thursdays, 12:30 PM"
-// sentence next to an RC-derived day count or vice-versa.
+// `cycle_summary` — both gate the primary step on pickPrimaryCronSource
+// (RC-first, then regular) and fall through to RC → queue delay → null in
+// the same order against the same source. The numeric and the prose
+// resolve identically for the same vault, so an author dropping both into
+// the same paragraph never sees a "Thursdays, 12:00 PM UTC" sentence next
+// to a queue-delay-derived day count.
 // Authors reach for this when they want a numeric value to slot into prose
 // ("up to {{ vault.withdrawal.cycle_days }} days").
 function computeWithdrawalCycleDays(vault) {
@@ -694,8 +716,9 @@ function computeWithdrawalCycleDays(vault) {
   const wc = vault.performance?.withdrawals_config ?? {};
   const wcRc = vault.performance?.withdrawals_config_rc ?? {};
 
-  if (canDerivePrimaryCycle(c, wc)) {
-    const d = computeFullCycleDays(wc.cutoff_cron);
+  const primary = pickPrimaryCronSource(c, wc, wcRc);
+  if (primary) {
+    const d = computeFullCycleDays(primary.cutoff);
     if (d) return d;
   }
   if (isWithdrawalsRcActive(wcRc)) {
@@ -905,9 +928,30 @@ function assertNoVaultPlaceholders(src, file) {
   );
 }
 
+// Strip the leading H1 from the body — Mintlify renders the frontmatter
+// `title` at the top of the page, so a body H1 that repeats the title (the
+// FE convention for class-A concept files) stacks two identical headings.
+// Frontmatter is preserved; only the first H1 line plus its surrounding
+// blank lines are removed, and only if such an H1 exists. H1s elsewhere
+// in the body (rare in FE rules but valid Markdown) are left in place.
+function stripLeadingH1(src) {
+  const fmMatch = /^(---\r?\n[\s\S]*?\r?\n---\r?\n?)/.exec(src);
+  const fm = fmMatch ? fmMatch[0] : '';
+  const body = src.slice(fm.length);
+  // Optional leading blanks, then the H1 line, then an optional trailing
+  // blank — matched as a single block so we don't mutate non-H1 inputs.
+  const m = /^([ \t]*\r?\n)*#\s+[^\n]*\r?\n([ \t]*\r?\n)?/.exec(body);
+  if (!m) return src;
+  const remaining = body.slice(m[0].length);
+  // Reintroduce a blank line between frontmatter and body so the rendered
+  // file keeps the standard "fm ---\n\nbody" separation.
+  return fm + (fm ? '\n' : '') + remaining;
+}
+
 // Emit each class-A earn rule once into concepts/earn/<theme>/<rule>.mdx. The
-// file is copied verbatim (front-matter preserved so Mintlify reads title /
-// sidebarTitle). Returns the page refs grouped by theme, for the nav builder.
+// file's frontmatter is preserved (Mintlify reads title / sidebarTitle); the
+// leading body H1 is stripped so Mintlify doesn't render two identical
+// headings at the top of the page.
 async function emitClassAEarnPages(classA) {
   const pages = [];
   for (const { file, src, theme } of classA) {
@@ -917,7 +961,7 @@ async function emitClassAEarnPages(classA) {
     const dest = path.join(OUTPUT, 'concepts', 'earn', theme, `${rule}.mdx`);
     await fs.mkdir(path.dirname(dest), { recursive: true });
     claimPath(dest, 'FE-earn-concept');
-    await fs.writeFile(dest, src);
+    await fs.writeFile(dest, stripLeadingH1(src));
     pages.push({ theme, page: `concepts/earn/${theme}/${rule}` });
   }
   return pages;
@@ -970,13 +1014,11 @@ function rewriteEarnLinks(themedRules, classA) {
       });
     }
   }
-  for (const { file, src, theme } of classA) {
-    const h1 = extractH1(src);
+  for (const { file, theme } of classA) {
     const rule = path.basename(file, '.mdx');
     index.set(`${theme}/${rule}`, {
       kind: 'classA',
       page: `/concepts/earn/${theme}/${rule}`,
-      anchor: h1 ? slugify(h1) : '',
     });
   }
   for (const [themeDir, rules] of themedRules) {
@@ -991,7 +1033,12 @@ function rewriteEarnLinks(themedRules, classA) {
         const hit = index.get(resolved);
         if (!hit) return whole;
         if (hit.kind === 'classA') {
-          return `[${text}](${hit.page}#${frag || hit.anchor})`;
+          // Class-A pages have their body H1 stripped (stripLeadingH1), so
+          // the auto-anchor derived from that H1 doesn't exist in the
+          // rendered MDX. Cross-refs without an explicit fragment land at
+          // the page root; explicit fragments (e.g. ./caps#withdrawal-cap)
+          // are preserved verbatim.
+          return frag ? `[${text}](${hit.page}#${frag})` : `[${text}](${hit.page})`;
         }
         const page = hit.themePage === ownThemePage ? '' : hit.themePage;
         return `[${text}](${page}#${frag || hit.anchor})`;
