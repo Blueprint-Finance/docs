@@ -6,7 +6,7 @@ module: 'core'
 scope: 'vault'
 source_refs:
   - 'src/implementation/ConcreteAsyncVaultImpl.sol'
-last_reviewed: '2026-05-15'
+last_reviewed: '2026-05-22'
 mechanics:
   - 'async-withdrawals'
   - 'vault-core'
@@ -54,18 +54,7 @@ Disables initializers on the implementation contract.
 function _initialize(uint64 initialVersion, address owner, struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration defaultEnforcedVaultConfig, bytes data) internal virtual
 ```
 
-_Overrides `_initialize` to also set up async-vault-specific state. Calls the standard
-     vault initializer and then extracts the `initialVaultManager` from the encoded `data`
-     to wire up the withdrawal queue._
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| initialVersion | uint64 | Initial vault ID from the factory. |
-| owner | address | Vault owner address. |
-| defaultEnforcedVaultConfig | struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration | Default fee recipients injected by the factory. |
-| data | bytes | Encoded initializer payload (forwarded to the parent implementation). |
+_Override _initialize to set up async vault specific state_
 
 ### __ConcreteAsyncVaultImpl_init
 
@@ -73,13 +62,23 @@ _Overrides `_initialize` to also set up async-vault-specific state. Calls the st
 function __ConcreteAsyncVaultImpl_init(address initialVaultManager) internal
 ```
 
-_Initializes the async vault state: epoch ID, manager role, and related storage._
+Initializes the WithdrawalQueueModule
 
-#### Parameters
+_Sets the initial epoch ID to 1 and emits initialization event_
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| initialVaultManager | address | Address granted the `VAULT_MANAGER` role on async-specific state. |
+### _upgrade
+
+```solidity
+function _upgrade(uint64, bytes) internal virtual
+```
+
+_Upgrade hook for vaults migrating to this implementation.
+
+All upgrade-time work (legacy role migration + idempotent async-specific state
+init gated on `latestEpochID == 0`) is delegated to `StateInitLib` to keep the
+runtime bytecode of this contract — and of `ConcreteBridgedAsyncVaultImpl`,
+which inherits it — under the EIP-170 limit. The library runs in the proxy's
+storage context via DELEGATECALL._
 
 ### toggleQueueActive
 
@@ -87,9 +86,9 @@ _Initializes the async vault state: epoch ID, manager role, and related storage.
 function toggleQueueActive() external virtual
 ```
 
-Toggle the active status of the withdrawal queue.
+Toggle the active status of the queue
 
-_Only callable by accounts with the ALLOCATOR role._
+_Only callable by the ALLOCATOR role_
 
 ### cancelRequest
 
@@ -97,16 +96,16 @@ _Only callable by accounts with the ALLOCATOR role._
 function cancelRequest(uint256 epochID) external virtual
 ```
 
-Cancel the caller's pending redeem request in an unprocessed epoch.
+Cancel pending redeem request for a specific epoch (only unprocessed epochs)
 
-_Only valid for epochs that have not been processed yet (no share price locked).
-     Returns the queued shares back to the caller and updates epoch accounting._
+_Users can only cancel requests from epochs that haven't been processed yet (no price locked)
+Returns shares back to the user and updates epoch accounting_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| epochID | uint256 | The epoch ID from which to cancel the request. |
+| epochID | uint256 | The epoch ID from which to cancel the request |
 
 ### cancelRequest
 
@@ -114,17 +113,17 @@ _Only valid for epochs that have not been processed yet (no share price locked).
 function cancelRequest(address user, uint256 epochID) external virtual
 ```
 
-Cancel a pending redeem request on behalf of `user` for an unprocessed epoch.
+Cancel pending redeem request for a specific epoch (only unprocessed epochs)
 
-_Only valid for epochs that have not been processed yet (no share price locked).
-     Returns the queued shares back to the user and updates epoch accounting._
+_Users can only cancel requests from epochs that haven't been processed yet (no price locked)
+Returns shares back to the user and updates epoch accounting_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| user | address | The user whose pending request should be cancelled. |
-| epochID | uint256 | The epoch ID from which to cancel the request. |
+| user | address | The user address to cancel the request for |
+| epochID | uint256 | The epoch ID from which to cancel the request |
 
 ### closeEpoch
 
@@ -143,11 +142,35 @@ _Caller must hold `WITHDRAWAL_MANAGER` and the vault must not be paused. Once cl
 function processEpoch() external virtual
 ```
 
-Process pending redeem requests for the next unprocessed closed epoch.
+Process all pending redeem requests for a specific epoch
 
-_Harvests all strategies first so the locked share price reflects current accounting,
-     then computes the share price and reserves the assets required to satisfy the epoch.
-     Only callable by accounts with the ALLOCATOR role._
+_Harvests all strategies to get current accurate pricing before processing
+Calculates share price and reserves required assets for the epoch
+Can process any epoch with pending requests, enabling historical processing
+Only callable by WITHDRAWAL_MANAGER role_
+
+### processPartialEpochRequest
+
+```solidity
+function processPartialEpochRequest(address user, uint256 epochID, uint256 amount) external virtual
+```
+
+Fulfil all or part of a user's withdrawal request from a closed,
+        unprocessed epoch.
+
+_Burns the specified shares at the current exchange rate and transfers the
+     corresponding assets immediately (no separate claim step).  The epoch is
+     NOT marked as processed; `processEpoch()` must still be called to
+     finalise the epoch.
+Only callable by WITHDRAWAL_MANAGER role._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The user whose closed-epoch request to fulfil. |
+| epochID | uint256 | The closed epoch to target. Must be closed and not yet processed                (intent-validation parameter). |
+| amount | uint256 | Number of shares to process. Pass `type(uint256).max` to process               the user's entire request. |
 
 ### getUserEpochRequestInAssets
 
@@ -155,23 +178,23 @@ _Harvests all strategies first so the locked share price reflects current accoun
 function getUserEpochRequestInAssets(address user, uint256 epochID) external view virtual returns (uint256 assets)
 ```
 
-Returns the asset amount currently claimable by `user` for a given epoch.
+Get claimable redeem request from a specific epoch
 
-_Returns 0 if the epoch is not processed, the user has no request in it, or the
-     epoch is the current/future active epoch._
+_Returns the amount of assets claimable by the user from the specified epoch
+Returns 0 if epoch is not processed, no request exists, or epoch is current/future_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| user | address | The user whose claimable balance is being queried. |
-| epochID | uint256 | The epoch to evaluate. |
+| user | address | The user whose claimable amount to read |
+| epochID | uint256 | The epoch ID to check |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| assets | uint256 | The amount of assets claimable by `user` from `epochID`. |
+| assets | uint256 | The amount of assets claimable from the epoch |
 
 ### claimWithdrawal
 
@@ -179,17 +202,17 @@ _Returns 0 if the epoch is not processed, the user has no request in it, or the
 function claimWithdrawal(uint256[] epochIDs) external virtual
 ```
 
-Claim the caller's processed redeem requests across multiple epochs in one call.
+Claim processed redeem requests from specified epochs
 
-_Aggregates assets and shares across `epochIDs`, then burns shares and transfers
-     the combined asset amount once. Epochs with no claimable amounts (zero shares or
-     unprocessed epochs) are silently skipped._
+_Processes each epoch internally, aggregates assets and shares, then burns and transfers once
+More gas efficient than claiming epochs individually
+Skips epochs with no claimable amounts (zero shares or unprocessed epochs)_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| epochIDs | uint256[] | Array of epoch IDs the caller wishes to claim from. |
+| epochIDs | uint256[] | Array of epoch IDs to claim from |
 
 ### claimWithdrawal
 
@@ -197,18 +220,18 @@ _Aggregates assets and shares across `epochIDs`, then burns shares and transfers
 function claimWithdrawal(address user, uint256[] epochIDs) external virtual
 ```
 
-Claim processed redeem requests across multiple epochs on behalf of `user`.
+Claim processed redeem requests from specified epochs
 
-_Aggregates assets and shares across `epochIDs`, then burns shares and transfers
-     the combined asset amount once. Epochs with no claimable amounts (zero shares or
-     unprocessed epochs) are silently skipped._
+_Processes each epoch internally, aggregates assets and shares, then burns and transfers once
+More gas efficient than claiming epochs individually
+Skips epochs with no claimable amounts (zero shares or unprocessed epochs)_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| user | address | The user whose processed requests are being claimed. |
-| epochIDs | uint256[] | Array of epoch IDs to claim from. |
+| user | address | The user address to claim from |
+| epochIDs | uint256[] | Array of epoch IDs to claim from |
 
 ### claimUsersBatch
 
@@ -250,20 +273,24 @@ _Caller must hold `PRIORITY_WITHDRAWAL_EXECUTOR`. Bypasses the standard epoch qu
 ### moveRequestToNextEpoch
 
 ```solidity
-function moveRequestToNextEpoch(address user) external
+function moveRequestToNextEpoch(address user, uint256 fromEpochID, uint256 amount) external
 ```
 
-Moves a user's pending withdrawal request to the next epoch.
+Move a user's withdrawal request from the closed, unprocessed epoch
+        (`latestEpochID - 1`) to the current active epoch (`latestEpochID`).
 
-_Caller must hold `WITHDRAWAL_MANAGER`. Reverts when `user` is the zero address.
-     Validates inputs, determines the share amount to migrate, and updates storage for both
-     epochs._
+_Reverts with `EpochMismatch` if `fromEpochID` does not match
+     `latestEpochID - 1`, or with `EpochAlreadyProcessed` if the
+     previous epoch is already processed.
+Only callable by WITHDRAWAL_MANAGER role._
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| user | address | The user whose pending request should be moved forward. |
+| user | address | The user address whose request to move. |
+| fromEpochID | uint256 | The closed epoch to move from. Must equal `latestEpochID - 1`                    (intent-validation parameter). |
+| amount | uint256 | Number of shares to move. Pass `type(uint256).max` to move the               user's entire request. |
 
 ### getUserEpochRequest
 
@@ -271,20 +298,22 @@ _Caller must hold `WITHDRAWAL_MANAGER`. Reverts when `user` is the zero address.
 function getUserEpochRequest(address user, uint256 epochID) external view virtual returns (uint256 shares)
 ```
 
-Returns the share amount `user` has queued in `epochID`.
+Get user's redeem request for a specific epoch
+
+_Returns the amount of shares requested by the specified user in the epoch_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| user | address | The user whose request is being queried. |
-| epochID | uint256 | The epoch to evaluate. |
+| user | address | The user address to check |
+| epochID | uint256 | The epoch ID to check |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| shares | uint256 | The amount of shares `user` has queued for withdrawal in `epochID`. |
+| shares | uint256 | The amount of shares requested by the user in the epoch |
 
 ### latestEpochID
 
@@ -292,15 +321,15 @@ Returns the share amount `user` has queued in `epochID`.
 function latestEpochID() external view virtual returns (uint256)
 ```
 
-Returns the ID of the most recently opened (active) withdrawal epoch.
+Get current epoch ID
 
-_New withdrawal requests are queued under this epoch ID until it is closed._
+_New withdrawal requests are queued in this epoch_
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The current latest epoch ID. |
+| [0] | uint256 | The current epoch ID |
 
 ### pastEpochsUnclaimedAssets
 
@@ -308,16 +337,15 @@ _New withdrawal requests are queued under this epoch ID until it is closed._
 function pastEpochsUnclaimedAssets() external view virtual returns (uint256)
 ```
 
-Returns the total assets reserved to satisfy unclaimed processed-epoch withdrawals.
+Get total redeemable assets from past epochs
 
-_This amount is subtracted from `totalAssets()` so reserved funds are excluded from
-     active vault operations and yield accounting._
+_This amount is subtracted from totalAssets() to exclude reserved funds from active vault operations_
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The total assets reserved for past processed epochs. |
+| [0] | uint256 | The total assets reserved for past epoch claims |
 
 ### totalRequestedSharesPerEpoch
 
@@ -325,22 +353,22 @@ _This amount is subtracted from `totalAssets()` so reserved funds are excluded f
 function totalRequestedSharesPerEpoch(uint256 epochID) external view virtual returns (uint256)
 ```
 
-Returns the total shares users have requested to withdraw in a specific epoch.
+Get total requested shares in a specific epoch
 
-_Returns 0 once an epoch has been processed, since requesting shares are then
-     transferred to the past-epoch bucket._
+_Returns the total shares from all users that requested withdrawal in the epoch
+Returns 0 after epoch is processed (shares moved to requestingSharesInPast)_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| epochID | uint256 | The epoch ID to inspect. |
+| epochID | uint256 | The epoch ID to check |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The total shares queued for withdrawal in `epochID`. |
+| [0] | uint256 | The total shares requested in the epoch |
 
 ### totalRequestedSharesForCurrentEpochs
 
@@ -348,7 +376,9 @@ _Returns 0 once an epoch has been processed, since requesting shares are then
 function totalRequestedSharesForCurrentEpochs() external view virtual returns (uint256, uint256, uint256)
 ```
 
-Returns the queued share totals for the currently relevant epochs.
+Get total requested shares in the active and processing epochs
+
+_Returns the total shares from all users that requested withdrawal in the active and processing epochs_
 
 #### Return Values
 
@@ -364,21 +394,22 @@ Returns the queued share totals for the currently relevant epochs.
 function getEpochPricePerShare(uint256 epochID) public view virtual returns (uint256)
 ```
 
-Returns the share price that was locked at the time `epochID` was processed.
+Get share price for a specific epoch
 
-_Returns 0 if the epoch has not been processed yet._
+_Returns the share price that was locked when the epoch was processed
+Returns 0 if the epoch has not been processed yet_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| epochID | uint256 | The epoch ID to inspect. |
+| epochID | uint256 | The epoch ID to check |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The price-per-share locked for `epochID`, denominated in assets per 1e18 shares. |
+| [0] | uint256 | The share price locked when the epoch was processed (in assets per 1e18 shares) |
 
 ### getEpochState
 
@@ -406,26 +437,9 @@ Returns the lifecycle state of an epoch (Open, Closed, Processed).
 function _executeWithdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares) internal virtual returns (uint256)
 ```
 
-_Overrides `_executeWithdraw` to implement the async withdrawal pattern.
-     Called by the parent's `withdraw()` and `redeem()` after harvest and validation. Instead
-     of immediately transferring assets, the request is queued for epoch processing when the
-     queue is active; otherwise it falls through to the parent's synchronous behaviour._
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| caller | address | Address that initiated the withdrawal (for access control). |
-| receiver | address | Address that will eventually receive the withdrawn assets. |
-| owner | address | Address whose shares back this request. |
-| assets | uint256 | Amount of assets requested at the time of queueing. |
-| shares | uint256 | Amount of shares being escrowed in this request. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| [0] | uint256 | The `assets` value when the request was queued, or the parent's return otherwise. |
+_Override _executeWithdraw to implement async withdrawal pattern
+This is called by parent's withdraw() and redeem() after harvest and validation
+Instead of immediately transferring assets, we queue the request for epoch processing_
 
 ### isQueueActive
 
@@ -433,13 +447,15 @@ _Overrides `_executeWithdraw` to implement the async withdrawal pattern.
 function isQueueActive() external view virtual returns (bool)
 ```
 
-Returns whether the withdrawal queue is currently accepting new requests.
+Get whether the queue is active
+
+_Returns true if the queue is active, false otherwise_
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | bool | True if the queue is active, false if disabled. |
+| [0] | bool | The active status of the queue |
 
 ### allocate
 
@@ -447,17 +463,21 @@ Returns whether the withdrawal queue is currently accepting new requests.
 function allocate(bytes data) public virtual
 ```
 
-Execute a batch of allocation and deallocation operations across vault strategies.
+Executes fund allocation and deallocation operations across multiple strategies.
 
-_Triggers a yield accrual before executing the batch so accounting is current.
-     Operations are dispatched via delegatecall into the allocate module to preserve
-     storage context and access control. Only callable by accounts with the ALLOCATOR role._
+_This function performs a yield accrual operation first to update vault accounting,
+     then executes the allocation operations specified in the data parameter.
+All operations are performed via delegatecall to the respective modules to maintain
+     proper storage context and access control.
+Only callable by accounts with the ALLOCATOR role.
+The function automatically triggers yield accrual before allocation to ensure
+        accurate vault accounting prior to fund movements._
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | ABI-encoded `AllocateParams[]` describing each allocation/deallocation leg. |
+| data | bytes | ABI-encoded array of AllocateParams structures containing the allocation             operations to execute. Each param specifies whether to allocate or deallocate             funds, which strategy to use, and any additional data required by the strategy. |
 
 ### _lockedAssets
 
@@ -471,13 +491,15 @@ function _lockedAssets() internal view returns (uint256)
 function getUnwindCostCap() external view virtual returns (uint16)
 ```
 
-Returns the maximum unwind cost (in basis points) that may be charged on a priority withdrawal.
+Get the unwind cost cap for priority withdrawals
+
+_Returns the unwind cost cap in basis points (10000 = 100%)_
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint16 | The unwind cost cap in basis points (10000 = 100%). |
+| [0] | uint16 | The unwind cost cap in basis points |
 
 ### setUnwindCostCap
 
@@ -485,13 +507,14 @@ Returns the maximum unwind cost (in basis points) that may be charged on a prior
 function setUnwindCostCap(uint16 unwindCostCap_) external virtual
 ```
 
-Set the maximum unwind cost (in basis points) that may be charged on a priority withdrawal.
+Set the unwind cost cap for priority withdrawals
 
-_Only callable by accounts with the VAULT_MANAGER role._
+_Only callable by the VAULT_MANAGER role
+Unwind cost cap is in basis points (10000 = 100%)_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| unwindCostCap_ | uint16 | The new unwind cost cap in basis points (10000 = 100%). |
+| unwindCostCap_ | uint16 | The new unwind cost cap in basis points |
 

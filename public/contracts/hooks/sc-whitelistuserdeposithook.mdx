@@ -6,7 +6,7 @@ module: 'periphery'
 scope: 'hooks'
 source_refs:
   - 'src/periphery/hooks/WhitelistUserDepositHook.sol'
-last_reviewed: '2026-05-15'
+last_reviewed: '2026-05-22'
 mechanics:
   - 'permissioned-access'
   - 'vault-hooks'
@@ -14,10 +14,8 @@ mechanics:
 
 ## WhitelistUserDepositHook
 
-Extends `UserDepositCapHook` with an additional whitelist gate. The
-        pre-deposit and pre-mint hooks revert when the deposit-initiating
-        `sender` is not on the whitelist; otherwise the parent contract's
-        per-user deposit cap is then applied.
+Hook that extends `UserDepositCapHook` with an explicit allowlist; deposits and mints
+        revert unless the caller (sender) is whitelisted, in addition to the per-user cap check.
 
 ### NotWhitelisted
 
@@ -25,7 +23,7 @@ Extends `UserDepositCapHook` with an additional whitelist gate. The
 error NotWhitelisted(address user)
 ```
 
-_Fires when the deposit-initiating sender is not on the whitelist._
+_Reverts when a non-whitelisted address attempts to deposit or mint._
 
 ### WhitelistSet
 
@@ -39,8 +37,8 @@ Emitted when a user's whitelist status changes.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| user | address | Address whose status was updated. |
-| isWhitelisted | bool | New whitelist status. |
+| user | address | The address whose status changed. |
+| isWhitelisted | bool | The new whitelist status (`true` = whitelisted). |
 
 ### whitelist
 
@@ -48,21 +46,20 @@ Emitted when a user's whitelist status changes.
 mapping(address => bool) whitelist
 ```
 
-Maps each user address to whether they are currently whitelisted.
-
 ### constructor
 
 ```solidity
-constructor(address owner) public
+constructor(address owner_, address vault_) public
 ```
 
-Deploys the hook and forwards ownership to the parent constructor.
+Deploys the whitelist hook bound to a vault, inheriting the per-user deposit cap.
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| owner | address | The owner address that can manage caps and whitelist entries. |
+| owner_ | address | The owner authorized to manage the whitelist and the deposit cap. |
+| vault_ | address | The vault contract that will invoke this hook. |
 
 ### whitelistUsers
 
@@ -70,13 +67,13 @@ Deploys the hook and forwards ownership to the parent constructor.
 function whitelistUsers(address[] users) external
 ```
 
-Adds one or more users to the whitelist. Owner only.
+Adds one or more users to the whitelist.
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| users | address[] | Addresses to whitelist. |
+| users | address[] | The addresses to grant whitelist access to. |
 
 ### unWhitelistUsers
 
@@ -84,13 +81,13 @@ Adds one or more users to the whitelist. Owner only.
 function unWhitelistUsers(address[] users) external
 ```
 
-Removes one or more users from the whitelist. Owner only.
+Removes one or more users from the whitelist.
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| users | address[] | Addresses to un-whitelist. |
+| users | address[] | The addresses to revoke whitelist access from. |
 
 ### isWhitelisted
 
@@ -98,56 +95,55 @@ Removes one or more users from the whitelist. Owner only.
 function isWhitelisted(address user) external view returns (bool)
 ```
 
-Returns whether the supplied address is currently whitelisted.
+Returns whether an address is currently whitelisted.
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| user | address | Address to query. |
+| user | address | The address to query. |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | bool | True when the user is whitelisted, false otherwise. |
+| [0] | bool | Whether `user` is whitelisted. |
 
 ### preDeposit
 
 ```solidity
-function preDeposit(address sender, uint256 assets, address receiver, uint256 totalAssets) public view
+function preDeposit(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) public view
 ```
 
-Pre-deposit hook. Reverts when `sender` is not whitelisted, then
-        enforces the parent contract's per-user deposit cap.
+Pre-deposit hook - validates deposit against whitelist and per user limit
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| sender | address | The address initiating the deposit at the vault. |
-| assets | uint256 | The amount of assets being deposited. |
-| receiver | address | The address that will receive the vault shares. |
-| totalAssets | uint256 | The total assets in the vault before this deposit. |
+| sender | address | vault address |
+| assets | uint256 | The amount of assets being deposited |
+| shares | uint256 | The amount of shares the deposit is expected to mint |
+| receiver | address | The address that will receive the vault shares |
+| totalAssets | uint256 | The total assets in the vault before this deposit |
 
 ### preMint
 
 ```solidity
-function preMint(address sender, uint256 shares, address receiver, uint256 totalAssets) public view
+function preMint(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) public view
 ```
 
-Pre-mint hook. Reverts when `sender` is not whitelisted, then
-        enforces the parent contract's per-user deposit cap on the
-        asset-equivalent of the mint.
+Pre-mint hook - validates mint against user whitelist and deposit limit
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| sender | address | The address initiating the mint at the vault. |
-| shares | uint256 | The amount of shares being minted. |
-| receiver | address | The address that will receive the vault shares. |
-| totalAssets | uint256 | The total assets in the vault before this mint. |
+| sender | address | vault address |
+| assets | uint256 | The amount of assets to be deposited |
+| shares | uint256 | The amount of shares being minted |
+| receiver | address | The address that will receive the vault shares |
+| totalAssets | uint256 | The total assets in the vault before this mint |
 
 ### _whitelistUser
 

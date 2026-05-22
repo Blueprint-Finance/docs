@@ -1,0 +1,423 @@
+---
+id: 'sc-depositlockwithfeehook'
+title: 'DepositLockWithFeeHook'
+audience: 'public'
+module: 'periphery'
+scope: 'hooks'
+source_refs:
+  - 'src/periphery/hooks/DepositLockWithFeeHook.sol'
+last_reviewed: '2026-05-22'
+mechanics:
+  - 'vault-hooks'
+---
+
+## DepositLockWithFeeHook
+
+Extends DepositLockHook: users may release locked shares before expiry by paying a
+        time-decaying fee denominated in vault shares. Locks are ordered by `unlockTimestamp`
+        (not by deposit chronology) — see `DepositLockHook` for details on sorted insertion.
+
+_## Fee model (linear decay per lock)
+
+       fee = ⌈shares × maxEarlyUnlockFee × timeRemaining / (duration × FEE_BASIS)⌉
+
+     where `timeRemaining = unlockTimestamp − block.timestamp` and `duration` is the snapshot
+     stored at lock creation. As the lock approaches natural expiry, `timeRemaining` → 0 and
+     the fee decays linearly to zero. Ceiling rounding slightly favors the fee recipient.
+
+     ## Earliest-expiring-first consumption
+
+     `earlyUnlock` consumes locks front-to-back. Because the underlying array is sorted by
+     `unlockTimestamp` (maintained by `DepositLockHook._appendLock`), this processes
+     earliest-expiring locks first. When all locks share the same `duration` this is
+     fee-optimal; when `depositLockDuration` has been changed, it provides a practical
+     heuristic (see the fee-optimal ordering caveat on `earlyUnlock`). A lock may be
+     partially consumed; its `shares` field is reduced in-place. Fully consumed locks are
+     removed via `_removePrefix` (defined in `DepositLockHook`).
+
+     ## Fee collection
+
+     Fee shares are collected from `msg.sender` via `VAULT.transferFrom(user, feeRecipient, fee)`.
+     The caller must have approved this contract for vault shares beforehand. The transfer
+     triggers the vault's transfer hooks; since `_totalLocked` is already reduced before the
+     external call (CEI), the hook's own `preTransfer` enforcement will pass.
+
+     ## Minimum lock period
+
+     `minLockPeriod` blocks early unlock during an initial window after lock creation.
+     Creation time is derived as `unlockTimestamp − duration`. If the first lock to be
+     consumed is still within `minLockPeriod`, the call reverts before reaching later
+     locks — even if those later locks are themselves eligible. Natural expiry is unaffected.
+
+     `minLockPeriod` is a global parameter applied at unlock time. If updated after locks
+     have already been created, older locks with shorter stored durations may become
+     non-early-unlockable until natural expiry.
+
+     ## Edge cases
+
+       - `earlyUnlockEnabled == false`: `earlyUnlock` reverts. Toggle via `setEarlyUnlockEnabled`.
+       - `maxEarlyUnlockFee == 0`: shares are unlocked with zero fee (free early exit).
+         `feeRecipient` is not required in this case.
+       - `feeRecipient == address(0)` (with `maxEarlyUnlockFee > 0`): `earlyUnlock` reverts.
+       - `lock.duration == 0`: no lock is created when `depositLockDuration == 0`
+         (`_appendLock` returns early), so division by zero in fee computation cannot occur._
+
+### ZeroSharesRequested
+
+```solidity
+error ZeroSharesRequested()
+```
+
+_Reverts when `earlyUnlock` is called with zero shares._
+
+### NoFeeRecipient
+
+```solidity
+error NoFeeRecipient()
+```
+
+_Reverts when an early unlock charges a fee but `feeRecipient` is unset._
+
+### EarlyUnlockDisabled
+
+```solidity
+error EarlyUnlockDisabled()
+```
+
+_Reverts when `earlyUnlock` is called while the feature is disabled._
+
+### InsufficientLockedShares
+
+```solidity
+error InsufficientLockedShares(address user, uint256 requested, uint256 available)
+```
+
+_Reverts when the caller does not have enough locked shares to satisfy the request._
+
+### LockWithinMinPeriod
+
+```solidity
+error LockWithinMinPeriod(address user, uint256 lockIndex, uint256 timeUntilEligible)
+```
+
+_Reverts when a lock being consumed is still within its `minLockPeriod` window._
+
+### MaxFeeExceedsBasis
+
+```solidity
+error MaxFeeExceedsBasis(uint256 fee, uint256 basis)
+```
+
+_Reverts when a configured fee exceeds `FEE_BASIS` (100%)._
+
+### MinLockPeriodExceedsDuration
+
+```solidity
+error MinLockPeriodExceedsDuration(uint64 minPeriod, uint64 duration)
+```
+
+_Reverts when `minLockPeriod` would equal or exceed the active `depositLockDuration`._
+
+### EarlyUnlock
+
+```solidity
+event EarlyUnlock(address user, uint256 sharesUnlocked, uint256 feeShares)
+```
+
+Emitted when a user releases locked shares early.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The user that performed the early unlock. |
+| sharesUnlocked | uint256 | The amount of shares released. |
+| feeShares | uint256 | The amount of vault shares paid as fee. |
+
+### MaxEarlyUnlockFeeSet
+
+```solidity
+event MaxEarlyUnlockFeeSet(uint256 previousFee, uint256 newFee)
+```
+
+Emitted when the maximum early-unlock fee is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| previousFee | uint256 | The previous fee, in basis points. |
+| newFee | uint256 | The new fee, in basis points. |
+
+### MinLockPeriodSet
+
+```solidity
+event MinLockPeriodSet(uint64 previousPeriod, uint64 newPeriod)
+```
+
+Emitted when the minimum lock period is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| previousPeriod | uint64 | The previous minimum lock period, in seconds. |
+| newPeriod | uint64 | The new minimum lock period, in seconds. |
+
+### FeeRecipientSet
+
+```solidity
+event FeeRecipientSet(address previousRecipient, address newRecipient)
+```
+
+Emitted when the fee recipient is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| previousRecipient | address | The previous fee recipient address. |
+| newRecipient | address | The new fee recipient address. |
+
+### EarlyUnlockEnabledSet
+
+```solidity
+event EarlyUnlockEnabledSet(bool enabled)
+```
+
+Emitted when the early-unlock feature is enabled or disabled.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| enabled | bool | The new enabled state. |
+
+### FEE_BASIS
+
+```solidity
+uint256 FEE_BASIS
+```
+
+### maxEarlyUnlockFee
+
+```solidity
+uint256 maxEarlyUnlockFee
+```
+
+Maximum fee in basis points (e.g. 500 = 5%). Applied at full remaining lock time.
+
+### minLockPeriod
+
+```solidity
+uint64 minLockPeriod
+```
+
+Seconds after lock creation before early unlock is allowed. 0 = no restriction.
+
+### feeRecipient
+
+```solidity
+address feeRecipient
+```
+
+Receives fee shares on early unlock. `address(0)` disables early unlock when `maxEarlyUnlockFee > 0`.
+
+### earlyUnlockEnabled
+
+```solidity
+bool earlyUnlockEnabled
+```
+
+Whether early unlock is enabled. When `false`, `earlyUnlock` reverts.
+
+### constructor
+
+```solidity
+constructor(address owner_, address vault_, uint64 initialLockDuration_, uint256 maxFee_, uint64 minLockPeriod_, address feeRecipient_) public
+```
+
+Deploys the early-unlock-with-fee hook bound to a vault.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| owner_ | address | The owner authorized to manage hook configuration. |
+| vault_ | address | The vault contract that will invoke this hook. |
+| initialLockDuration_ | uint64 | Initial lock duration applied to new deposits, in seconds. |
+| maxFee_ | uint256 | Maximum early-unlock fee in basis points (must be `<= FEE_BASIS`). |
+| minLockPeriod_ | uint64 | Initial minimum lock period before early unlock is allowed, in seconds. |
+| feeRecipient_ | address | Initial fee recipient address; required when `maxFee_ > 0` at unlock time. |
+
+### setMaxEarlyUnlockFee
+
+```solidity
+function setMaxEarlyUnlockFee(uint256 newFee) external
+```
+
+Updates the maximum early-unlock fee.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newFee | uint256 | The new maximum fee, in basis points (must be `<= FEE_BASIS`). |
+
+### setMinLockPeriod
+
+```solidity
+function setMinLockPeriod(uint64 newPeriod) external
+```
+
+Updates `minLockPeriod`.
+
+_The cross-parameter check `newPeriod >= depositLockDuration` is only enforced when
+     `depositLockDuration > 0`. While `depositLockDuration == 0` (locking disabled),
+     `minLockPeriod` is a no-op on lock creation, so any value is accepted.
+
+     **Re-enabling locking requires an explicit ordering when `minLockPeriod > 0`:**
+     if `depositLockDuration` is currently `0` and `minLockPeriod > 0`, a subsequent
+     `setDepositLockDuration(newDuration)` with `newDuration <= minLockPeriod` will revert
+     with `MinLockPeriodExceedsDuration`. To re-enable locking in that state, first call
+     `setMinLockPeriod(0)` (or to a value strictly less than the intended `newDuration`),
+     then `setDepositLockDuration(newDuration)`, then optionally `setMinLockPeriod` again._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newPeriod | uint64 | The new minimum lock period before early unlock is allowed, in seconds. |
+
+### setDepositLockDuration
+
+```solidity
+function setDepositLockDuration(uint64 newDuration) external
+```
+
+Overrides base to enforce `minLockPeriod < newDuration` when both are non-zero.
+
+_See `setMinLockPeriod` for the re-enable-after-disable ordering constraint: if
+     `depositLockDuration == 0` and `minLockPeriod > 0`, this call will revert with
+     `MinLockPeriodExceedsDuration` for any `newDuration <= minLockPeriod`. Reset
+     `minLockPeriod` first in that case._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newDuration | uint64 | The new lock duration applied to subsequent deposits/mints, in seconds. |
+
+### setFeeRecipient
+
+```solidity
+function setFeeRecipient(address newRecipient) external
+```
+
+Updates the fee recipient that receives early-unlock fees.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newRecipient | address | The new fee recipient address. |
+
+### setEarlyUnlockEnabled
+
+```solidity
+function setEarlyUnlockEnabled(bool enabled) external
+```
+
+Enables or disables the early-unlock feature.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| enabled | bool | The new enabled state; when `false`, `earlyUnlock` reverts. |
+
+### earlyUnlock
+
+```solidity
+function earlyUnlock(uint256 sharesToUnlock) external returns (uint256 feeShares)
+```
+
+Unlock `sharesToUnlock` locked shares before their natural expiry, paying a
+        time-decaying fee in vault shares. Locks are consumed earliest-expiring first; partial consumption
+        is supported.
+
+_Caller must have approved this contract for vault shares (for fee transfer).
+     Reverts if `feeRecipient == address(0)`, if the caller has insufficient locked
+     shares, or if any consumed lock is still within `minLockPeriod`.
+
+     **Fee-optimal ordering caveat:** The strictly optimal consumption order would sort
+     locks by fee rate (`timeRemaining / duration`) at call time, not by `unlockTimestamp`.
+     These orders may diverge when `depositLockDuration` has been changed, producing locks
+     with different durations. Sorting by fee rate is impractical on-chain because the
+     ranking changes with every block. The current earliest-expiring-first order is a
+     practical heuristic that can be maintained cheaply in storage via sorted insertion
+     in `_appendLock`._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sharesToUnlock | uint256 | Number of *locked* shares to release. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| feeShares | uint256 | Total fee (in vault shares) charged and transferred to `feeRecipient`. |
+
+### previewEarlyUnlock
+
+```solidity
+function previewEarlyUnlock(address user, uint256 sharesToUnlock) external view returns (uint256 feeShares)
+```
+
+Simulates `earlyUnlock` and returns the fee that would be charged.
+
+_O(n) over the lock queue. Reverts on the same conditions as `earlyUnlock`
+     (insufficient shares, min period violation). Accounts for expired-but-not-yet-cleaned
+     locks by skipping them.
+     NOTE: intended for off-chain / UI reads. Gas cost scales linearly with the number
+     of locks; should not be used in state-changing on-chain logic._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The address whose lock queue to simulate. |
+| sharesToUnlock | uint256 | Number of locked shares to simulate releasing. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| feeShares | uint256 | The fee, in vault shares, that the simulated unlock would charge. |
+
+### _previewFee
+
+```solidity
+function _previewFee(struct DepositLockHook.Lock[] locks, uint256 sharesToUnlock, uint256 now_, address user) internal view returns (uint256 totalFee)
+```
+
+_Read-only counterpart of `_consumeLocks`. Skips the expired prefix (sorted: all
+     expired entries precede active ones) and computes fees for active locks.
+     `activeIndex` tracks the index for `LockWithinMinPeriod` errors, consistent with
+     `_consumeLocks`'s post-cleanup numbering._
+
+### _consumeLocks
+
+```solidity
+function _consumeLocks(address user, uint256 sharesToUnlock) internal returns (uint256 totalFee, uint256 fullyConsumed)
+```
+
+_Iterates locks front-to-back (earliest-expiring first, since the array is sorted by
+     `unlockTimestamp`). Calculates per-lock fee, reduces partially consumed locks
+     in-place, and counts fully consumed entries.
+     REQUIRE: `_cleanupExpired(user)` must be called before this function.
+     `LockWithinMinPeriod` index is relative to the first active lock (starts at 0
+     post-cleanup), consistent with `_previewFee`'s `activeIndex`._
+

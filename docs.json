@@ -620,6 +620,8 @@
               {
                 "group": "Hooks",
                 "pages": [
+                  "public/contracts/hooks/sc-depositlockhook",
+                  "public/contracts/hooks/sc-depositlockwithfeehook",
                   "public/contracts/hooks/sc-hookcontainer",
                   "public/contracts/hooks/sc-userdepositcaphook",
                   "public/contracts/hooks/sc-whitelistuserdeposithook"

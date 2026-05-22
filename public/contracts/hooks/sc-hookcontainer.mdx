@@ -6,28 +6,30 @@ module: 'periphery'
 scope: 'hooks'
 source_refs:
   - 'src/periphery/hooks/HookContainer.sol'
-last_reviewed: '2026-05-15'
+last_reviewed: '2026-05-22'
 mechanics:
   - 'vault-hooks'
 ---
 
 ## HookContainer
 
-Container that aggregates multiple `IHook` implementations into a single
-        hook the vault can call. Forwards every pre/post hook call to each
-        registered sub-hook sequentially; a revert from any sub-hook aborts the
-        enclosing vault operation. Uses ERC-7201 namespaced storage for isolation
-        and `AccessControlDefaultAdminRulesEnumerable` for role-based admin.
+Container contract that combines multiple independent hook contracts into one
 
-_Hook order is NOT guaranteed to remain stable: `addHook` appends, but
-     `removeHook` uses swap-and-pop. Sub-hooks must be independently valid and
-     must not rely on a specific execution ordering.
-Trust model: this container implicitly trusts all registered hook code.
-     Sub-hooks should be stateless validators, should not enable callbacks or
-     arbitrary code execution, and should be thoroughly audited before
-     registration. The container intentionally has no reentrancy protection and
-     performs no caller verification — hook entry points are publicly callable.
-     A malicious or buggy sub-hook can block all vault operations._
+_Implements IHook interface and forwards all hook calls to registered sub-hooks sequentially.
+     Uses ERC-7201 namespaced storage pattern for storage isolation.
+     All sub-hooks must pass (no reverts) for the container hook to succeed.
+Uses AccessControlDefaultAdminRulesEnumerable for role-based access control with
+     default admin rules and enumeration support. HOOK_MANAGER_ROLE can add/remove sub-hooks.
+IMPORTANT - Hook Order: The execution order of hooks is NOT guaranteed to remain stable.
+     Adding hooks appends to the end, but removing hooks uses swap-and-pop which changes order.
+     Do not rely on hook execution order for correctness. Hooks should be independently valid.
+IMPORTANT - Trust Model: This container implicitly trusts all registered hook code.
+     - Hooks should be stateless validators (apart from configuration storage)
+     - Hooks should not allow callbacks or arbitrary code execution
+     - This container intentionally provides NO reentrancy protection by design
+     - All hook forwarding functions are restricted to calls from the vault via `onlyVault`
+     - A malicious or buggy hook can block all vault operations
+     - Thoroughly audit all hooks before registration_
 
 ### MAX_HOOKS
 
@@ -35,10 +37,9 @@ Trust model: this container implicitly trusts all registered hook code.
 uint256 MAX_HOOKS
 ```
 
-Maximum number of hooks that can be registered in the container.
+Maximum number of hooks that can be registered
 
-_Adding more hooks is a bad practice; this constant limits gas costs for multi-hook
-     execution and creates a soft protection against DOS caused by hook misconfiguration._
+_adding more hooks is a bad practice, this constant limits potential gas costs for multi-hook execution, creates a soft protection against DOS issues caused by hook misconfiguration._
 
 ### HookAlreadyRegistered
 
@@ -46,7 +47,7 @@ _Adding more hooks is a bad practice; this constant limits gas costs for multi-h
 error HookAlreadyRegistered(address hook)
 ```
 
-_Fires when `addHook` is called with an address already in the registry._
+_Reverts when `addHook` is called with a hook already in the registry._
 
 ### HookNotRegistered
 
@@ -54,7 +55,7 @@ _Fires when `addHook` is called with an address already in the registry._
 error HookNotRegistered(address hook)
 ```
 
-_Fires when `removeHook` is called with an address not in the registry._
+_Reverts when `removeHook` is called with a hook not in the registry._
 
 ### ZeroAddress
 
@@ -62,7 +63,7 @@ _Fires when `removeHook` is called with an address not in the registry._
 error ZeroAddress()
 ```
 
-_Fires when a zero address is supplied to `addHook`._
+_Reverts when an address argument is the zero address._
 
 ### MaxHooksExceeded
 
@@ -70,7 +71,7 @@ _Fires when a zero address is supplied to `addHook`._
 error MaxHooksExceeded()
 ```
 
-_Fires when `addHook` would exceed `MAX_HOOKS` registered entries._
+_Reverts when adding a hook would exceed `MAX_HOOKS`._
 
 ### SelfRegistrationNotAllowed
 
@@ -78,7 +79,23 @@ _Fires when `addHook` would exceed `MAX_HOOKS` registered entries._
 error SelfRegistrationNotAllowed()
 ```
 
-_Fires when the container is asked to register itself as a sub-hook._
+_Reverts when the container is asked to register itself as a sub-hook._
+
+### HookVaultMismatch
+
+```solidity
+error HookVaultMismatch(address hook)
+```
+
+_Reverts when the candidate hook's `vault()` does not match this container's vault._
+
+### OnlyVault
+
+```solidity
+error OnlyVault()
+```
+
+_Reverts when a forwarding hook entry point is called by any address other than `VAULT`._
 
 ### HookAdded
 
@@ -86,13 +103,13 @@ _Fires when the container is asked to register itself as a sub-hook._
 event HookAdded(address hook)
 ```
 
-Emitted when a new hook is registered with the container.
+Emitted when a sub-hook is added to the container.
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| hook | address | Address of the newly registered hook. |
+| hook | address | The address of the registered hook. |
 
 ### HookRemoved
 
@@ -100,28 +117,58 @@ Emitted when a new hook is registered with the container.
 event HookRemoved(address hook)
 ```
 
-Emitted when a hook is removed from the container.
+Emitted when a sub-hook is removed from the container.
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| hook | address | Address of the removed hook. |
+| hook | address | The address of the removed hook. |
+
+### VAULT
+
+```solidity
+address VAULT
+```
+
+The vault this hook container is associated with
+
+### onlyVault
+
+```solidity
+modifier onlyVault()
+```
 
 ### constructor
 
 ```solidity
-constructor(address _admin) public
+constructor(address _admin, address _vault) public
 ```
 
-Deploys the hook container and grants `DEFAULT_ADMIN_ROLE` to `_admin`.
-        `HOOK_MANAGER_ROLE` is admined by `DEFAULT_ADMIN_ROLE`.
+Initializes the hook container with access control
+
+__admin zero address check is handled by AccessControlDefaultAdminRulesEnumerable constructor_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _admin | address | The admin address that can manage roles. Zero-address check is               handled by the `AccessControlDefaultAdminRulesEnumerable` constructor. |
+| _admin | address | The admin address that can manage roles |
+| _vault | address | The vault address this container is associated with |
+
+### vault
+
+```solidity
+function vault() external view returns (address)
+```
+
+Returns the vault address this container is associated with.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The vault address bound at construction. |
 
 ### addHook
 
@@ -129,10 +176,10 @@ Deploys the hook container and grants `DEFAULT_ADMIN_ROLE` to `_admin`.
 function addHook(address _hook) external
 ```
 
-Registers a new sub-hook with the container. Callable only by
-        accounts with `HOOK_MANAGER_ROLE`.
+Adds a hook to the container
 
-_This function assumes `_hook` implements the `IHook` interface correctly.
+_Only callable by accounts with HOOK_MANAGER_ROLE
+IMPORTANT: This function assumes _hook implements IHook interface correctly.
      No interface validation is performed. Adding an invalid hook will cause
      all vault operations to revert. Callers must verify hook compatibility externally._
 
@@ -140,7 +187,7 @@ _This function assumes `_hook` implements the `IHook` interface correctly.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _hook | address | The address of the hook contract to register. |
+| _hook | address | The address of the hook contract to add |
 
 ### removeHook
 
@@ -148,15 +195,15 @@ _This function assumes `_hook` implements the `IHook` interface correctly.
 function removeHook(address _hook) external
 ```
 
-Removes a sub-hook from the container. Callable only by accounts
-        with `HOOK_MANAGER_ROLE`. Order of remaining hooks may change
-        because removal uses swap-and-pop.
+Removes a hook from the container
+
+_Only callable by accounts with HOOK_MANAGER_ROLE_
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _hook | address | The address of the hook contract to remove. |
+| _hook | address | The address of the hook contract to remove |
 
 ### getHooksCount
 
@@ -164,13 +211,13 @@ Removes a sub-hook from the container. Callable only by accounts
 function getHooksCount() external view returns (uint256)
 ```
 
-Returns the number of registered sub-hooks.
+Returns the number of registered hooks
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The number of hooks. |
+| [0] | uint256 | The number of hooks |
 
 ### getAllHooks
 
@@ -178,13 +225,13 @@ Returns the number of registered sub-hooks.
 function getAllHooks() external view returns (address[])
 ```
 
-Returns the addresses of every registered sub-hook.
+Returns all registered hook addresses
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | address[] | Array of hook addresses. |
+| [0] | address[] | Array of hook addresses |
 
 ### getHookAt
 
@@ -192,19 +239,19 @@ Returns the addresses of every registered sub-hook.
 function getHookAt(uint256 _index) external view returns (address)
 ```
 
-Returns the hook address at a specific index in the registry.
+Returns the hook address at a specific index
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _index | uint256 | The index of the hook. |
+| _index | uint256 | The index of the hook |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | address | The hook address. |
+| [0] | address | The hook address |
 
 ### isHookRegistered
 
@@ -212,24 +259,24 @@ Returns the hook address at a specific index in the registry.
 function isHookRegistered(address _hook) external view returns (bool)
 ```
 
-Checks whether a hook is currently registered in the container.
+Checks if a hook is registered in the container
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _hook | address | The hook address to check. |
+| _hook | address | The hook address to check |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | bool | True if the hook is registered, false otherwise. |
+| [0] | bool | True if the hook is registered |
 
 ### preDeposit
 
 ```solidity
-function preDeposit(address sender, uint256 assets, address receiver, uint256 totalAssets) external
+function preDeposit(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) external
 ```
 
 Pre-deposit hook - forwards to all registered hooks
@@ -240,13 +287,14 @@ Pre-deposit hook - forwards to all registered hooks
 | ---- | ---- | ----------- |
 | sender | address | The address initiating the deposit |
 | assets | uint256 | The amount of assets being deposited |
+| shares | uint256 | The amount of shares to be minted |
 | receiver | address | The address that will receive the vault shares |
 | totalAssets | uint256 | The total assets in the vault before this deposit |
 
 ### preMint
 
 ```solidity
-function preMint(address sender, uint256 shares, address receiver, uint256 totalAssets) external
+function preMint(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) external
 ```
 
 Pre-mint hook - forwards to all registered hooks
@@ -256,6 +304,7 @@ Pre-mint hook - forwards to all registered hooks
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | sender | address | The address initiating the mint |
+| assets | uint256 | The amount of assets to be deposited |
 | shares | uint256 | The amount of shares being minted |
 | receiver | address | The address that will receive the vault shares |
 | totalAssets | uint256 | The total assets in the vault before this mint |
@@ -263,7 +312,7 @@ Pre-mint hook - forwards to all registered hooks
 ### preWithdraw
 
 ```solidity
-function preWithdraw(address sender, uint256 assets, address receiver, address owner, uint256 totalAssets) external
+function preWithdraw(address sender, uint256 assets, uint256 shares, address receiver, address owner, uint256 totalAssets) external
 ```
 
 Pre-withdraw hook - forwards to all registered hooks
@@ -274,6 +323,7 @@ Pre-withdraw hook - forwards to all registered hooks
 | ---- | ---- | ----------- |
 | sender | address | The address initiating the withdrawal |
 | assets | uint256 | The amount of assets being withdrawn |
+| shares | uint256 | The amount of shares to be burned |
 | receiver | address | The address that will receive the assets |
 | owner | address | The owner of the shares being redeemed |
 | totalAssets | uint256 | The total assets in the vault before this withdrawal |
@@ -281,7 +331,7 @@ Pre-withdraw hook - forwards to all registered hooks
 ### preRedeem
 
 ```solidity
-function preRedeem(address sender, uint256 shares, address receiver, address owner, uint256 totalAssets) external
+function preRedeem(address sender, uint256 assets, uint256 shares, address receiver, address owner, uint256 totalAssets) external
 ```
 
 Pre-redeem hook - forwards to all registered hooks
@@ -291,6 +341,7 @@ Pre-redeem hook - forwards to all registered hooks
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | sender | address | The address initiating the redemption |
+| assets | uint256 | The amount of assets to be withdrawn |
 | shares | uint256 | The amount of shares being redeemed |
 | receiver | address | The address that will receive the assets |
 | owner | address | The owner of the shares being redeemed |
@@ -367,4 +418,38 @@ Post-redeem hook - forwards to all registered hooks
 | shares | uint256 | The amount of shares burned |
 | receiver | address | The address that received the assets |
 | totalAssets | uint256 | The total assets in the vault after this redemption |
+
+### preTransfer
+
+```solidity
+function preTransfer(address sender, address from, address to, uint256 shares) external
+```
+
+Pre-transfer hook - forwards to all registered hooks
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The address initiating the transfer (msg.sender) |
+| from | address | The address sending the shares |
+| to | address | The address receiving the shares |
+| shares | uint256 | The amount of shares being transferred |
+
+### postTransfer
+
+```solidity
+function postTransfer(address sender, address from, address to, uint256 shares) external
+```
+
+Post-transfer hook - forwards to all registered hooks
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The address that initiated the transfer (msg.sender) |
+| from | address | The address that sent the shares |
+| to | address | The address that received the shares |
+| shares | uint256 | The amount of shares transferred |
 

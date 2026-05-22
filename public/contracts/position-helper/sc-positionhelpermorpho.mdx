@@ -6,7 +6,7 @@ module: 'periphery'
 scope: 'position-helper'
 source_refs:
   - 'src/periphery/positionhelper/PositionHelperMorpho.sol'
-last_reviewed: '2026-05-15'
+last_reviewed: '2026-05-22'
 mechanics:
   - 'lending-integration'
 ---
@@ -228,7 +228,7 @@ _Repays `borrowAmount` of debt for positionOwner at Morpho.
 ### getPosition
 
 ```solidity
-function getPosition() public view returns (uint256 collateralAmount, uint256 debtAmount)
+function getPosition() public view returns (uint256, uint256)
 ```
 
 Returns the current collateral and debt balances at the lender.
@@ -237,8 +237,8 @@ Returns the current collateral and debt balances at the lender.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| collateralAmount | uint256 | Collateral balance in collateral token units. |
-| debtAmount | uint256 | Outstanding debt in borrow token units. |
+| [0] | uint256 | Collateral balance in collateral token units. |
+| [1] | uint256 | Outstanding debt in borrow token units. |
 
 ### getCollateralAmount
 

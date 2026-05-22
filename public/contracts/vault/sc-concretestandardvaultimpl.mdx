@@ -6,7 +6,7 @@ module: 'core'
 scope: 'vault'
 source_refs:
   - 'src/implementation/ConcreteStandardVaultImpl.sol'
-last_reviewed: '2026-05-17'
+last_reviewed: '2026-05-22'
 mechanics:
   - 'deposit-limits'
   - 'strategy-allocation'
@@ -79,17 +79,21 @@ Disables initializers on the implementation contract and records the factory add
 function allocate(bytes data) public virtual
 ```
 
-Execute a batch of allocation and deallocation operations across vault strategies.
+Executes fund allocation and deallocation operations across multiple strategies.
 
-_Triggers a yield accrual before executing the batch so accounting is current.
-     Operations are dispatched via delegatecall into the allocate module to preserve
-     storage context and access control. Only callable by accounts with the ALLOCATOR role._
+_This function performs a yield accrual operation first to update vault accounting,
+     then executes the allocation operations specified in the data parameter.
+All operations are performed via delegatecall to the respective modules to maintain
+     proper storage context and access control.
+Only callable by accounts with the ALLOCATOR role.
+The function automatically triggers yield accrual before allocation to ensure
+        accurate vault accounting prior to fund movements._
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | ABI-encoded `AllocateParams[]` describing each allocation/deallocation leg. |
+| data | bytes | ABI-encoded array of AllocateParams structures containing the allocation             operations to execute. Each param specifies whether to allocate or deallocate             funds, which strategy to use, and any additional data required by the strategy. |
 
 ### accrueYield
 
@@ -97,28 +101,31 @@ _Triggers a yield accrual before executing the batch so accounting is current.
 function accrueYield() external virtual
 ```
 
-Accrue yield and absorb losses across all active strategies, updating internal accounting.
+Accrues yield and accounts for losses across all active strategies in the vault.
 
-_Permissionless — anyone may call. The accrual reads each strategy's reported
-     allocated value, computes the net delta versus tracked allocation, and updates
-     cached totals. No funds are moved; only accounting state changes._
+_This function updates the vault's internal accounting by querying the current
+     value of all strategy allocations and calculating net yield or losses.
+This function can be called by anyone to update the vault's accounting.
+The yield accrual operation does not trigger actual fund movements, it only
+        updates the vault's internal state to reflect current strategy values._
 
-### updateManagementFee
+### configure
 
 ```solidity
-function updateManagementFee(uint16 managementFee_) external
+function configure(enum IConcreteStandardVaultImpl.VaultManagerConfig configType, bytes data) external
 ```
 
-Update the management fee rate charged by the vault.
+Generic vault-manager setter that dispatches based on `configType`.
 
-_Only callable by accounts with the VAULT_MANAGER role. The new fee must not
-     exceed `MAX_MANAGEMENT_FEE`. If `managementFee > 0` the recipient must already be set._
+_Only callable by accounts with VAULT_MANAGER role.
+     Applies nonReentrant + withYieldAccrual guards once for all config types._
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| managementFee_ | uint16 |  |
+| configType | enum IConcreteStandardVaultImpl.VaultManagerConfig | The parameter to configure (see {VaultManagerConfig}). |
+| data | bytes | ABI-encoded value(s) for the chosen config type:   - ManagementFee:    abi.encode(uint16 fee)   - PerformanceFee:   abi.encode(uint16 fee)   - HurdleRateOracle: abi.encode(IHurdleRateOracle oracle)   - DepositLimits:    abi.encode(uint256 minTxDeposit, uint256 maxGlobalDeposit)   - WithdrawLimits:   abi.encode(uint256 minTxWithdraw, uint256 maxTxWithdraw) |
 
 ### updateManagementFeeRecipient
 
@@ -126,9 +133,10 @@ _Only callable by accounts with the VAULT_MANAGER role. The new fee must not
 function updateManagementFeeRecipient(address recipient) external
 ```
 
-Update the management-fee recipient.
+Updates the management fee recipient for the vault.
 
-_Only callable by accounts with the VAULT_MANAGER role. `recipient` cannot be `address(0)`._
+_Only callable by factory owner.
+Recipient cannot be address(0)._
 
 #### Parameters
 
@@ -136,32 +144,16 @@ _Only callable by accounts with the VAULT_MANAGER role. `recipient` cannot be `a
 | ---- | ---- | ----------- |
 | recipient | address | The new management fee recipient address. |
 
-### updatePerformanceFee
-
-```solidity
-function updatePerformanceFee(uint16 performanceFee_) external
-```
-
-Update the performance fee rate charged by the vault.
-
-_Only callable by accounts with the VAULT_MANAGER role. The new fee must not
-     exceed `MAX_PERFORMANCE_FEE`. If `performanceFee > 0` the recipient must already be set._
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| performanceFee_ | uint16 |  |
-
 ### updatePerformanceFeeRecipient
 
 ```solidity
 function updatePerformanceFeeRecipient(address recipient) external
 ```
 
-Update the performance-fee recipient.
+Updates the performance fee recipient for the vault.
 
-_Only callable by accounts with the VAULT_MANAGER role. `recipient` cannot be `address(0)`._
+_Only callable by factory owner.
+Recipient cannot be address(0)._
 
 #### Parameters
 
@@ -169,72 +161,19 @@ _Only callable by accounts with the VAULT_MANAGER role. `recipient` cannot be `a
 | ---- | ---- | ----------- |
 | recipient | address | The new performance fee recipient address. |
 
-### setHurdleRateOracle
-
-```solidity
-function setHurdleRateOracle(contract IHurdleRateOracle oracle) external
-```
-
-Set the hurdle rate oracle used to gate performance fees.
-
-_When non-zero, performance fees are only charged on yield that exceeds the
-     oracle's reported exchange rate. Pass `address(0)` to disable hurdle gating
-     and revert to flat performance fees. Only callable by accounts with the
-     VAULT_MANAGER role._
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| oracle | contract IHurdleRateOracle | The address of the hurdle-rate oracle contract. |
-
 ### getHurdleRateOracle
 
 ```solidity
 function getHurdleRateOracle() external view returns (contract IHurdleRateOracle)
 ```
 
-Returns the currently configured hurdle-rate oracle.
+Returns the current hurdle rate oracle address.
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | contract IHurdleRateOracle | The hurdle-rate oracle contract, or `address(0)` if hurdle gating is disabled. |
-
-### setDepositLimits
-
-```solidity
-function setDepositLimits(uint256 minTxDepositAmount, uint256 maxGlobalDepositAmount) external
-```
-
-Configure per-transaction and global deposit limits.
-
-_Only callable by accounts with the VAULT_MANAGER role._
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| minTxDepositAmount | uint256 | Minimum deposit amount enforced per transaction. |
-| maxGlobalDepositAmount | uint256 | Maximum total assets the vault is allowed to hold across all users. |
-
-### setWithdrawLimits
-
-```solidity
-function setWithdrawLimits(uint256 minTxWithdrawAmount, uint256 maxTxWithdrawAmount) external
-```
-
-Configure per-transaction withdrawal limits.
-
-_Only callable by accounts with the VAULT_MANAGER role._
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| minTxWithdrawAmount | uint256 | Minimum withdraw amount enforced per transaction. |
-| maxTxWithdrawAmount | uint256 | Maximum withdraw amount enforced per transaction. |
+| [0] | contract IHurdleRateOracle | The hurdle rate oracle, or address(0) if not set. |
 
 ### getFeeConfig
 
@@ -248,10 +187,10 @@ Returns the current fee configuration for the vault.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| currentManagementFee | uint16 | The current management fee rate in basis points. |
+| currentManagementFee | uint16 | The current management fee in basis points. |
 | currentManagementFeeRecipient | address | The current management fee recipient address. |
-| currentLastManagementFeeAccrual | uint32 | The unix timestamp of the last management fee accrual. |
-| currentPerformanceFee | uint16 | The current performance fee rate in basis points. |
+| currentLastManagementFeeAccrual | uint32 | The timestamp of the last management fee accrual. |
+| currentPerformanceFee | uint16 | The current performance fee in basis points. |
 | currentPerformanceFeeRecipient | address | The current performance fee recipient address. |
 
 ### deposit
@@ -326,15 +265,16 @@ Those methods should be performed separately._
 function setHooks(struct Hooks hooks) external virtual
 ```
 
-Set the vault's pre/post action hooks.
+Sets the hooks for the vault.
 
-_Only callable by accounts with the HOOK_MANAGER role._
+_This function sets the hooks for the vault.
+Only callable by accounts with the HOOK_MANAGER role._
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| hooks | struct Hooks | The `Hooks` struct containing the target address and flag bitfield. |
+| hooks | struct Hooks | The hooks to set. |
 
 ### getHooks
 
@@ -348,7 +288,7 @@ Returns the current hooks configuration for the vault.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | struct Hooks | The `Hooks` struct containing the target address and flag bitfield. |
+| [0] | struct Hooks | The Hooks struct containing the target address and flags. |
 
 ### setDeallocationOrder
 
@@ -356,17 +296,13 @@ Returns the current hooks configuration for the vault.
 function setDeallocationOrder(address[] order) external virtual
 ```
 
-Overwrites the order in which strategies are deallocated to satisfy withdrawals.
-
-_Caller must hold the `ALLOCATOR` role and the vault must not be paused. Reentrant calls
-     are rejected. The provided order must reference currently registered strategies (see
-     `StateSetterLib.setDeallocationOrder` for validation rules)._
+Overwrites the deallocation order from strategies.
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| order | address[] | Strategy addresses in the order they should be drained on withdrawals. |
+| order | address[] | The new ordered list of strategy addresses used during deallocation. |
 
 ### addStrategy
 
@@ -374,18 +310,16 @@ _Caller must hold the `ALLOCATOR` role and the vault must not be paused. Reentra
 function addStrategy(address strategy) public virtual
 ```
 
-Register a new strategy with the vault.
+Adds a new strategy to the vault.
 
-_The strategy must implement `IStrategyTemplate` and report the same underlying
-     asset as the vault. Only callable by accounts with the STRATEGY_MANAGER role.
-     Emits `StrategyAdded` on success; reverts with `InvalidStrategyAsset` if the
-     assets do not match or `StrategyAlreadyAdded` if the strategy is already registered._
+_The strategy must implement the IStrategyTemplate interface and use the same underlying asset as the vault.
+Only callable by accounts with the STRATEGY_MANAGER role._
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| strategy | address | Address of the strategy contract to add. |
+| strategy | address | The address of the strategy contract to add. Requirements: - The strategy's asset() must match the vault's asset() - The strategy must not already be added to the vault - Caller must have STRATEGY_MANAGER role Emits: - StrategyAdded event Reverts: - InvalidStrategyAsset if strategy uses different asset - StrategyAlreadyAdded if strategy is already in the vault |
 
 ### removeStrategy
 
@@ -393,18 +327,16 @@ _The strategy must implement `IStrategyTemplate` and report the same underlying
 function removeStrategy(address strategy) public virtual
 ```
 
-Remove a previously registered strategy from the vault.
+Removes a strategy from the vault.
 
-_The strategy must have zero allocated funds, unless it is currently `Halted`,
-     in which case it may be removed even with outstanding allocation. Only callable
-     by accounts with the STRATEGY_MANAGER role. Emits `StrategyRemoved` on success;
-     reverts with `StrategyDoesNotExist` if the strategy is unknown._
+_The strategy can only be removed if it has no allocated funds, unless it's in Halted status.
+Only callable by accounts with the STRATEGY_MANAGER role._
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| strategy | address | Address of the strategy contract to remove. |
+| strategy | address | The address of the strategy contract to remove. Requirements: - Strategy must exist in the vault - Strategy must have zero allocated funds OR be in Halted status - Caller must have STRATEGY_MANAGER role Emits: - StrategyRemoved event Reverts: - StrategyDoesNotExist if strategy is not in the vault - Custom revert if strategy has allocated funds and is not in Halted status |
 
 ### toggleStrategyStatus
 
@@ -412,19 +344,18 @@ _The strategy must have zero allocated funds, unless it is currently `Halted`,
 function toggleStrategyStatus(address strategy) public virtual
 ```
 
-Toggle a strategy's status between `Active` and `Halted`.
+Toggles a strategy's status between Active and Halted.
 
-_Halted strategies are skipped during yield accrual and withdrawals; the toggle
-     is the primary mechanism for isolating problematic strategies and reactivating
-     them later. Only callable by accounts with the STRATEGY_MANAGER role. `Inactive`
-     strategies cannot be toggled. Emits `StrategyStatusToggled` on success and
-     reverts with `StrategyDoesNotExist` if the strategy is unknown._
+_This is a safety mechanism to isolate problematic strategies or reactivate previously halted ones.
+Active strategies can receive allocations and participate in yield accrual and withdrawal operations.
+Halted strategies are skipped during yield accrual and withdrawal operations.
+Only callable by accounts with the STRATEGY_MANAGER role._
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| strategy | address | Address of the strategy contract to toggle. |
+| strategy | address | The address of the strategy contract to toggle. Requirements: - Strategy must exist in the vault - Strategy must be either Active or Halted (cannot toggle Inactive strategies) - Caller must have STRATEGY_MANAGER role Emits: - StrategyStatusToggled event Reverts: - StrategyDoesNotExist if strategy is not in the vault |
 
 ### getDeallocationOrder
 
@@ -432,13 +363,13 @@ _Halted strategies are skipped during yield accrual and withdrawals; the toggle
 function getDeallocationOrder() external view returns (address[] order)
 ```
 
-Returns the currently configured strategy deallocation order.
+Returns the deallocation order from strategies.
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| order | address[] | Strategy addresses in the order they will be drained on withdrawals. |
+| order | address[] | The ordered list of strategy addresses used during deallocation. |
 
 ### previewDeposit
 
@@ -446,22 +377,20 @@ Returns the currently configured strategy deallocation order.
 function previewDeposit(uint256 assets) public view virtual returns (uint256)
 ```
 
-Simulates the number of shares a deposit of `assets` would mint at the
-        current exchange rate, before deposit hooks or limits are applied.
-
-_See {IERC4626-previewDeposit}._
+Previews the number of shares minted for a given asset deposit, using projected
+        yield-and-fee accrual so the quote matches what `deposit` would mint at this block.
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| assets | uint256 | Amount of underlying assets to simulate depositing. |
+| assets | uint256 | Amount of asset tokens to simulate depositing. |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The number of vault shares the deposit would mint. |
+| [0] | uint256 | The shares amount the simulated deposit would mint. |
 
 ### previewMint
 
@@ -530,19 +459,22 @@ share price or some other type of condition, meaning the depositor will lose ass
 function previewAccrueYield() public view virtual returns (uint256, uint256)
 ```
 
-Simulate a yield accrual and return the resulting totals.
+Previews the total assets that would be available after accruing yield from all strategies.
 
-_View-only — does not mutate state, move funds, or interact with strategies.
-     Returns what the vault's totals would be if `accrueYield` were executed at the
-     current block (lastTotalAssets + positive yield - losses, and totalSupply +
-     management fee shares that would be minted)._
+_This function simulates the yield accrual operation without actually executing it,
+     providing a view of what the vault's total assets would be after accounting
+     for yield and losses across all active strategies.
+The calculation includes the current lastTotalAssets plus any positive
+     yield minus any losses that would be realized during yield accrual.
+This is a view function that does not modify state or trigger any actual
+     fund movements or strategy interactions._
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The asset total that would be reported after accrual, in the underlying asset. |
-| [1] | uint256 | The share total that would be reported after accrual (`totalSupply` + management fee shares). |
+| [0] | uint256 | The total amount of assets that would be available in the vault after yield accrual,         denominated in the vault's underlying asset token. |
+| [1] | uint256 | The total amount of shares that would be available in the vault after yield accrual,         calculated as current totalSupply + management fee shares. |
 
 ### totalAssets
 
@@ -562,12 +494,20 @@ _Returns the total amount of the underlying asset that is “managed” by Vault
 function maxDeposit(address receiver) public view virtual returns (uint256)
 ```
 
-_Returns the maximum amount of the underlying asset that can be deposited into the Vault for the receiver,
-through a deposit call.
+Returns the maximum asset amount that `receiver` is allowed to deposit, accounting
+        for vault pause state and configured deposit limits after projected yield accrual.
 
-- MUST return a limited value if receiver is subject to some deposit limit.
-- MUST return 2 ** 256 - 1 if there is no limit on the maximum amount of assets that may be deposited.
-- MUST NOT revert._
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| receiver | address | The address that would receive the minted shares. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The maximum depositable asset amount; `0` while the vault is paused. |
 
 ### maxMint
 
@@ -575,10 +515,20 @@ through a deposit call.
 function maxMint(address receiver) public view virtual returns (uint256)
 ```
 
-_Returns the maximum amount of the Vault shares that can be minted for the receiver, through a mint call.
-- MUST return a limited value if receiver is subject to some mint limit.
-- MUST return 2 ** 256 - 1 if there is no limit on the maximum amount of shares that may be minted.
-- MUST NOT revert._
+Returns the maximum share amount that `receiver` is allowed to mint, accounting for
+        vault pause state and configured deposit limits after projected yield accrual.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| receiver | address | The address that would receive the minted shares. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The maximum mintable share amount; `0` while the vault is paused. |
 
 ### _maxMint
 
@@ -635,22 +585,21 @@ function _maxWithdraw(address owner, uint256 totalAssets_, uint256 totalSupply_)
 function getStrategyData(address strategy) public view returns (struct IConcreteStandardVaultImpl.StrategyData)
 ```
 
-Returns the current metadata recorded by the vault for a strategy.
+Retrieves the current data and status information for a specific strategy.
 
-_Returns default values (`Inactive` status, zero allocated) for unknown strategies;
-     does not revert for invalid strategy addresses._
+_This function provides read-only access to strategy metadata including allocation amounts and status._
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| strategy | address | The strategy address to query. |
+| strategy | address | The address of the strategy contract to query. |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | struct IConcreteStandardVaultImpl.StrategyData | The `StrategyData` struct containing the strategy's current status and allocated amount. |
+| [0] | struct IConcreteStandardVaultImpl.StrategyData | The StrategyData struct containing the strategy's current status and allocated amount. Note: - Returns default values (Inactive status, 0 allocated) for non-existent strategies - Does not revert for invalid strategy addresses |
 
 ### getStrategies
 
@@ -658,16 +607,15 @@ _Returns default values (`Inactive` status, zero allocated) for unknown strategi
 function getStrategies() public view returns (address[])
 ```
 
-Returns the addresses of every strategy currently registered with the vault.
+Returns an array of all strategy addresses currently managed by the vault.
 
-_The result includes strategies in any status (Active, Inactive, Halted) and the
-     ordering is unspecified. Returns an empty array if no strategies have been added._
+_This function provides a way to enumerate all active strategies for external integrations and monitoring._
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | address[] | An array of every registered strategy address. |
+| [0] | address[] | An array containing the addresses of all strategies added to the vault. Note: - The returned array includes strategies in all statuses (Active, Inactive, Emergency) - The order of strategies in the array is not guaranteed - Returns an empty array if no strategies have been added |
 
 ### allocateModule
 
@@ -675,13 +623,13 @@ _The result includes strategies in any status (Active, Inactive, Halted) and the
 function allocateModule() public view returns (address)
 ```
 
-Returns the address of the allocate module used by the vault.
+Returns the address of the allocate module.
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | address | The allocate module address. |
+| [0] | address | The address of the allocate module. |
 
 ### getDepositLimits
 
@@ -689,14 +637,14 @@ Returns the address of the allocate module used by the vault.
 function getDepositLimits() public view returns (uint256, uint256)
 ```
 
-Returns the configured deposit limits for the vault.
+Returns the configured deposit limits for this vault.
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The maximum global deposit amount (cap on `totalAssets()`). |
-| [1] | uint256 | The minimum per-transaction deposit amount. |
+| [0] | uint256 | The maximum global deposit amount, in asset terms. |
+| [1] | uint256 | The minimum per-transaction deposit amount, in asset terms. |
 
 ### getWithdrawLimits
 
@@ -704,7 +652,7 @@ Returns the configured deposit limits for the vault.
 function getWithdrawLimits() public view returns (uint256, uint256)
 ```
 
-Returns the configured withdraw limits.
+Returns the withdraw limits.
 
 #### Return Values
 
@@ -719,13 +667,13 @@ Returns the configured withdraw limits.
 function getTotalAllocated() public view returns (uint256)
 ```
 
-Returns the total assets currently tracked as allocated to all strategies.
+Returns the total amount of assets allocated to all strategies.
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The total allocated asset amount across every strategy. |
+| [0] | uint256 | The total amount of assets allocated to all strategies. |
 
 ### cachedTotalAssets
 
@@ -733,16 +681,13 @@ Returns the total assets currently tracked as allocated to all strategies.
 function cachedTotalAssets() public view returns (uint256)
 ```
 
-Returns the cached total assets value, which does not include unaccrued yield.
-
-_`totalAssets()` returns the projected value after yield/fee accrual; this returns the
-     raw cached state. Used by hooks and internal accounting._
+Returns the most recently cached `totalAssets` value (last write to the cached state).
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The current cached `totalAssets` value. |
+| [0] | uint256 | The cached `totalAssets` value (not the live, yield-accrued value). |
 
 ### _initialize
 
@@ -750,19 +695,7 @@ _`totalAssets()` returns the projected value after yield/fee accrual; this retur
 function _initialize(uint64, address, struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration defaultEnforcedVaultConfig, bytes data) internal virtual
 ```
 
-_Initialization function called when a proxy vault is deployed through `ConcreteFactory`.
-     Decodes `data` into (allocateModule, asset, initialVaultManager, name, symbol),
-     validates them, and wires up ERC20/ERC4626/AccessControl/Pausable, fee recipients and
-     vault-specific storage._
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-|  | uint64 |  |
-|  | address |  |
-| defaultEnforcedVaultConfig | struct IDefaultEnforcedVaultConfiguration.DefaultEnforcedVaultConfiguration | Default fee recipients injected by the factory. |
-| data | bytes | ABI-encoded payload: `(address allocateModule, address asset, address initialVaultManager, string name, string symbol)`. |
+_Initialization function that will be called when a proxy vault is deployed through `ConcreteFactory`._
 
 ### _upgrade
 
@@ -770,8 +703,7 @@ _Initialization function called when a proxy vault is deployed through `Concrete
 function _upgrade(uint64, bytes) internal virtual
 ```
 
-_Upgrade hook called when a proxy vault upgrades to this implementation. Migrates any
-     legacy admin roles to the new `ROLE_ADMIN` so post-upgrade permissions remain intact._
+_Upgrade function that will be called when a proxy vault upgrades to this implementation_
 
 ### pause
 
@@ -779,9 +711,9 @@ _Upgrade hook called when a proxy vault upgrades to this implementation. Migrate
 function pause() external
 ```
 
-Pauses the vault, blocking deposits, withdrawals and other guarded operations.
+Pauses the vault, preventing critical operations
 
-_Caller must hold the `PAUSER` role._
+_Only PAUSER role can pause the vault_
 
 ### unpause
 
@@ -789,9 +721,9 @@ _Caller must hold the `PAUSER` role._
 function unpause() external
 ```
 
-Unpauses the vault, re-enabling guarded operations.
+Unpauses the vault, allowing critical operations
 
-_Caller must hold the `PAUSER` role._
+_Only PAUSER role can unpause the vault_
 
 ### _accrueYield
 
@@ -838,6 +770,26 @@ function _withdraw(address caller, address receiver, address owner, uint256 asse
 ```
 
 _Withdraw/redeem common workflow._
+
+### decimals
+
+```solidity
+function decimals() public view virtual returns (uint8)
+```
+
+Returns the number of decimals for the vault's share token, matching the ERC-4626 base.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint8 | The decimals of the vault share token. |
+
+### _update
+
+```solidity
+function _update(address from, address to, uint256 value) internal virtual
+```
 
 ### _deposit
 

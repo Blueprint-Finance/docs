@@ -1,0 +1,728 @@
+---
+id: 'sc-depositlockhook'
+title: 'DepositLockHook'
+audience: 'public'
+module: 'periphery'
+scope: 'hooks'
+source_refs:
+  - 'src/periphery/hooks/DepositLockHook.sol'
+last_reviewed: '2026-05-22'
+mechanics:
+  - 'vault-hooks'
+---
+
+## DepositLockHook
+
+Time-locks vault shares minted via deposit/mint: locked shares cannot be transferred, withdrawn, or redeemed
+        until each lock's unlock timestamp. One hook deployment per vault.
+
+_Shares stay in user wallets; enforcement is via this contract's accounting + vault hooks.
+     Minimum deposit / dust limits are expected to be enforced by the vault (or another hook), not here.
+
+     ## Sorted insertion — locks ordered by `unlockTimestamp`
+
+     `_appendLock` inserts each new lock at its sorted position so that `unlockTimestamp`
+     values are always non-decreasing. When `depositLockDuration` is unchanged or increases,
+     the new lock naturally goes to the end (O(1) fast path). When it decreases, the new
+     lock is inserted earlier via a rightward shift — O(k) SSTOREs where k is the number of
+     entries that expire after the new one, bounded by `maxLocksPerUser`.
+
+     Because the array is always sorted, expired locks form a contiguous prefix, enabling:
+       - Prefix-removal in `_cleanupExpired` (no full scan needed).
+       - Early-break in view functions (`effectiveLockCount`, `_effectiveTotalLocked`).
+       - Earliest-expiring-first consumption in extension contracts (e.g. early unlock).
+
+     ## `_totalLocked` invariant
+
+     `_totalLocked[user]` must equal the sum of `shares` across all entries in `_locks[user]`
+     after `_cleanupExpired` runs. It may overcount until `_cleanupExpired` is executed,
+     because expired-but-not-yet-cleaned locks are still included. It is incremented only in
+     `_appendLock` (lock creation) and decremented only in `_cleanupExpired` (lock expiration).
+     No other code path may modify it. Future extensions (e.g. early unlock with fee) that
+     consume or reduce locks must update `_totalLocked` in lockstep to preserve this invariant.
+
+     ## Cleanup and compaction
+
+     `_cleanupExpired` removes the expired prefix, subtracts their shares from
+     `_totalLocked`, shifts active entries to index 0, and pops excess slots.
+     After it returns, `_locks[user].length` equals the number of active (non-expired)
+     locks sorted by `unlockTimestamp`. Between mutating calls, the stored length may
+     still include expired-but-not-yet-cleaned entries. Cost is O(expired) reads +
+     O(active) writes, bounded by `maxLocksPerUser`.
+
+     ## Config edge cases
+
+       - `depositLockDuration == 0`: no lock is created — shares are immediately free. This is
+         the canonical way to disable locking for new deposits without redeploying the hook.
+       - `hookContainer == address(0)`: only the vault itself can call mutating hooks. This is
+         the default and is a valid configuration (no container).
+
+     ## Part 2 (early unlock fee)
+
+     `Lock.duration` is stored at creation time so a future extension can compute linear fee
+     decay (`fee = shares * maxFee * (unlockTimestamp - now) / duration`) per lock without
+     guessing the duration that applied when the lock was created.
+
+     ## Known limitations
+
+       - **O(n) sorted insertion:** when `depositLockDuration` is reduced, `_appendLock` may
+         shift up to n existing entries to maintain sorted order. Cost is bounded by
+         `maxLocksPerUser` and is O(1) when the duration is unchanged or increases.
+       - **Not ordered by creation time:** locks are ordered by `unlockTimestamp`, not by
+         deposit chronology. Consumers that assume creation-time ordering will see unexpected
+         results after a `depositLockDuration` decrease.
+       - **Cleanup dependency:** `_cleanupExpired` must run before any mutating operation
+         that reads `_totalLocked` or iterates `_locks`. Callers that bypass cleanup will
+         observe stale expired entries and an overcounted `_totalLocked`._
+
+### Lock
+
+```solidity
+struct Lock {
+  uint128 shares;
+  uint64 unlockTimestamp;
+  uint64 duration;
+}
+```
+
+### OnlyVaultOrHookContainer
+
+```solidity
+error OnlyVaultOrHookContainer()
+```
+
+_Reverts when a mutating hook entry point is called by an address other than the vault or the registered hook container._
+
+### ZeroAddress
+
+```solidity
+error ZeroAddress()
+```
+
+_Reverts when an address argument is the zero address._
+
+### ZeroMaxLocks
+
+```solidity
+error ZeroMaxLocks()
+```
+
+_Reverts when `setMaxLocksPerUser` is called with `0`._
+
+### MaxLocksPerUserAboveCeiling
+
+```solidity
+error MaxLocksPerUserAboveCeiling(uint256 requested, uint256 ceiling)
+```
+
+_Reverts when the requested `maxLocksPerUser` exceeds `MAX_LOCKS_PER_USER_CEILING`._
+
+### InsufficientUnlocked
+
+```solidity
+error InsufficientUnlocked(address account, uint256 requested, uint256 unlocked)
+```
+
+_Reverts when a withdraw/transfer would touch locked shares that have not yet unlocked._
+
+### MaxLocksExceeded
+
+```solidity
+error MaxLocksExceeded(address user, uint256 current, uint256 maxLocks)
+```
+
+_Reverts when adding a new lock would exceed `maxLocksPerUser` after cleanup._
+
+### UnlockTimestampOverflow
+
+```solidity
+error UnlockTimestampOverflow()
+```
+
+_Reverts when `block.timestamp + depositLockDuration` does not fit in `uint64`._
+
+### SharesOverflow
+
+```solidity
+error SharesOverflow()
+```
+
+_Reverts when the shares amount being locked does not fit in `uint128`._
+
+### DepositLockDurationSet
+
+```solidity
+event DepositLockDurationSet(uint64 previousDuration, uint64 newDuration)
+```
+
+Emitted when the deposit lock duration is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| previousDuration | uint64 | The previous lock duration, in seconds. |
+| newDuration | uint64 | The new lock duration, in seconds. |
+
+### MaxLocksPerUserSet
+
+```solidity
+event MaxLocksPerUserSet(uint256 previousMax, uint256 newMax)
+```
+
+Emitted when the cap on active locks per user is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| previousMax | uint256 | The previous per-user cap. |
+| newMax | uint256 | The new per-user cap. |
+
+### HookContainerSet
+
+```solidity
+event HookContainerSet(address previousContainer, address newContainer)
+```
+
+Emitted when the trusted hook container address is updated.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| previousContainer | address | The previously trusted container address. |
+| newContainer | address | The newly trusted container address (`address(0)` = vault-only). |
+
+### LockCreated
+
+```solidity
+event LockCreated(address user, uint256 shares, uint64 unlockTimestamp, uint64 duration)
+```
+
+Emitted when a new lock is appended for a user.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The user whose shares were locked. |
+| shares | uint256 | The amount of shares locked. |
+| unlockTimestamp | uint64 | Absolute timestamp at which the lock expires. |
+| duration | uint64 | Lock duration snapshot at creation, in seconds. |
+
+### VAULT
+
+```solidity
+contract IERC4626 VAULT
+```
+
+### MAX_LOCKS_PER_USER_CEILING
+
+```solidity
+uint256 MAX_LOCKS_PER_USER_CEILING
+```
+
+Hard upper bound on `maxLocksPerUser` enforced by `setMaxLocksPerUser`.
+
+_Sized so the worst-case O(N) per-user paths (`_cleanupExpired`, `_removePrefix`,
+     sorted-insert in `_appendLock`) stay well under the block gas limit on every
+     supported chain, leaving ample margin (~30x on a 30M block — empirical worst-case
+     sorted-insert at this ceiling measures under 1M gas) so a user can always exit
+     their position in a single transaction. Also caps the cross-user griefing surface
+     where a third party fills a victim's lock slots via on-behalf-of deposits: even at
+     the ceiling, post-expiry cleanup of all N slots fits in one tx._
+
+### depositLockDuration
+
+```solidity
+uint64 depositLockDuration
+```
+
+Duration added to `block.timestamp` for new locks. 0 disables locking for new deposits.
+
+### maxLocksPerUser
+
+```solidity
+uint256 maxLocksPerUser
+```
+
+Maximum number of *active* (non-expired) lock records per user.
+
+_Expired locks are removed during `_cleanupExpired`, so only active locks count toward
+     this cap. Checked in `_appendLock` after cleanup. Defaults to 10. Must always be
+     `0 < maxLocksPerUser <= MAX_LOCKS_PER_USER_CEILING`: `setMaxLocksPerUser(0)` reverts
+     with `ZeroMaxLocks` to prevent unbounded array growth, and values above the ceiling
+     revert with `MaxLocksPerUserAboveCeiling` so the O(N) per-user lock operations stay
+     below the block gas limit with a comfortable safety margin._
+
+### hookContainer
+
+```solidity
+address hookContainer
+```
+
+Address of the HookContainer that forwards vault hook calls. `address(0)` = vault-only.
+
+_Fully trusted: it can create locks (via `postDeposit`/`postMint`) and trigger
+     enforcement paths (via `preTransfer`/`preWithdraw`/`preRedeem`) with the same
+     authority as the vault. The owner must ensure the container preserves the same call
+     semantics and invariants as a direct vault invocation._
+
+### _totalLocked
+
+```solidity
+mapping(address => uint256) _totalLocked
+```
+
+_Cached sum of `shares` across all entries in `_locks[user]`. Equals the sum exactly
+     after `_cleanupExpired` runs; may overcount until `_cleanupExpired` is executed because
+     expired-but-not-yet-cleaned locks are still included. Modified only in `_appendLock`
+     (increment on lock creation) and `_cleanupExpired` (decrement on lock expiration).
+     Future extensions that consume locks (e.g. early unlock) must update this in lockstep._
+
+### _locks
+
+```solidity
+mapping(address => struct DepositLockHook.Lock[]) _locks
+```
+
+_Sorted queue of lock records (non-decreasing `unlockTimestamp`). After
+     `_cleanupExpired` runs the array contains only active locks starting at index 0.
+     Sorted order is maintained by `_appendLock` via sorted insertion._
+
+### constructor
+
+```solidity
+constructor(address owner_, address vault_, uint64 initialLockDuration_) public
+```
+
+Deploys the deposit-lock hook bound to a vault with an initial lock duration.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| owner_ | address | The owner authorized to manage hook configuration. |
+| vault_ | address | The vault contract that will invoke this hook. |
+| initialLockDuration_ | uint64 | Initial lock duration applied to new deposits, in seconds (0 disables locking). |
+
+### vault
+
+```solidity
+function vault() external view returns (address)
+```
+
+Returns the vault address this hook is associated with.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The vault address bound at construction. |
+
+### setDepositLockDuration
+
+```solidity
+function setDepositLockDuration(uint64 newDuration) external virtual
+```
+
+Updates the lock duration for deposits/mints executed after this call. Existing locks unchanged.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newDuration | uint64 | The new lock duration applied to subsequent deposits/mints, in seconds. |
+
+### setMaxLocksPerUser
+
+```solidity
+function setMaxLocksPerUser(uint256 newMax) external
+```
+
+Updates the cap on active lock entries per user. Reverts on `0`
+        (`ZeroMaxLocks`) and on values above `MAX_LOCKS_PER_USER_CEILING`
+        (`MaxLocksPerUserAboveCeiling`) so the per-user O(N) lock paths stay
+        below the block gas limit even under adversarial slot-fill scenarios.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newMax | uint256 | The new per-user active-lock cap. |
+
+### setHookContainer
+
+```solidity
+function setHookContainer(address container) external
+```
+
+Updates the trusted hook container that may also invoke this hook's mutating entry points.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| container | address | The new container address; `address(0)` restricts callers to the vault only. |
+
+### storedTotalLocked
+
+```solidity
+function storedTotalLocked(address user) external view returns (uint256)
+```
+
+Raw stored total locked shares. Does NOT account for expired locks.
+
+_Use `effectiveTotalLocked` for the post-expiry value._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The address whose locked total to read. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The raw cached locked-shares total (may include expired entries). |
+
+### storedLockCount
+
+```solidity
+function storedLockCount(address user) external view returns (uint256)
+```
+
+Number of stored lock entries. May include expired-but-not-yet-cleaned entries.
+
+_After `_cleanupExpired` runs this equals the active count; before that it may overcount._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The address whose lock count to read. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The number of stored lock entries. |
+
+### getStoredLock
+
+```solidity
+function getStoredLock(address user, uint256 index) external view returns (struct DepositLockHook.Lock)
+```
+
+Returns the raw stored lock at `index`. May be expired; check `unlockTimestamp`.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The address whose lock to read. |
+| index | uint256 | The index in the stored lock queue. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct DepositLockHook.Lock | The stored `Lock` entry at `index`. |
+
+### effectiveTotalLocked
+
+```solidity
+function effectiveTotalLocked(address user) external view returns (uint256)
+```
+
+Total locked shares after discounting all expired locks.
+
+_Breaks at the first non-expired entry (sorted array). Intended for off-chain / UI reads._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The address whose effective locked total to read. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The locked-shares total after simulating expiry. |
+
+### effectiveLockCount
+
+```solidity
+function effectiveLockCount(address user) external view returns (uint256)
+```
+
+Number of locks that are still active (not expired).
+
+_Breaks at the first non-expired entry (sorted array: expired entries are a prefix)._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The address whose active lock count to read. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The number of locks that have not yet expired. |
+
+### getUnlockedShares
+
+```solidity
+function getUnlockedShares(address user) external view returns (uint256)
+```
+
+Effective unlocked shares after simulating expiry of all expired locks.
+
+_Delegates to `_effectiveTotalLocked`. Intended for off-chain / UI reads._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| user | address | The address whose unlocked-share count to read. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | The number of shares free to transfer or withdraw after simulating expiry. |
+
+### preDeposit
+
+```solidity
+function preDeposit(address, uint256, uint256, address, uint256) public pure virtual
+```
+
+Invoked before a deposit is executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+|  | uint256 |  |
+|  | uint256 |  |
+|  | address |  |
+|  | uint256 |  |
+
+### preMint
+
+```solidity
+function preMint(address, uint256, uint256, address, uint256) public pure virtual
+```
+
+Invoked before a mint is executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+|  | uint256 |  |
+|  | uint256 |  |
+|  | address |  |
+|  | uint256 |  |
+
+### postDeposit
+
+```solidity
+function postDeposit(address, uint256, uint256 shares, address receiver, uint256) public virtual
+```
+
+Appends a new lock entry for the deposit receiver.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+|  | uint256 |  |
+| shares | uint256 | The amount of shares minted by the deposit (locked from here). |
+| receiver | address | The address that received the minted shares. |
+|  | uint256 |  |
+
+### postMint
+
+```solidity
+function postMint(address, uint256, uint256 shares, address receiver, uint256) public virtual
+```
+
+Appends a new lock entry for the mint receiver.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+|  | uint256 |  |
+| shares | uint256 | The amount of shares minted (locked from here). |
+| receiver | address | The address that received the minted shares. |
+|  | uint256 |  |
+
+### postWithdraw
+
+```solidity
+function postWithdraw(address, uint256, uint256, address, uint256) public pure virtual
+```
+
+Invoked after a withdraw has been executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+|  | uint256 |  |
+|  | uint256 |  |
+|  | address |  |
+|  | uint256 |  |
+
+### postRedeem
+
+```solidity
+function postRedeem(address, uint256, uint256, address, uint256) public pure virtual
+```
+
+Invoked after a redeem has been executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+|  | uint256 |  |
+|  | uint256 |  |
+|  | address |  |
+|  | uint256 |  |
+
+### preTransfer
+
+```solidity
+function preTransfer(address, address from, address, uint256 shares) public virtual
+```
+
+Rejects transfers that would move locked shares.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+| from | address | The address whose shares are being transferred. |
+|  | address |  |
+| shares | uint256 | The amount of shares being moved. |
+
+### postTransfer
+
+```solidity
+function postTransfer(address, address, address, uint256) public pure virtual
+```
+
+Invoked after a share transfer has been executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+|  | address |  |
+|  | address |  |
+|  | uint256 |  |
+
+### preWithdraw
+
+```solidity
+function preWithdraw(address, uint256, uint256 shares, address, address owner, uint256) public virtual
+```
+
+Rejects withdrawals that would consume locked shares.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+|  | uint256 |  |
+| shares | uint256 | The amount of shares the withdraw is expected to burn. |
+|  | address |  |
+| owner | address | The share owner whose shares would be burned. |
+|  | uint256 |  |
+
+### preRedeem
+
+```solidity
+function preRedeem(address, uint256, uint256 shares, address, address owner, uint256) public virtual
+```
+
+Rejects redemptions that would consume locked shares.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+|  | address |  |
+|  | uint256 |  |
+| shares | uint256 | The amount of shares being redeemed. |
+|  | address |  |
+| owner | address | The share owner whose shares would be burned. |
+|  | uint256 |  |
+
+### onlyVaultOrHookContainer
+
+```solidity
+modifier onlyVaultOrHookContainer()
+```
+
+### _appendLock
+
+```solidity
+function _appendLock(address user, uint256 shares) internal
+```
+
+### _cleanupExpired
+
+```solidity
+function _cleanupExpired(address user) internal
+```
+
+_Removes the expired prefix. Because the array is sorted by `unlockTimestamp`
+     (maintained by `_appendLock`), all expired entries precede all active ones.
+     Subtracts expired shares from `_totalLocked`, shifts active entries to index 0,
+     and pops excess slots. Cost is O(expired) reads + O(active) writes, bounded by
+     `maxLocksPerUser`._
+
+### _removePrefix
+
+```solidity
+function _removePrefix(address user, uint256 prefixLen) internal
+```
+
+_Shifts entries after `prefixLen` to index 0 and pops excess slots. Deletes the
+     entire array when `prefixLen == length`. Used by `_cleanupExpired` (base) and
+     `earlyUnlock` (extension) to avoid duplicating the shift-and-pop logic._
+
+### _requireUnlocked
+
+```solidity
+function _requireUnlocked(address owner, uint256 shares) internal
+```
+
+### _effectiveTotalLocked
+
+```solidity
+function _effectiveTotalLocked(address user) internal view returns (uint256)
+```
+
+_Breaks at the first non-expired entry (sorted array: expired entries are a prefix).
+     No storage writes._
+

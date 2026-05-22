@@ -6,7 +6,7 @@ module: 'interfaces'
 scope: 'core'
 source_refs:
   - 'src/interface/IHook.sol'
-last_reviewed: '2026-05-15'
+last_reviewed: '2026-05-22'
 mechanics:
   - 'vault-hooks'
 ---
@@ -26,16 +26,30 @@ struct Hooks {
 ## IHook
 
 Optional pre/post action hook surface invoked by the vault around deposit, mint,
-        withdraw, and redeem operations.
+        withdraw, redeem, and transfer operations.
 
-_Hook contracts are registered via `setHooks` on the vault. Each call carries the
-     pre-operation `totalAssets` of the vault so hooks can perform supply/price checks
+_Hook contracts are registered via `setHooks` on the vault. Each user-action call carries
+     the pre-operation `totalAssets` of the vault so hooks can perform supply/price checks
      without recomputing it. Hooks may revert to block the underlying ERC-4626 operation._
+
+### vault
+
+```solidity
+function vault() external view returns (address)
+```
+
+Address of the vault that owns this hook.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The vault address bound to this hook at construction. |
 
 ### preDeposit
 
 ```solidity
-function preDeposit(address sender, uint256 assets, address receiver, uint256 totalAssets) external
+function preDeposit(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) external
 ```
 
 Invoked before a deposit is executed.
@@ -46,13 +60,14 @@ Invoked before a deposit is executed.
 | ---- | ---- | ----------- |
 | sender | address | The caller initiating the deposit. |
 | assets | uint256 | The asset amount being deposited. |
+| shares | uint256 | The amount of shares the deposit is expected to mint. |
 | receiver | address | The address that will receive the minted shares. |
 | totalAssets | uint256 | The vault's `totalAssets()` evaluated before the deposit. |
 
 ### preMint
 
 ```solidity
-function preMint(address sender, uint256 shares, address receiver, uint256 totalAssets) external
+function preMint(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) external
 ```
 
 Invoked before a mint is executed.
@@ -62,6 +77,7 @@ Invoked before a mint is executed.
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | sender | address | The caller initiating the mint. |
+| assets | uint256 | The asset amount the mint is expected to pull from the caller. |
 | shares | uint256 | The amount of shares being minted. |
 | receiver | address | The address that will receive the minted shares. |
 | totalAssets | uint256 | The vault's `totalAssets()` evaluated before the mint. |
@@ -69,7 +85,7 @@ Invoked before a mint is executed.
 ### preWithdraw
 
 ```solidity
-function preWithdraw(address sender, uint256 assets, address receiver, address owner, uint256 totalAssets) external
+function preWithdraw(address sender, uint256 assets, uint256 shares, address receiver, address owner, uint256 totalAssets) external
 ```
 
 Invoked before a withdraw is executed.
@@ -80,6 +96,7 @@ Invoked before a withdraw is executed.
 | ---- | ---- | ----------- |
 | sender | address | The caller initiating the withdraw. |
 | assets | uint256 | The asset amount being withdrawn. |
+| shares | uint256 | The amount of shares the withdraw is expected to burn. |
 | receiver | address | The address that will receive the assets. |
 | owner | address | The share owner whose shares will be burned. |
 | totalAssets | uint256 | The vault's `totalAssets()` evaluated before the withdraw. |
@@ -87,7 +104,7 @@ Invoked before a withdraw is executed.
 ### preRedeem
 
 ```solidity
-function preRedeem(address sender, uint256 shares, address receiver, address owner, uint256 totalAssets) external
+function preRedeem(address sender, uint256 assets, uint256 shares, address receiver, address owner, uint256 totalAssets) external
 ```
 
 Invoked before a redeem is executed.
@@ -97,6 +114,7 @@ Invoked before a redeem is executed.
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | sender | address | The caller initiating the redeem. |
+| assets | uint256 | The asset amount the redeem is expected to pay out. |
 | shares | uint256 | The amount of shares being redeemed. |
 | receiver | address | The address that will receive the assets. |
 | owner | address | The share owner whose shares will be burned. |
@@ -173,4 +191,38 @@ Invoked after a redeem has been executed.
 | shares | uint256 | The amount of shares that were burned. |
 | receiver | address | The address that received the assets. |
 | totalAssets | uint256 | The vault's `totalAssets()` evaluated after the redeem. |
+
+### preTransfer
+
+```solidity
+function preTransfer(address sender, address from, address to, uint256 shares) external
+```
+
+Invoked before a share transfer is executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller initiating the transfer (typically the ERC-20 caller). |
+| from | address | The address whose shares are being transferred. |
+| to | address | The address that will receive the shares. |
+| shares | uint256 | The amount of shares being moved. |
+
+### postTransfer
+
+```solidity
+function postTransfer(address sender, address from, address to, uint256 shares) external
+```
+
+Invoked after a share transfer has been executed.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| sender | address | The caller that initiated the transfer. |
+| from | address | The address whose shares were transferred. |
+| to | address | The address that received the shares. |
+| shares | uint256 | The amount of shares that were moved. |
 

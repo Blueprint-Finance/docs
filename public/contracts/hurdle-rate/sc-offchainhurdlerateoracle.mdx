@@ -6,7 +6,7 @@ module: 'oracle'
 scope: 'hurdle-rate'
 source_refs:
   - 'src/oracle/OffchainHurdleRateOracle.sol'
-last_reviewed: '2026-05-15'
+last_reviewed: '2026-05-22'
 mechanics:
   - 'hurdle-rate'
 ---
@@ -108,6 +108,14 @@ error StaleRate(uint256 lastUpdate, uint256 maxStaleness)
 ```
 
 _Reverts on `getHurdleRate` when the stored rate is older than `maxStaleness`._
+
+### MaxStalenessTooHigh
+
+```solidity
+error MaxStalenessTooHigh(uint256 value, uint256 max)
+```
+
+_Reverts when `setMaxStaleness` is called with a value greater than the allowed ceiling._
 
 ### constructor
 

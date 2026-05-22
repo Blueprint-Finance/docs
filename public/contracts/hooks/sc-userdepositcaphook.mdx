@@ -6,7 +6,7 @@ module: 'periphery'
 scope: 'hooks'
 source_refs:
   - 'src/periphery/hooks/UserDepositCapHook.sol'
-last_reviewed: '2026-05-15'
+last_reviewed: '2026-05-22'
 mechanics:
   - 'deposit-limits'
   - 'vault-hooks'
@@ -14,11 +14,9 @@ mechanics:
 
 ## UserDepositCapHook
 
-Pre-deposit hook that enforces a per-user deposit cap for one or more
-        vaults. Each vault has its own configurable cap (in asset units). On
-        every `preDeposit` / `preMint`, the hook converts the receiver's
-        current share balance back to assets via the vault and reverts when
-        the cumulative asset value would exceed the configured cap.
+Pre-deposit hook that enforces per-user deposit caps for a single vault
+
+_This hook is deployed per vault. It tracks cumulative deposits per user and enforces the configured cap._
 
 ### UserDepositLimitExceeded
 
@@ -26,7 +24,7 @@ Pre-deposit hook that enforces a per-user deposit cap for one or more
 error UserDepositLimitExceeded(address user, uint256 attemptedTotal, uint256 limit)
 ```
 
-_Fires when a deposit or mint would push the receiver's asset value above the cap._
+_Reverts on a deposit/mint that would push the receiver's cumulative deposit above the cap._
 
 ### InvalidLimit
 
@@ -34,7 +32,7 @@ _Fires when a deposit or mint would push the receiver's asset value above the ca
 error InvalidLimit(uint256 limit)
 ```
 
-_Reserved for invalid cap values (not currently emitted by this contract)._
+_Reverts when a configured deposit cap is invalid (e.g. zero)._
 
 ### ZeroAddress
 
@@ -42,157 +40,168 @@ _Reserved for invalid cap values (not currently emitted by this contract)._
 error ZeroAddress()
 ```
 
-_Fires when a zero address is supplied to `setVaultDepositCap`._
+_Reverts when an address argument is the zero address._
 
-### VaultDepositCapSet
+### DepositCapSet
 
 ```solidity
-event VaultDepositCapSet(address vault, uint256 oldCap, uint256 newCap)
+event DepositCapSet(uint256 oldCap, uint256 newCap)
 ```
 
-Emitted when the per-user deposit cap for a vault is updated.
+Emitted when the per-user deposit cap is updated.
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| vault | address | The vault whose cap was changed. |
-| oldCap | uint256 | Previous cap value, in asset units. |
-| newCap | uint256 | New cap value, in asset units. |
+| oldCap | uint256 | The previous cap value, in asset terms. |
+| newCap | uint256 | The new cap value, in asset terms. |
 
-### userDepositCapByVault
+### VAULT
 
 ```solidity
-mapping(address => uint256) userDepositCapByVault
+contract IERC4626 VAULT
 ```
 
-Per-user deposit cap for each vault, in asset units.
+The vault this hook is associated with
 
-_Maps vault address to the cap that applies to each user in that vault._
+### userDepositCap
+
+```solidity
+uint256 userDepositCap
+```
+
+Per-user deposit cap for this vault (in asset terms)
 
 ### constructor
 
 ```solidity
-constructor(address _owner) public
+constructor(address _owner, address _vault) public
 ```
 
-Deploys the hook and assigns ownership.
+Initializes the hook
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _owner | address | The owner address that can manage vault caps. |
+| _owner | address | The owner address that can manage vault caps |
+| _vault | address | The vault address this hook is associated with |
 
-### setVaultDepositCap
+### vault
 
 ```solidity
-function setVaultDepositCap(address _vault, uint256 _depositCap) external
+function vault() external view returns (address)
 ```
 
-Sets the per-user deposit cap for a specific vault. Owner only.
+Returns the vault address this hook is associated with.
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | address | The vault address bound at construction. |
+
+### setDepositCap
+
+```solidity
+function setDepositCap(uint256 _depositCap) external
+```
+
+Sets the per-user deposit cap for this vault
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _vault | address | The vault address to configure. |
-| _depositCap | uint256 | The per-user deposit cap in asset units. |
+| _depositCap | uint256 | The deposit cap for each user (in asset terms) |
 
 ### getUserDepositCap
 
 ```solidity
-function getUserDepositCap(address _vault) public view returns (uint256)
+function getUserDepositCap() public view returns (uint256)
 ```
 
-Returns the per-user deposit cap configured for a specific vault.
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _vault | address | The vault address. |
+Gets the per-user deposit cap for this vault
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | uint256 | The deposit cap that applies to each user in this vault, in asset units. |
+| [0] | uint256 | The deposit cap that applies to each user |
 
 ### canUserDeposit
 
 ```solidity
-function canUserDeposit(address _vault, address _user, uint256 _additionalAssets) external view returns (bool)
+function canUserDeposit(address _user, uint256 _additionalAssets) external view returns (bool)
 ```
 
-Checks whether a user can deposit a given asset amount into a vault.
-        Reverts with `UserDepositLimitExceeded` when the deposit would breach the cap.
+Checks if a user can deposit a given amount into this vault
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _vault | address | The vault address to check against. |
-| _user | address | The user (receiver) address. |
-| _additionalAssets | uint256 | The amount of assets to deposit. |
+| _user | address | The user (receiver) address |
+| _additionalAssets | uint256 | The amount of assets to deposit |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | bool | True when the deposit is permitted; reverts otherwise. |
+| [0] | bool | true if the user can deposit, reverts if the user cannot deposit |
 
 ### preDeposit
 
 ```solidity
-function preDeposit(address sender, uint256 assets, address receiver, uint256 totalAssets) public view virtual
+function preDeposit(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) public view virtual
 ```
 
-Pre-deposit hook. Reverts when the deposit would breach the
-        per-user cap configured for the calling vault (`msg.sender`).
+Pre-deposit hook - validates deposit against user limit
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| sender | address | The address initiating the deposit at the vault. |
-| assets | uint256 | The amount of assets being deposited. |
-| receiver | address | The address that will receive the vault shares. |
-| totalAssets | uint256 | The total assets in the vault before this deposit. |
+| sender | address | The address initiating the deposit |
+| assets | uint256 | The amount of assets being deposited |
+| shares | uint256 | The amount of shares being minted |
+| receiver | address | The address that will receive the vault shares |
+| totalAssets | uint256 | The total assets in the vault before this deposit |
 
 ### preMint
 
 ```solidity
-function preMint(address sender, uint256 shares, address receiver, uint256 totalAssets) public view virtual
+function preMint(address sender, uint256 assets, uint256 shares, address receiver, uint256 totalAssets) public view virtual
 ```
 
-Pre-mint hook. Reverts when the asset-equivalent of the mint
-        would breach the per-user cap for the calling vault.
+Pre-mint hook - validates mint against user limit
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| sender | address | The address initiating the mint at the vault. |
-| shares | uint256 | The amount of shares being minted. |
-| receiver | address | The address that will receive the vault shares. |
-| totalAssets | uint256 | The total assets in the vault before this mint. |
+| sender | address | The address initiating the mint |
+| assets | uint256 | The amount of assets to be deposited |
+| shares | uint256 | The amount of shares being minted |
+| receiver | address | The address that will receive the vault shares |
+| totalAssets | uint256 | The total assets in the vault before this mint |
 
 ### preWithdraw
 
 ```solidity
-function preWithdraw(address, uint256, address, address, uint256) public pure virtual
+function preWithdraw(address, uint256, uint256, address, address, uint256) public pure virtual
 ```
 
-Pre-withdraw hook — not implemented by this hook.
+Pre-withdraw hook - not implemented
 
 ### preRedeem
 
 ```solidity
-function preRedeem(address, uint256, address, address, uint256) public pure virtual
+function preRedeem(address, uint256, uint256, address, address, uint256) public pure virtual
 ```
 
-Pre-redeem hook — not implemented by this hook.
+Pre-redeem hook - not implemented
 
 ### postDeposit
 
@@ -200,7 +209,7 @@ Pre-redeem hook — not implemented by this hook.
 function postDeposit(address, uint256, uint256, address, uint256) public pure virtual
 ```
 
-Post-deposit hook — not implemented by this hook.
+Post-deposit hook - not implemented
 
 ### postMint
 
@@ -208,7 +217,7 @@ Post-deposit hook — not implemented by this hook.
 function postMint(address, uint256, uint256, address, uint256) public pure virtual
 ```
 
-Post-mint hook — not implemented by this hook.
+Post-mint hook - not implemented
 
 ### postWithdraw
 
@@ -216,7 +225,7 @@ Post-mint hook — not implemented by this hook.
 function postWithdraw(address, uint256, uint256, address, uint256) public pure virtual
 ```
 
-Post-withdraw hook — not implemented by this hook.
+Post-withdraw hook - not implemented
 
 ### postRedeem
 
@@ -224,21 +233,36 @@ Post-withdraw hook — not implemented by this hook.
 function postRedeem(address, uint256, uint256, address, uint256) public pure virtual
 ```
 
-Post-redeem hook — not implemented by this hook.
+Post-redeem hook - not implemented
+
+### preTransfer
+
+```solidity
+function preTransfer(address, address, address, uint256) public pure virtual
+```
+
+Pre-transfer hook - not implemented
+
+### postTransfer
+
+```solidity
+function postTransfer(address, address, address, uint256) public pure virtual
+```
+
+Post-transfer hook - not implemented
 
 ### _checkDepositLimit
 
 ```solidity
-function _checkDepositLimit(contract IERC4626 _vault, address _receiver, uint256 _additionalAssets) internal view
+function _checkDepositLimit(address _receiver, uint256 _additionalAssets) internal view
 ```
 
-Internal function to check if a deposit would exceed the vault's cap
+Internal function to check if a deposit would exceed the user's cap
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _vault | contract IERC4626 | The vault address (msg.sender in hook context) |
 | _receiver | address | The address that will receive the shares |
 | _additionalAssets | uint256 | The amount of assets being added |
 
