@@ -220,7 +220,7 @@
     "name": "Stable",
     "version": "v2",
     "network": "Stable",
-    "implementation": 1,
+    "implementation": null,
     "deprecated": true
   },
   {
