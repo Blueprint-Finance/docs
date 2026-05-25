@@ -204,7 +204,7 @@
     "name": "Stable Pre-Deposit",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 3,
     "deprecated": true
   },
   {
@@ -212,7 +212,7 @@
     "name": "Concrete DeFi USDT",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 7,
     "deprecated": false
   },
   {
@@ -220,7 +220,7 @@
     "name": "Stable",
     "version": "v2",
     "network": "Stable",
-    "implementation": null,
+    "implementation": 1,
     "deprecated": true
   },
   {
@@ -228,7 +228,7 @@
     "name": "WeETH Vault",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 5,
     "deprecated": false
   },
   {
@@ -236,7 +236,7 @@
     "name": "Theo USDC",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 4,
     "deprecated": true
   },
   {
