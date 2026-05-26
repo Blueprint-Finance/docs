@@ -204,7 +204,7 @@
     "name": "Stable Pre-Deposit",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 3,
     "deprecated": true
   },
   {
@@ -212,7 +212,7 @@
     "name": "Concrete DeFi USDT",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 7,
     "deprecated": false
   },
   {
