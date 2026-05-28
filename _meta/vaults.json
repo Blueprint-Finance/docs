@@ -268,7 +268,7 @@
     "name": "sEIGEN",
     "version": "v1",
     "network": "",
-    "implementation": null,
+    "implementation": 1,
     "deprecated": true
   },
   {
@@ -276,7 +276,7 @@
     "name": "frxUSD+",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 6,
     "deprecated": false
   }
 ]
