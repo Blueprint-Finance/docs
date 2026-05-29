@@ -204,7 +204,7 @@
     "name": "Stable Pre-Deposit",
     "version": "v2",
     "network": "",
-    "implementation": 3,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -212,7 +212,7 @@
     "name": "Concrete DeFi USDT",
     "version": "v2",
     "network": "",
-    "implementation": 7,
+    "implementation": null,
     "deprecated": false
   },
   {
@@ -220,7 +220,7 @@
     "name": "Stable",
     "version": "v2",
     "network": "Stable",
-    "implementation": 1,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -228,7 +228,7 @@
     "name": "WeETH Vault",
     "version": "v2",
     "network": "",
-    "implementation": 5,
+    "implementation": null,
     "deprecated": false
   },
   {
@@ -236,7 +236,7 @@
     "name": "Theo USDC",
     "version": "v2",
     "network": "",
-    "implementation": 4,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -244,7 +244,7 @@
     "name": "Theo USDC Arbitrum",
     "version": "v2",
     "network": "Arbitrum",
-    "implementation": 4,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -252,7 +252,7 @@
     "name": "Theo thBILL Arbitrum",
     "version": "v2",
     "network": "Arbitrum",
-    "implementation": 4,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -260,7 +260,7 @@
     "name": "Theo thBILL Stable",
     "version": "v2",
     "network": "Stable",
-    "implementation": 1,
+    "implementation": null,
     "deprecated": true
   },
   {
