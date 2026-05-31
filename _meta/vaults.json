@@ -204,7 +204,7 @@
     "name": "Stable Pre-Deposit",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 3,
     "deprecated": true
   },
   {
@@ -236,7 +236,7 @@
     "name": "Theo USDC",
     "version": "v2",
     "network": "",
-    "implementation": 4,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -252,7 +252,7 @@
     "name": "Theo thBILL Arbitrum",
     "version": "v2",
     "network": "Arbitrum",
-    "implementation": null,
+    "implementation": 4,
     "deprecated": true
   },
   {
@@ -268,7 +268,7 @@
     "name": "sEIGEN",
     "version": "v1",
     "network": "",
-    "implementation": null,
+    "implementation": 1,
     "deprecated": true
   },
   {
@@ -276,7 +276,7 @@
     "name": "frxUSD+",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 6,
     "deprecated": false
   }
 ]
