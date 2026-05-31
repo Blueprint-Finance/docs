@@ -236,7 +236,7 @@
     "name": "Theo USDC",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 4,
     "deprecated": true
   },
   {
