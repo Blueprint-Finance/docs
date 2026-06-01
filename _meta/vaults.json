@@ -212,7 +212,7 @@
     "name": "Concrete DeFi USDT",
     "version": "v2",
     "network": "",
-    "implementation": 7,
+    "implementation": null,
     "deprecated": false
   },
   {
