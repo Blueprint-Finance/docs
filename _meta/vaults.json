@@ -196,7 +196,7 @@
     "name": "WBTC Vault",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 7,
     "deprecated": false
   },
   {
@@ -204,7 +204,7 @@
     "name": "Stable Pre-Deposit",
     "version": "v2",
     "network": "",
-    "implementation": 3,
+    "implementation": null,
     "deprecated": true
   },
   {
