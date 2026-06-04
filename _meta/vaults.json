@@ -252,7 +252,7 @@
     "name": "Theo thBILL Arbitrum",
     "version": "v2",
     "network": "Arbitrum",
-    "implementation": 4,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -260,7 +260,7 @@
     "name": "Theo thBILL Stable",
     "version": "v2",
     "network": "Stable",
-    "implementation": 1,
+    "implementation": null,
     "deprecated": true
   },
   {
@@ -268,7 +268,7 @@
     "name": "sEIGEN",
     "version": "v1",
     "network": "",
-    "implementation": 1,
+    "implementation": null,
     "deprecated": true
   },
   {
