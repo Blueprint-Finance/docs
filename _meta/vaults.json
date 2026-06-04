@@ -228,7 +228,7 @@
     "name": "WeETH Vault",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 5,
     "deprecated": false
   },
   {
@@ -236,7 +236,7 @@
     "name": "Theo USDC",
     "version": "v2",
     "network": "",
-    "implementation": null,
+    "implementation": 4,
     "deprecated": true
   },
   {
@@ -276,7 +276,7 @@
     "name": "frxUSD+",
     "version": "v2",
     "network": "",
-    "implementation": 6,
+    "implementation": null,
     "deprecated": false
   }
 ]
