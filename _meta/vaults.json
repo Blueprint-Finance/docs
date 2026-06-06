@@ -188,7 +188,7 @@
     "name": "Arbitrum Drip Vault",
     "version": "v1",
     "network": "Arbitrum",
-    "implementation": null,
+    "implementation": 1,
     "deprecated": true
   },
   {
@@ -204,7 +204,7 @@
     "name": "Stable Pre-Deposit",
     "version": "v2",
     "network": "",
-    "implementation": 3,
+    "implementation": null,
     "deprecated": true
   },
   {
